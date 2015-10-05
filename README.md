@@ -1,6 +1,6 @@
 # chengzhycn.github.io
 
-[visit the blog](hengzhycn.github.io)
+click [here](chengzhycn.github.io) to visit the blog
 
 ## Abstract
 
