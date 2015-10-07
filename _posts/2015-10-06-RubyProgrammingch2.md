@@ -10,7 +10,7 @@ excerpt: study notes about RubyProgramming
 {:toc}
 
 ## 基本概念
-
+---
 *   类 class
 *   状态 state
 *   方法 method
@@ -22,7 +22,7 @@ excerpt: study notes about RubyProgramming
 *   实例方法 instance method
 
 ## ruby变量命名规则
-
+---
 *   局部变量、方法参数、方法名称必须以小写字母或下划线开始。
 *   全局变量都有$为前缀。
 *   实例变量以@开始。
@@ -33,12 +33,13 @@ excerpt: study notes about RubyProgramming
 *   方法名称可以以?、!、=字符结束。
 
 ## 数组和散列表
-
+---
 *   数组(arrays)用[]，散列表(hashes)用{}。
 *   数组用整数做索引，散列表支持以任何对象做为键(key)。
 *   散列表也用方括号表示法包括键来进行索引。
 
 ## 控制结构
+---
 *   如果if 和 while 语句的程序体只是一个表达式，可以使用Ruby的**语句修饰符**。
    
         if radiation > 3000  
@@ -50,7 +51,7 @@ excerpt: study notes about RubyProgramming
         puts "Danger, will Robinson" if radiation > 3000
 
 ## 正则表达式
-
+---
 *   在Ruby中，通常在斜线间创建正则表达式：
 
         /Perl|Python/
@@ -87,7 +88,7 @@ excerpt: study notes about RubyProgramming
          => "Ruby, Ruby, Ruby and Ruby" 
 
 ## Block和迭代器
-
+---
 *   Block是一种可以和方法调用相关联的代码块，可以实现**回调，传递一组代码，实现迭代器**，是Ruby的一个独特特性。
 *   约定俗成，单行block用花括号，多行block用do/end。
 
@@ -106,7 +107,7 @@ excerpt: study notes about RubyProgramming
 *   在Ruby库中大量使用了block来实现迭代器。
 
 ## 读写文件
-
+---
 *   puts输出它的参数，并在每个参数后面添加回车换行符；print输出它的参数，但不会添加回车换行符；printf在一个格式化字符串控制下打印它的参数，类似于C中的printf：
 
         1.9.3-p551 :026 > printf("Number : %5.2f, \nString: %s\n", 1.23, "hello")
@@ -116,7 +117,7 @@ excerpt: study notes about RubyProgramming
 *   gets从程序的标准输入流中读取下一行。
 
 ## 其它
-
+---
 *   Ruby对单引号字符串处理得很少，除了极少一些例外，键入到字符串字面量的内容就构成了这个字符串的值；而对双引号字符串有更多的处理。首先，它寻找反斜线开始的序列，并用二进制值替换它们；字符串内的表达式内插 #{表达式}序列会被表达式的值给替换。
 *   Ruby方法缩返回的值，是最后一个被求值的表达式的值。
 
