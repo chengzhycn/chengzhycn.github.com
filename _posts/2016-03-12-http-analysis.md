@@ -119,21 +119,28 @@ RedHat/CentOS:
 
 ## 使用n2disk进行高速抓包
 
-### TODO
+n2disk 是
 
 ## 安装bro
 
 ### 安装依赖库
 
-    yum install cmake make gcc gcc-c++ flex bison libpcap-devel openssl-devel python-devel swig zlib-devel
+* RPM/RedHat-based Linux:
+        yum install cmake make gcc gcc-c++ flex bison libpcap-devel openssl-devel python-devel swig zlib-devel
+* DEB/Debian-based Linux:
+        sudo apt-get install cmake make gcc g++ flex bison libpcap-dev libssl-dev python-dev swig zlib1g-dev
     
 ### 下载bro源码
 
 从官网上可以获取最新的bro release源码，也可以从其git repo里拷贝最新的development version。
 
-官方下载链接：[https://www.bro.org/download/index.html](https://www.bro.org/download/index.html)
+* 官方下载链接：[https://www.bro.org/download/index.html](https://www.bro.org/download/index.html)
 
-github网址：[https://github.com/bro/bro](https://github.com/bro/bro)
+* github网址：[https://github.com/bro/bro](https://github.com/bro/bro)
+
+* 官网document给出的git地址，推荐使用该命令：
+
+        git clone --recursive git://git.bro.org/bro
     
 ### 编译安装bro
 
@@ -148,7 +155,8 @@ github网址：[https://github.com/bro/bro](https://github.com/bro/bro)
 
 添加环境变量
 
-    echo 'export PATH=/usr/local/bro/bin:$PATH' >> ~/.bash_profile
+    echo 'export PATH=/usr/local/bro/bin:$PATH' >> ~/.bash_profile  # RPM/RedHat-based Linux
+    echo 'export PATH=/usr/local/bro/bin:$PATH' >> ~/.bash_profile  # DEB/Debian-based Linux    
     source ~/.bash_profile
 
 至此，bro的基本环境配置完成，安装根目录为
