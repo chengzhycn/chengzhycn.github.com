@@ -125,9 +125,9 @@ n2disk 是
 
 ### 安装依赖库
 
-* RPM/RedHat-based Linux:
+    RPM/RedHat-based Linux:
         yum install cmake make gcc gcc-c++ flex bison libpcap-devel openssl-devel python-devel swig zlib-devel
-* DEB/Debian-based Linux:
+    DEB/Debian-based Linux:
         sudo apt-get install cmake make gcc g++ flex bison libpcap-dev libssl-dev python-dev swig zlib1g-dev
     
 ### 下载bro源码
