@@ -1,7 +1,7 @@
 ---
 layout: post
 title:  "X11 forwarding request failed on channel 0"
-date:   2016-05-14 23:23:00
+date:   2016-05-14 17:23:00
 categories: Linux
 excerpt:    Linux packets transport
 ---
