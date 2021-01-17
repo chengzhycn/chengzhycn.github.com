@@ -11,6 +11,15 @@
     
     
     <item>
+      <title>Kubeadm安装集群</title>
+      <link>https://chengzhycn.github.io/2021/01/kubeadm/</link>
+      <pubDate>Sun, 17 Jan 2021 22:12:37 +0800</pubDate>
+      
+      <guid>https://chengzhycn.github.io/2021/01/kubeadm/</guid>
+      <description>containerd 安装containerd https://kubernetes.io/docs/setup/production-environment/container-runtimes/#containerd # (Install containerd) ## Set up the repository ### Install required packages sudo yum install -y yum-utils device-mapper-persistent-data lvm2 ## Add docker repository sudo yum-config-manager \ --add-repo \ https://download.docker.com/linux/centos/docker-ce.repo ## Install containerd sudo yum install -y containerd.io ## Configure containerd sudo mkdir -p /etc/containerd sudo containerd config default | sudo tee /etc/containerd/config.toml # Restart containerd sudo</description>
+    </item>
+    
+    <item>
       <title>Dns Zone Files</title>
       <link>https://chengzhycn.github.io/2021/01/dns-zone-files/</link>
       <pubDate>Sun, 03 Jan 2021 10:18:55 +0800</pubDate>
