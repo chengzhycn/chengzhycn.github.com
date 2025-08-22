@@ -1,2 +1,0 @@
-User-agent: *
-Sitemap: https://chengzhycn.github.io/sitemap.xml

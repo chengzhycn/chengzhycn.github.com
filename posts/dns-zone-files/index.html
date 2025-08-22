@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  
+    <title>Dns Zone Files :: Terminal</title>
+  
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="CNAME 记录 记录格式 bar.example.com.	CNAME	foo.example.com. foo.example.com.	A	192.168.0.1 CNAME 记录的限制 如果一个 domain name 有了一个 CNAME 记录，那么它不能再拥有其它类型的记录 CNAME 记录必须指向另外一个 domain name，而不是一个 IP CNAME 记录最好不要指向另外一个 CNAME 记录 MX 和 NS 记录不能指向一个 CNAME 记录 SRV 记录 type code：33
+记录格式 _service._protocol.name. TTL class SRV priority weight port target. _sip._tcp.example.com. 86400 IN SRV 0 5 5060 sipserver.example.com. _service: 服务名称 symbolic name protocol: 协议 name: domain name，以 . 结束 priority: 条目优先级, 值越低优先级越高 weight: 同样优先级内不同条目的权重 target: canonical hostname，以 . 结束 如果是一个 MX 记录，那么 target 需要是一个 IP 地址（A 或者 AAAA）而不是 CNAME SOA 记录 start of authority, 一个权威的起始
+" />
+<meta name="keywords" content="" />
+
+  <meta name="robots" content="noodp" />
+
+<link rel="canonical" href="https://chengzhycn.github.io/posts/dns-zone-files/" />
+
+
+
+
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/buttons.min.86f6b4c106b6c6eb690ae5203d36b442c1f66f718ff4e8164fa86cf6c61ad641.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/code.min.d529ea4b2fb8d34328d7d31afc5466d5f7bc2f0bc9abdd98b69385335d7baee4.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/fonts.min.5bb7ed13e1d00d8ff39ea84af26737007eb5051b157b86fc24487c94f3dc8bbe.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/footer.min.eb8dfc2c6a7eafa36cd3ba92d63e69e849e2200e0002a228d137f236b09ecd75.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/gist.min.a751e8b0abe1ba8bc53ced52a38b19d8950fe78ca29454ea8c2595cf26aad5c0.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/header.min.75c7eb0e2872d95ff48109c6647d0223a38db52e2561dd87966eb5fc7c6bdac6.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/main.min.775ac2af004d44c22a6d000fbd1d9af529642f5cef27399d0280d180af2c2e9b.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/menu.min.310d32205bdedd6f43144e3c3273c9deecd238eba5f9108db5ea96ca0cfbe377.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/pagination.min.bbb986dbce00a5ce5aca0504b7925fc1c581992a4bf57f163e5d69cc1db7d836.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/post.min.ad50c7f4d00e7975918f37fc74c6029e1959a40d66fb5b2c6564a8715e985573.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/syntax.min.e9ab635cf918bc84b901eb65c0b2caa74c9544245e3647c1af5c129896ef276e.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/terminal.min.e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/terms.min.b81791663c3790e738e571cdbf802312390d30e4b1d8dc9d814a5b5454d0ac11.css">
+
+
+
+
+
+
+
+<link rel="shortcut icon" href="https://chengzhycn.github.io/favicon.png">
+<link rel="apple-touch-icon" href="https://chengzhycn.github.io/apple-touch-icon.png">
+
+
+<meta name="twitter:card" content="summary" />
+
+  
+    <meta name="twitter:site" content="" />
+  
+    <meta name="twitter:creator" content="" />
+
+
+
+<meta property="og:locale" content="en" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="Dns Zone Files">
+<meta property="og:description" content="CNAME 记录 记录格式 bar.example.com.	CNAME	foo.example.com. foo.example.com.	A	192.168.0.1 CNAME 记录的限制 如果一个 domain name 有了一个 CNAME 记录，那么它不能再拥有其它类型的记录 CNAME 记录必须指向另外一个 domain name，而不是一个 IP CNAME 记录最好不要指向另外一个 CNAME 记录 MX 和 NS 记录不能指向一个 CNAME 记录 SRV 记录 type code：33
+记录格式 _service._protocol.name. TTL class SRV priority weight port target. _sip._tcp.example.com. 86400 IN SRV 0 5 5060 sipserver.example.com. _service: 服务名称 symbolic name protocol: 协议 name: domain name，以 . 结束 priority: 条目优先级, 值越低优先级越高 weight: 同样优先级内不同条目的权重 target: canonical hostname，以 . 结束 如果是一个 MX 记录，那么 target 需要是一个 IP 地址（A 或者 AAAA）而不是 CNAME SOA 记录 start of authority, 一个权威的起始
+" />
+<meta property="og:url" content="https://chengzhycn.github.io/posts/dns-zone-files/" />
+<meta property="og:site_name" content="Terminal" />
+
+  <meta property="og:image" content="https://chengzhycn.github.io/og-image.png">
+
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="627">
+
+  <meta property="article:section" content="DNS" />
+
+  <meta property="article:section" content="Network" />
+
+  <meta property="article:section" content="Work" />
+
+
+  <meta property="article:published_time" content="2021-01-03 10:18:55 &#43;0800 CST" />
+
+
+
+
+
+
+
+
+
+
+
+
+</head>
+<body>
+
+
+<div class="container center">
+
+  <header class="header">
+  <div class="header__inner">
+    <div class="header__logo">
+      <a href="/">
+  <div class="logo">
+    Terminal
+  </div>
+</a>
+
+    </div>
+    
+      <ul class="menu menu--mobile">
+  <li class="menu__trigger">Menu&nbsp;▾</li>
+  <li>
+    <ul class="menu__dropdown">
+      
+        
+          <li><a href="/">Home</a></li>
+        
+      
+        
+          <li><a href="/about">About</a></li>
+        
+      
+        
+          <li><a href="/posts/">Archives</a></li>
+        
+      
+        
+          <li><a href="/categories/">Categories</a></li>
+        
+      
+        
+          <li><a href="/tags/">Tags</a></li>
+        
+      
+      
+    </ul>
+  </li>
+</ul>
+
+    
+    
+  </div>
+  
+    <nav class="navigation-menu">
+  <ul class="navigation-menu__inner menu--desktop">
+    
+      
+        
+          <li><a href="/" >Home</a></li>
+        
+      
+        
+          <li><a href="/about" >About</a></li>
+        
+      
+      
+        <li>
+          <ul class="menu">
+            <li class="menu__trigger">Show more&nbsp;▾</li>
+            <li>
+              <ul class="menu__dropdown">
+                
+                  
+                    <li><a href="/posts/" >Archives</a></li>
+                  
+                
+                  
+                    <li><a href="/categories/" >Categories</a></li>
+                  
+                
+                  
+                    <li><a href="/tags/" >Tags</a></li>
+                  
+                
+              </ul>
+            </li>
+          </ul>
+        </li>
+      
+    
+  </ul>
+</nav>
+
+  
+</header>
+
+
+  <div class="content">
+    
+<article class="post">
+  <h1 class="post-title">
+    <a href="https://chengzhycn.github.io/posts/dns-zone-files/">Dns Zone Files</a>
+  </h1>
+  <div class="post-meta"><time class="post-date">2021-01-03</time></div>
+
+  
+    <span class="post-tags">
+      
+      #<a href="https://chengzhycn.github.io/tags/zone/">zone</a>&nbsp;
+      
+      #<a href="https://chengzhycn.github.io/tags/dns/">dns</a>&nbsp;
+      
+    </span>
+  
+  
+
+
+  
+    <div class="table-of-contents">
+      <h2>
+        Table of Contents
+      </h2>
+      <nav id="TableOfContents">
+  <ul>
+    <li><a href="#cname-记录">CNAME 记录</a>
+      <ul>
+        <li><a href="#记录格式">记录格式</a></li>
+        <li><a href="#cname-记录的限制">CNAME 记录的限制</a></li>
+      </ul>
+    </li>
+    <li><a href="#srv-记录">SRV 记录</a>
+      <ul>
+        <li><a href="#记录格式-1">记录格式</a></li>
+      </ul>
+    </li>
+    <li><a href="#soa-记录">SOA 记录</a>
+      <ul>
+        <li><a href="#记录格式-2">记录格式</a></li>
+      </ul>
+    </li>
+    <li><a href="#zone-file">Zone file</a>
+      <ul>
+        <li><a href="#rr-格式">RR 格式</a></li>
+      </ul>
+    </li>
+    <li><a href="#反向解析-zone">反向解析 zone</a></li>
+    <li><a href="#reference">Reference</a></li>
+  </ul>
+</nav>
+    </div>
+  
+
+  <div class="post-content"><div>
+        <h2 id="cname-记录">CNAME 记录<a href="#cname-记录" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<h3 id="记录格式">记录格式<a href="#记录格式" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<pre tabindex="0"><code>bar.example.com.	CNAME	foo.example.com.
+foo.example.com.	A		192.168.0.1
+</code></pre><h3 id="cname-记录的限制">CNAME 记录的限制<a href="#cname-记录的限制" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<ol>
+<li>如果一个 domain name 有了一个 CNAME 记录，那么它不能再拥有其它类型的记录</li>
+<li>CNAME 记录必须指向另外一个 domain name，而不是一个 IP</li>
+<li>CNAME 记录最好不要指向另外一个 CNAME 记录</li>
+<li>MX 和 NS 记录不能指向一个 CNAME 记录</li>
+</ol>
+<h2 id="srv-记录">SRV 记录<a href="#srv-记录" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>type code：33</p>
+<h3 id="记录格式-1">记录格式<a href="#记录格式-1" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<pre tabindex="0"><code>_service._protocol.name. TTL class SRV priority weight port target.
+
+_sip._tcp.example.com. 86400 IN SRV 0 5 5060 sipserver.example.com.
+</code></pre><ul>
+<li>_service: 服务名称 symbolic name</li>
+<li>protocol: 协议</li>
+<li>name: domain name，以 . 结束</li>
+<li>priority: 条目优先级, 值越低优先级越高</li>
+<li>weight: 同样优先级内不同条目的权重</li>
+<li>target: canonical hostname，以 . 结束
+如果是一个 MX 记录，那么 target 需要是一个 IP 地址（A 或者 AAAA）而不是 CNAME</li>
+</ul>
+<h2 id="soa-记录">SOA 记录<a href="#soa-记录" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>start of authority, 一个权威的起始</p>
+<h3 id="记录格式-2">记录格式<a href="#记录格式-2" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<pre tabindex="0"><code>@     IN     SOA    {primary-name-server}     {hostmaster-email} (
+				{serial-number}
+				{time-to-refresh}
+				{time-to-retry}
+				{time-to-expire}
+			{minimum-TTL} )
+</code></pre><ul>
+<li><strong>primary-name-server</strong>: 拥有该 zone 原始 zone file 的 nameserver，不包括通过 AXFR 获取数据的 nameserver</li>
+<li><strong>hostmaster-email</strong>: zone 管理员的邮箱。邮箱地址内的 @ 会用 . 替代。如果地址中本身有 . ，用 / 替代</li>
+<li><strong>serial-number</strong>: zone 的 版本号。只能增不能减。如果减小或者不变可能会导致 slave XFR 更新错误</li>
+<li><strong>time-to-refresh</strong>: 用于 secondary nameserver 检测 zone 更新的周期，向 primary nameserver 发起请求。单位为秒</li>
+<li><strong>time-to-retry</strong>: 用于 secondary nameserver 更新 zone 失败后的重试周期。单位为秒</li>
+<li><strong>time-to-expire</strong>:  如果超过了这个时间 secondary nameserver 无法和 primary nameserver 建立联系，secondary nameserver 会将该 zone 认为是无效的，停止对外提供服务</li>
+<li>时间单位还可以是 M(minute)、H(hour)、D(day)、W(week)</li>
+</ul>
+<h2 id="zone-file">Zone file<a href="#zone-file" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<pre tabindex="0"><code>$ORIGIN example.com. 
+$TTL 86400 
+@	IN	SOA	dns1.example.com.	hostmaster.example.com. (
+			2001062501 ; serial                     
+			21600      ; refresh after 6 hours                     
+			3600       ; retry after 1 hour                     
+			604800     ; expire after 1 week                     
+			86400 )    ; minimum TTL of 1 day  
+		     
+		           
+	IN	NS	dns1.example.com.       
+	IN	NS	dns2.example.com.        
+	
+	
+	IN	MX	10	mail.example.com.       
+	IN	MX	20	mail2.example.com.        
+
+	
+dns1	IN	A	10.0.1.1
+dns2	IN	A	10.0.1.2	
+
+			       
+server1	IN	A	10.0.1.5        
+server2	IN	A	10.0.1.6
+
+       
+ftp	IN	A	10.0.1.3
+	IN	A	10.0.1.4
+	
+mail	IN	A	10.0.1.8
+mail2	IN	A	10.0.1.9
+
+
+www	IN	CNAME	server1
+</code></pre><ul>
+<li><code>$ORIGIN</code> example.com. 表示此 zone file 中的所有域名都是由 host label + <code>$ORIGIN</code> 组成。但是如果 host label 以 . 结束（即认为该 host label 是一个 FQDN），那么将不会扩展 <code>$ORIGIN</code></li>
+<li>一个 zone 文件中是可以存在多个 <code>$ORIGIN</code> 的，<code>$ORIGIN</code> 生效的区间是当前 <code>$ORIGIN</code> 到下一个 <code>$ORIGIN</code> 之间</li>
+<li>$TTL 表示 zone 的默认 TTL</li>
+<li>@ 所在的地方都会由 $ORIGIN 替代</li>
+<li>$ORIGIN 后面紧跟着的是 SOA 记录，记录格式见 <strong>SOA 记录</strong></li>
+<li>上面的 RR 都是用的默认 $TTL，如果需要使用特殊化的 TTL，可以写在每一条 RR 的 hostname 后面</li>
+</ul>
+<h3 id="rr-格式">RR 格式<a href="#rr-格式" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>RR 中 <!-- raw HTML omitted --> 无需添加 $ORIGIN</p>
+<h4 id="a">A<a href="#a" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<pre tabindex="0"><code>&lt;host&gt;	IN		A		&lt;IP-address&gt;
+			IN		A		&lt;IP-address-2&gt; ; 多条记录时省略 &lt;host&gt; 字段
+</code></pre><h4 id="cname">CNAME<a href="#cname" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<pre tabindex="0"><code>&lt;alias-name&gt;	IN		CNAME		&lt;real-name&gt;
+</code></pre><h4 id="mx">MX<a href="#mx" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<pre tabindex="0"><code>		IN	MX	&lt;preference-value&gt;	&lt;email-server-name&gt;
+     IN     MX     10     mail.example.com.       
+		IN     MX     20     mail2.example.com.
+</code></pre><ul>
+<li>MX 记录用于邮件服务器的解析，如给 <a href="mailto:abc@example.com">abc@example.com</a> 发送邮件，就会先发送一个 关于 example.com. 的MX 记录查询。原则上 MX 记录不能指向 CNAME 记录</li>
+<li>preference-value 用作优先级，值越小优先级越高</li>
+<li><!-- raw HTML omitted --> 可以是 hostname，也可以是 FQDN</li>
+</ul>
+<h4 id="ns">NS<a href="#ns" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<pre tabindex="0"><code>		IN     NS     &lt;nameserver-name&gt;
+		IN     NS     dns1.example.com.
+		IN     NS     dns2.example.com.
+</code></pre><ul>
+<li>该 zone 的权威解析服务器，只要是权威的都可以记录在这里，不需要管是 master 还是 slave</li>
+<li><!-- raw HTML omitted --> 需要是一个 FQDN</li>
+</ul>
+<h2 id="反向解析-zone">反向解析 zone<a href="#反向解析-zone" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<pre tabindex="0"><code>$ORIGIN 1.0.10.in-addr.arpa. 
+$TTL 86400 
+@	IN	SOA	dns1.example.com.	hostmaster.example.com. (
+			2001062501 ; serial                     
+			21600      ; refresh after 6 hours                     
+			3600       ; retry after 1 hour                     
+			604800     ; expire after 1 week                     
+			86400 )    ; minimum TTL of 1 day        
+
+
+1	IN	PTR	dns1.example.com.       
+2	IN	PTR	dns2.example.com.
+
+5	IN	PTR    server1.example.com.
+6	IN	PTR    server2.example.com.
+
+3	IN	PTR    ftp.example.com.
+4	IN	PTR    ftp.example.com.
+</code></pre><p>格式和 forward zone 基本一致，只是 PTR 记录的 target 必须是 FQDN。</p>
+<pre tabindex="0"><code>&lt;last-IP-digit&gt;	IN	PTR	&lt;FQDN-of-system&gt;
+</code></pre><p>PTR 记录的完整格式是 <code>&lt;last-IP-digit&gt; + $ORIGIN</code>，因此，PTR 的第一个字段也是可以表示成 FQDN 的</p>
+<h2 id="reference">Reference<a href="#reference" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<ul>
+<li><a href="http://www.microhowto.info/tutorials/dns_zone_file.html#idp176560">dns_zone_file</a></li>
+</ul>
+
+      </div></div>
+
+  
+    
+
+  
+
+  
+    
+
+  
+</article>
+
+  </div>
+
+  
+    <footer class="footer">
+  <div class="footer__inner">
+    
+      <div class="copyright">
+        <span>© 2025 Powered by <a href="https://gohugo.io">Hugo</a></span>
+    
+      <span>:: <a href="https://github.com/panr/hugo-theme-terminal" target="_blank">Theme</a> made by <a href="https://github.com/panr" target="_blank">panr</a></span>
+      </div>
+  </div>
+</footer>
+
+
+
+
+
+
+<script type="text/javascript" src="/bundle.min.js"></script>
+
+
+
+
+
+  
+</div>
+
+</body>
+</html>
