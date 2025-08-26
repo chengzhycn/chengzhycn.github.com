@@ -13,7 +13,7 @@
 
   <meta name="robots" content="noodp" />
 
-<link rel="canonical" href="https://chengzhycn.github.io/posts/dns-zone-files/" />
+<link rel="canonical" href="https://chengzhycn.github.io/posts/2021-01/dns-zone-files/" />
 
 
 
@@ -83,15 +83,13 @@
 <meta property="og:description" content="CNAME 记录 记录格式 bar.example.com.	CNAME	foo.example.com. foo.example.com.	A	192.168.0.1 CNAME 记录的限制 如果一个 domain name 有了一个 CNAME 记录，那么它不能再拥有其它类型的记录 CNAME 记录必须指向另外一个 domain name，而不是一个 IP CNAME 记录最好不要指向另外一个 CNAME 记录 MX 和 NS 记录不能指向一个 CNAME 记录 SRV 记录 type code：33
 记录格式 _service._protocol.name. TTL class SRV priority weight port target. _sip._tcp.example.com. 86400 IN SRV 0 5 5060 sipserver.example.com. _service: 服务名称 symbolic name protocol: 协议 name: domain name，以 . 结束 priority: 条目优先级, 值越低优先级越高 weight: 同样优先级内不同条目的权重 target: canonical hostname，以 . 结束 如果是一个 MX 记录，那么 target 需要是一个 IP 地址（A 或者 AAAA）而不是 CNAME SOA 记录 start of authority, 一个权威的起始
 " />
-<meta property="og:url" content="https://chengzhycn.github.io/posts/dns-zone-files/" />
+<meta property="og:url" content="https://chengzhycn.github.io/posts/2021-01/dns-zone-files/" />
 <meta property="og:site_name" content="Terminal" />
 
   <meta property="og:image" content="https://chengzhycn.github.io/og-image.png">
 
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="627">
-
-  <meta property="article:section" content="DNS" />
 
   <meta property="article:section" content="Network" />
 
@@ -210,14 +208,12 @@
     
 <article class="post">
   <h1 class="post-title">
-    <a href="https://chengzhycn.github.io/posts/dns-zone-files/">Dns Zone Files</a>
+    <a href="https://chengzhycn.github.io/posts/2021-01/dns-zone-files/">Dns Zone Files</a>
   </h1>
   <div class="post-meta"><time class="post-date">2021-01-03</time></div>
 
   
     <span class="post-tags">
-      
-      #<a href="https://chengzhycn.github.io/tags/zone/">zone</a>&nbsp;
       
       #<a href="https://chengzhycn.github.io/tags/dns/">dns</a>&nbsp;
       
@@ -307,35 +303,35 @@ _sip._tcp.example.com. 86400 IN SRV 0 5 5060 sipserver.example.com.
 <li>时间单位还可以是 M(minute)、H(hour)、D(day)、W(week)</li>
 </ul>
 <h2 id="zone-file">Zone file<a href="#zone-file" class="hanchor" ariaLabel="Anchor">#</a> </h2>
-<pre tabindex="0"><code>$ORIGIN example.com. 
-$TTL 86400 
+<pre tabindex="0"><code>$ORIGIN example.com.
+$TTL 86400
 @	IN	SOA	dns1.example.com.	hostmaster.example.com. (
-			2001062501 ; serial                     
-			21600      ; refresh after 6 hours                     
-			3600       ; retry after 1 hour                     
-			604800     ; expire after 1 week                     
-			86400 )    ; minimum TTL of 1 day  
-		     
-		           
-	IN	NS	dns1.example.com.       
-	IN	NS	dns2.example.com.        
-	
-	
-	IN	MX	10	mail.example.com.       
-	IN	MX	20	mail2.example.com.        
+			2001062501 ; serial
+			21600      ; refresh after 6 hours
+			3600       ; retry after 1 hour
+			604800     ; expire after 1 week
+			86400 )    ; minimum TTL of 1 day
 
-	
+
+	IN	NS	dns1.example.com.
+	IN	NS	dns2.example.com.
+
+
+	IN	MX	10	mail.example.com.
+	IN	MX	20	mail2.example.com.
+
+
 dns1	IN	A	10.0.1.1
-dns2	IN	A	10.0.1.2	
+dns2	IN	A	10.0.1.2
 
-			       
-server1	IN	A	10.0.1.5        
+
+server1	IN	A	10.0.1.5
 server2	IN	A	10.0.1.6
 
-       
+
 ftp	IN	A	10.0.1.3
 	IN	A	10.0.1.4
-	
+
 mail	IN	A	10.0.1.8
 mail2	IN	A	10.0.1.9
 
@@ -358,7 +354,7 @@ www	IN	CNAME	server1
 <pre tabindex="0"><code>&lt;alias-name&gt;	IN		CNAME		&lt;real-name&gt;
 </code></pre><h4 id="mx">MX<a href="#mx" class="hanchor" ariaLabel="Anchor">#</a> </h4>
 <pre tabindex="0"><code>		IN	MX	&lt;preference-value&gt;	&lt;email-server-name&gt;
-     IN     MX     10     mail.example.com.       
+     IN     MX     10     mail.example.com.
 		IN     MX     20     mail2.example.com.
 </code></pre><ul>
 <li>MX 记录用于邮件服务器的解析，如给 <a href="mailto:abc@example.com">abc@example.com</a> 发送邮件，就会先发送一个 关于 example.com. 的MX 记录查询。原则上 MX 记录不能指向 CNAME 记录</li>
@@ -374,17 +370,17 @@ www	IN	CNAME	server1
 <li><!-- raw HTML omitted --> 需要是一个 FQDN</li>
 </ul>
 <h2 id="反向解析-zone">反向解析 zone<a href="#反向解析-zone" class="hanchor" ariaLabel="Anchor">#</a> </h2>
-<pre tabindex="0"><code>$ORIGIN 1.0.10.in-addr.arpa. 
-$TTL 86400 
+<pre tabindex="0"><code>$ORIGIN 1.0.10.in-addr.arpa.
+$TTL 86400
 @	IN	SOA	dns1.example.com.	hostmaster.example.com. (
-			2001062501 ; serial                     
-			21600      ; refresh after 6 hours                     
-			3600       ; retry after 1 hour                     
-			604800     ; expire after 1 week                     
-			86400 )    ; minimum TTL of 1 day        
+			2001062501 ; serial
+			21600      ; refresh after 6 hours
+			3600       ; retry after 1 hour
+			604800     ; expire after 1 week
+			86400 )    ; minimum TTL of 1 day
 
 
-1	IN	PTR	dns1.example.com.       
+1	IN	PTR	dns1.example.com.
 2	IN	PTR	dns2.example.com.
 
 5	IN	PTR    server1.example.com.
@@ -404,6 +400,22 @@ $TTL 86400
 
   
     
+<div class="pagination">
+  <div class="pagination__title">
+    <span class="pagination__title-h">Read other posts</span>
+    <hr />
+  </div>
+  <div class="pagination__buttons">
+    
+      <a href="https://chengzhycn.github.io/posts/2022-03/kaist-cs431-lock/" class="button inline prev">
+        &lt; [<span class="button__text">KAIST-CS431: Lock</span>]
+      </a>
+    
+    
+    
+  </div>
+</div>
+
 
   
 

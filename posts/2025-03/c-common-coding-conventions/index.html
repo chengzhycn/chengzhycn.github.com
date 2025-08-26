@@ -1,0 +1,1006 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  
+    <title>C³: Common Coding Conventions :: Terminal</title>
+  
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="C³: Common Coding Conventions https://google.github.io/eng-practices/
+https://github.com/tum-esi/common-coding-conventions
+The goal of these conventions is to be concise, universal, and remarkable. It targets emerging code enthusiasts under time pressure and covers 7 topics:
+General Clarifications, Architecture, Implementation, Naming, Code Layout, Documentation, and Languages. To follow this guide, you should already have heard about Object Oriented Programming and know basic programming rules, such as writing loops and meaningful functions instead of copy pasting instructions. In this Readme, we will shortly summarize the most important rules for every topic.
+" />
+<meta name="keywords" content="" />
+
+  <meta name="robots" content="noodp" />
+
+<link rel="canonical" href="https://chengzhycn.github.io/posts/2025-03/c-common-coding-conventions/" />
+
+
+
+
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/buttons.min.86f6b4c106b6c6eb690ae5203d36b442c1f66f718ff4e8164fa86cf6c61ad641.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/code.min.d529ea4b2fb8d34328d7d31afc5466d5f7bc2f0bc9abdd98b69385335d7baee4.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/fonts.min.5bb7ed13e1d00d8ff39ea84af26737007eb5051b157b86fc24487c94f3dc8bbe.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/footer.min.eb8dfc2c6a7eafa36cd3ba92d63e69e849e2200e0002a228d137f236b09ecd75.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/gist.min.a751e8b0abe1ba8bc53ced52a38b19d8950fe78ca29454ea8c2595cf26aad5c0.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/header.min.75c7eb0e2872d95ff48109c6647d0223a38db52e2561dd87966eb5fc7c6bdac6.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/main.min.775ac2af004d44c22a6d000fbd1d9af529642f5cef27399d0280d180af2c2e9b.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/menu.min.310d32205bdedd6f43144e3c3273c9deecd238eba5f9108db5ea96ca0cfbe377.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/pagination.min.bbb986dbce00a5ce5aca0504b7925fc1c581992a4bf57f163e5d69cc1db7d836.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/post.min.ad50c7f4d00e7975918f37fc74c6029e1959a40d66fb5b2c6564a8715e985573.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/syntax.min.e9ab635cf918bc84b901eb65c0b2caa74c9544245e3647c1af5c129896ef276e.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/terminal.min.e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/terms.min.b81791663c3790e738e571cdbf802312390d30e4b1d8dc9d814a5b5454d0ac11.css">
+
+
+
+
+
+
+
+<link rel="shortcut icon" href="https://chengzhycn.github.io/favicon.png">
+<link rel="apple-touch-icon" href="https://chengzhycn.github.io/apple-touch-icon.png">
+
+
+<meta name="twitter:card" content="summary" />
+
+  
+    <meta name="twitter:site" content="" />
+  
+    <meta name="twitter:creator" content="" />
+
+
+
+<meta property="og:locale" content="en" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="C³: Common Coding Conventions">
+<meta property="og:description" content="C³: Common Coding Conventions https://google.github.io/eng-practices/
+https://github.com/tum-esi/common-coding-conventions
+The goal of these conventions is to be concise, universal, and remarkable. It targets emerging code enthusiasts under time pressure and covers 7 topics:
+General Clarifications, Architecture, Implementation, Naming, Code Layout, Documentation, and Languages. To follow this guide, you should already have heard about Object Oriented Programming and know basic programming rules, such as writing loops and meaningful functions instead of copy pasting instructions. In this Readme, we will shortly summarize the most important rules for every topic.
+" />
+<meta property="og:url" content="https://chengzhycn.github.io/posts/2025-03/c-common-coding-conventions/" />
+<meta property="og:site_name" content="Terminal" />
+
+  <meta property="og:image" content="https://chengzhycn.github.io/og-image.png">
+
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="627">
+
+
+  <meta property="article:published_time" content="2025-03-29 13:52:28 &#43;0800 &#43;0800" />
+
+
+
+
+
+
+
+
+
+
+
+
+</head>
+<body>
+
+
+<div class="container center">
+
+  <header class="header">
+  <div class="header__inner">
+    <div class="header__logo">
+      <a href="/">
+  <div class="logo">
+    Terminal
+  </div>
+</a>
+
+    </div>
+    
+      <ul class="menu menu--mobile">
+  <li class="menu__trigger">Menu&nbsp;▾</li>
+  <li>
+    <ul class="menu__dropdown">
+      
+        
+          <li><a href="/">Home</a></li>
+        
+      
+        
+          <li><a href="/about">About</a></li>
+        
+      
+        
+          <li><a href="/posts/">Archives</a></li>
+        
+      
+        
+          <li><a href="/categories/">Categories</a></li>
+        
+      
+        
+          <li><a href="/tags/">Tags</a></li>
+        
+      
+      
+    </ul>
+  </li>
+</ul>
+
+    
+    
+  </div>
+  
+    <nav class="navigation-menu">
+  <ul class="navigation-menu__inner menu--desktop">
+    
+      
+        
+          <li><a href="/" >Home</a></li>
+        
+      
+        
+          <li><a href="/about" >About</a></li>
+        
+      
+      
+        <li>
+          <ul class="menu">
+            <li class="menu__trigger">Show more&nbsp;▾</li>
+            <li>
+              <ul class="menu__dropdown">
+                
+                  
+                    <li><a href="/posts/" >Archives</a></li>
+                  
+                
+                  
+                    <li><a href="/categories/" >Categories</a></li>
+                  
+                
+                  
+                    <li><a href="/tags/" >Tags</a></li>
+                  
+                
+              </ul>
+            </li>
+          </ul>
+        </li>
+      
+    
+  </ul>
+</nav>
+
+  
+</header>
+
+
+  <div class="content">
+    
+<article class="post">
+  <h1 class="post-title">
+    <a href="https://chengzhycn.github.io/posts/2025-03/c-common-coding-conventions/">C³: Common Coding Conventions</a>
+  </h1>
+  <div class="post-meta"><time class="post-date">2025-03-29</time></div>
+
+  
+  
+
+
+  
+    <div class="table-of-contents">
+      <h2>
+        Table of Contents
+      </h2>
+      <nav id="TableOfContents">
+  <ul>
+    <li><a href="#general-clarifications"><a href="#user-content-general-clarifications">General Clarifications</a></a>
+      <ul>
+        <li><a href="#be-consistent-with-the-existent">Be consistent with the existent.</a></li>
+        <li><a href="#break-rules-if-it-enhances-clarity">Break rules if it enhances clarity.</a></li>
+        <li><a href="#leave-code-cleaner-than-you-found-it">Leave code cleaner than you found it.</a></li>
+        <li><a href="#terminology">Terminology</a></li>
+      </ul>
+    </li>
+    <li><a href="#architecture"><a href="#user-content-architecture">Architecture</a></a>
+      <ul>
+        <li><a href="#aim-for-low-coupling-between-classes">Aim for low coupling between classes.</a></li>
+        <li><a href="#aim-for-coherent-abstraction-levels">Aim for coherent abstraction levels.</a></li>
+      </ul>
+    </li>
+    <li><a href="#additional-architecture-rules">Additional Architecture Rules</a>
+      <ul>
+        <li><a href="#be-open-for-extension-but-closed-for-modification">Be open for extension, but closed for modification.</a></li>
+        <li><a href="#separate-models-from-views-and-control-mvc">Separate models from views and control (MVC).</a></li>
+        <li><a href="#depend-on-abstractions-not-implementations">Depend on abstractions, not implementations</a></li>
+      </ul>
+    </li>
+    <li><a href="#implementation"><a href="#user-content-implementation">Implementation</a></a>
+      <ul>
+        <li><a href="#dont-repeat-yourself-dry">Don&rsquo;t Repeat Yourself (DRY).</a></li>
+        <li><a href="#keep-all-scopes-fileclassfunction-small-and-sorted">Keep all scopes (file/class/function) small and sorted.</a></li>
+        <li><a href="#express-ideas-in-code-use-domain-specific-names">Express ideas in code: use domain-specific names.</a></li>
+        <li><a href="#sort-arguments-and-limit-them-to-0--4-per-call">Sort arguments and limit them to 0 – 4 per call.</a></li>
+        <li><a href="#do-not-change-the-same-variable-in-steps-but-compose-once-from-parts">Do not change the same variable in steps but compose once from parts.</a></li>
+      </ul>
+    </li>
+    <li><a href="#additional-implementation-rules">Additional Implementation Rules</a>
+      <ul>
+        <li><a href="#prefer-early-compile-time-checking-over-late-run-time-checking">Prefer early (compile-time) checking over late (run-time) checking</a></li>
+        <li><a href="#code-simple-not-smart-kiss-and-only-what-you-need-yagni">Code simple, not smart (KISS) and only what you need (YAGNI)</a></li>
+        <li><a href="#structure-files-into-1-imports-2-constants-3-publics-4-privates">Structure Files into 1. Imports, 2. Constants, 3. Publics, 4. Privates</a></li>
+        <li><a href="#subprograms-should-either-handle-states-or-calculate-results">Subprograms should either handle states or calculate results</a></li>
+        <li><a href="#sort-conditions--and-cases-expected-first">Sort conditions (&lt;) and cases (expected first)</a></li>
+        <li><a href="#return-often-and-soon-if-errors-ascend-but-valid-result-just-once-at-the-end">Return often and soon, if errors ascend, but valid result, just once at the end.</a></li>
+        <li><a href="#use-what-you-define-and-avoid-unreachabledead-code">Use what you define and avoid unreachable/dead code.</a></li>
+      </ul>
+    </li>
+    <li><a href="#naming"><a href="#user-content-naming">Naming</a></a>
+      <ul>
+        <li><a href="#subprograms-procedurefunction">Subprograms (=Procedure/Function)</a></li>
+        <li><a href="#types-classstructsubtypes">Types (=Class/Struct/Subtypes)</a></li>
+        <li><a href="#variables">Variables</a></li>
+        <li><a href="#use-word-pairs-opposites-antonyms">Use word pairs (opposites, antonyms).</a></li>
+      </ul>
+    </li>
+    <li><a href="#additional-naming-suggestions">Additional Naming Suggestions</a>
+      <ul>
+        <li><a href="#class-name-suffixes">Class Name Suffixes</a></li>
+        <li><a href="#high-level-scopes--modulepackagenamespace">High-level Scopes (= Module/Package/Namespace)</a></li>
+        <li><a href="#use-physical-units-as-type-names">Use physical units as type names.</a></li>
+        <li><a href="#use-abbreviations-cautiously-and-only-common-ones">Use abbreviations cautiously and only common ones.</a></li>
+        <li><a href="#abbreviations-and-acronyms-in-embedded-systems">Abbreviations and Acronyms in Embedded Systems:</a></li>
+      </ul>
+    </li>
+    <li><a href="#code-layout"><a href="#user-content-code-layout">Code Layout</a></a></li>
+    <li><a href="#documentation"><a href="#user-content-documentation">Documentation</a></a>
+      <ul>
+        <li><a href="#write-brief-comments-of-high-quality">Write brief comments of high quality.</a></li>
+        <li><a href="#use-todo-and-fixme-tags">Use <code>TODO</code> and <code>FIXME</code> tags.</a></li>
+        <li><a href="#write-readme-files">Write Readme files.</a></li>
+        <li><a href="#write-file-headers-for-header-files">Write file headers for header files.</a></li>
+        <li><a href="#use-docstrings-for-public-apis">Use Docstrings for public APIs</a></li>
+      </ul>
+    </li>
+    <li><a href="#languages"><a href="chapter/6_languages.md">Languages</a></a></li>
+    <li><a href="#references">References</a>
+      <ul>
+        <li></li>
+      </ul>
+    </li>
+  </ul>
+</nav>
+    </div>
+  
+
+  <div class="post-content"><div>
+        <h1 id="c-common-coding-conventions">C³: Common Coding Conventions<a href="#c-common-coding-conventions" class="hanchor" ariaLabel="Anchor">#</a> </h1>
+<p><a href="https://google.github.io/eng-practices/">https://google.github.io/eng-practices/</a></p>
+<p><a href="https://github.com/tum-esi/common-coding-conventions">https://github.com/tum-esi/common-coding-conventions</a></p>
+<p>The goal of these conventions is to be concise, universal, and remarkable. It targets emerging code enthusiasts under time pressure and covers 7 topics:</p>
+<ol>
+<li><a href="/posts/2025-03/c-common-coding-conventions/#user-content-general-clarifications">General Clarifications</a>,</li>
+<li><a href="/posts/2025-03/c-common-coding-conventions/#user-content-architecture">Architecture</a>,</li>
+<li><a href="/posts/2025-03/c-common-coding-conventions/#user-content-implementation">Implementation</a>,</li>
+<li><a href="/posts/2025-03/c-common-coding-conventions/#user-content-naming">Naming</a>,</li>
+<li><a href="/posts/2025-03/c-common-coding-conventions/#user-content-code-layout">Code Layout</a>,</li>
+<li><a href="/posts/2025-03/c-common-coding-conventions/#user-content-documentation">Documentation</a>, and</li>
+<li><a href="/posts/2025-03/c-common-coding-conventions/#user-content-languages">Languages</a>.</li>
+</ol>
+<p>To follow this guide, you should already have heard about <a href="https://www.educative.io/blog/object-oriented-programming">Object Oriented Programming</a> and know basic programming rules, such as writing loops and meaningful functions instead of copy pasting
+instructions. In this Readme, we will shortly summarize the most important rules for every topic.</p>
+<p>Since our brains are sieves, try to remember the underlying philosophy of this guide:</p>
+<blockquote>
+<p>Keep it simple and solid, let the toolchain be smart,<br>
+code correctness is the duty, readability the art.</p></blockquote>
+<h2 id="general-clarifications"><a href="/posts/2025-03/c-common-coding-conventions/#user-content-general-clarifications">General Clarifications</a><a href="#general-clarifications" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<h3 id="be-consistent-with-the-existent">Be consistent with the existent.<a href="#be-consistent-with-the-existent" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>“Consistency with this guide is important. Consistency within a project is more important. Consistency within one module or function is the most important” [PEP8].</p>
+<h3 id="break-rules-if-it-enhances-clarity">Break rules if it enhances clarity.<a href="#break-rules-if-it-enhances-clarity" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>Do not blindly follow this guide but think for yourself. The goal of software development is keeping the code complexity low. Period. None of the fancy patterns matters if the code becomes impossible to maintain.</p>
+<h3 id="leave-code-cleaner-than-you-found-it">Leave code cleaner than you found it.<a href="#leave-code-cleaner-than-you-found-it" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>We all have seen bad code, we all have written bad code. Code tends to get messy over time. Therefore, do not only complain about bad code but improve it if you know how. If <em>you</em> don&rsquo;t care to do it, why should anyone else?</p>
+<h3 id="terminology">Terminology<a href="#terminology" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>To be universal, we group several concepts under these broad
+identifiers:</p>
+<ul>
+<li><strong>Scope</strong>       = {Module, File, Namespace, Subprogram}</li>
+<li><strong>Subprogram</strong>  = {Procedure, Function, Method}</li>
+<li><strong>Type</strong>        = {Primitive, Collection, Struct, Class, &hellip;}</li>
+<li><strong>Collection</strong>  = {Array, List, Tuple, Dict, Map, &hellip;}</li>
+</ul>
+<h2 id="architecture"><a href="/posts/2025-03/c-common-coding-conventions/#user-content-architecture">Architecture</a><a href="#architecture" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>To manage complexity, divide your software into smaller parts (scopes) such as modules, classes, and subprograms. Where to separate and where to connect scopes is the art of good architecture.</p>
+<p>Two common mistakes in architecture design are the creation of a monster class that has too many responsibilities and letting each class communicate with too many other classes:</p>
+<p><img src="/images/notes/c%C2%B3-common-coding-conventions/architecture-bad-9458920.svg" alt="Bad Architecture"></p>
+<p>Instead, limit the amount and direction of information exchange between classes and create larger architectures from the following building blocks:</p>
+<p><img src="/images/notes/c%C2%B3-common-coding-conventions/architecture-better-9458936.svg" alt="Good Architecture"></p>
+<h3 id="aim-for-low-coupling-between-classes">Aim for low coupling between classes.<a href="#aim-for-low-coupling-between-classes" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>You may have many classes but each class should communicate with as few others as possible. If any two classes communicate at all, they should exchange as little information as possible.</p>
+<h3 id="aim-for-coherent-abstraction-levels">Aim for coherent abstraction levels.<a href="#aim-for-coherent-abstraction-levels" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>Each scope should reflect a single coherent level of abstraction that corresponds to its hierarchy level [ClCd]. In your UML, abstraction should decrease from top to bottom. In your code, the deeper you are in a call tree, the more specific your instructions can be. Avoid state variables at high abstraction levels.</p>
+<p><strong>Bad ❌</strong></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-python" data-lang="python"><span class="line"><span class="cl"><span class="n">engine</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="n">nStartUps</span> <span class="o">+=</span> <span class="mi">1</span>
+</span></span><span class="line"><span class="cl"><span class="k">if</span> <span class="n">fuelTank</span><span class="o">.</span><span class="n">isEmpty</span><span class="p">():</span>
+</span></span><span class="line"><span class="cl">  <span class="n">fuelGaugeUI</span><span class="o">.</span><span class="n">setRedLED</span><span class="p">()</span>
+</span></span></code></pre></div><p><strong>Better ✔</strong></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-python" data-lang="python"><span class="line"><span class="cl"><span class="n">engine</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="n">engine</span><span class="o">.</span><span class="n">runTest</span><span class="p">():</span>
+</span></span><span class="line"><span class="cl"><span class="n">warnings</span> <span class="o">=</span> <span class="n">engine</span><span class="o">.</span><span class="n">warnings</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="n">dashboard</span><span class="o">.</span><span class="n">show</span><span class="p">(</span> <span class="n">warnings</span> <span class="p">)</span>
+</span></span></code></pre></div><blockquote>
+<p>⚠ <strong>Caution:</strong> <em>Mixing abstraction levels creates confusion and introduces unnecessary dependencies.</em></p></blockquote>
+<h2 id="additional-architecture-rules">Additional Architecture Rules<a href="#additional-architecture-rules" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<h3 id="be-open-for-extension-but-closed-for-modification">Be open for extension, but closed for modification.<a href="#be-open-for-extension-but-closed-for-modification" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>If you need to add a new feature (logic), the architecture should only be extended with no or little modification. How? Separate class methods that could have several behaviors and encapsulate them behind a new interface. Creating multiple, specific interfaces is better than one giant, general-purpose interface that needs to change. Ask yourself: If you add a new class (e.g. new feature) to your design, how many classes have to change?</p>
+<h3 id="separate-models-from-views-and-control-mvc">Separate models from views and control (MVC).<a href="#separate-models-from-views-and-control-mvc" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>A model (program logic+states) is the heart of each module and operations on the open heart are dangerous. Therefore, larger modules should protect the model from</p>
+<ul>
+<li>direct input by having a controller that preprocesses requests</li>
+<li>direct output by having one or more views that provide different output formats</li>
+</ul>
+<p>External modules can access the controller (if they want to change the model&rsquo;s state) or access the views (if they want to know the model&rsquo;s state). See <a href="https://en.wikipedia.org/wiki/Model%E2%80%93view%E2%80%93controller">MVC</a>.</p>
+<h3 id="depend-on-abstractions-not-implementations">Depend on abstractions, not implementations<a href="#depend-on-abstractions-not-implementations" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>Abstract superclasses and interfaces allow you to hide implementation details, which reduces dependencies. In UML, associations between semantically different objects should preferably point to interfaces, instead of concrete classes. In code, statements such as <code>include</code> or <code>import</code> should mostly bring interfaces and abstract classes into the scope. E.g. instead of calling <code>display3.setLED(2, red)</code> directly, use an abstract <code>GUI.warnUser()</code>. If you depend on concrete classes, make sure they are small, singletons, closely related, or really stable (e.g. <code>String</code> in Java).</p>
+<h2 id="implementation"><a href="/posts/2025-03/c-common-coding-conventions/#user-content-implementation">Implementation</a><a href="#implementation" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>Once you have an initial plan for the architecture, you can start writing the code for classes and subprograms.</p>
+<h3 id="dont-repeat-yourself-dry">Don&rsquo;t Repeat Yourself (DRY).<a href="#dont-repeat-yourself-dry" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>Any piece of data or logic should have a single source. Duplicated code is difficult to maintain and represents a missed opportunity for abstraction. As a rule of thumb: If you repeat more than 2 statements more than 2 times, write a new
+subprogram. At best, any atomic change in program logic should only affect a single line of code.</p>
+<p>There are two code smells that should remind you of this rule:</p>
+<ul>
+<li>
+<p><strong>Copy &amp; Paste:</strong> Every time you take your mouse and mark lines with the intention to copy them, you are going to violate this rule. Instead of slightly adjusting copied lines, think about the common pattern between those lines and create a new function.</p>
+</li>
+<li>
+<p><strong>Repeated <code>if-else</code> and <code>switch-case</code> statements:</strong> If you are testing the same conditions at different locations (e.g. state variables), you can abstract these differences with Polymorphism and the Strategy Pattern.</p>
+</li>
+</ul>
+<h3 id="keep-all-scopes-fileclassfunction-small-and-sorted">Keep all scopes (file/class/function) small and sorted.<a href="#keep-all-scopes-fileclassfunction-small-and-sorted" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>Define subprograms and variables in the smallest scope possible and limit their exposure to external code. Put declarations at the beginning of each scope and initialize variables directly at the declaration. Do not reuse variables in nested scopes or for different purposes.</p>
+<h3 id="express-ideas-in-code-use-domain-specific-names">Express ideas in code: use domain-specific names.<a href="#express-ideas-in-code-use-domain-specific-names" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>Avoid magic numbers (literal numbers with unclear origin/purpose)  but always create constants with meaningful names. Create new types or derive subtypes from primitives to create more specific names, especially for physical quantities.</p>
+<p><strong>Bad ❌</strong></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="kt">double</span> <span class="n">limit</span> <span class="o">=</span> <span class="mf">13.89</span><span class="p">;</span>        <span class="c1">// unit not clear
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="nf">from_to</span><span class="p">(</span><span class="kt">int</span> <span class="n">x</span><span class="p">,</span>  <span class="kt">int</span> <span class="n">y</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="kt">int</span> <span class="n">x2</span><span class="p">,</span> <span class="kt">int</span> <span class="n">y2</span><span class="p">);</span>     <span class="c1">// vague argument names 
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span><span class="line"><span class="cl"><span class="k">if</span> <span class="p">(</span><span class="n">speed</span> <span class="o">&gt;</span> <span class="n">limit</span> <span class="o">&amp;&amp;</span> 
+</span></span><span class="line"><span class="cl">   <span class="n">t</span><span class="p">.</span><span class="n">h</span> <span class="o">&gt;</span> <span class="mi">22</span> <span class="o">&amp;&amp;</span> <span class="n">t</span><span class="p">.</span><span class="n">h</span> <span class="o">&lt;</span> <span class="mi">6</span><span class="p">){</span> <span class="p">...</span> <span class="p">}</span>  <span class="c1">// 22 and 6 are magic numbers
+</span></span></span></code></pre></div><p><strong>Better ✔</strong></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="n">MeterPerSecond</span> <span class="n">limit</span> <span class="o">=</span> <span class="n">SPEED_LIMIT_NIGHT</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="nf">drive</span><span class="p">(</span><span class="n">Point</span> <span class="n">origin</span><span class="p">,</span> <span class="n">Point</span> <span class="n">dest</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="n">isNight</span>    <span class="o">=</span> <span class="p">(</span><span class="n">T_NIGHT_MIN</span> <span class="o">&lt;</span> <span class="n">t</span><span class="p">.</span><span class="n">h</span> <span class="o">&amp;&amp;</span> <span class="n">t</span><span class="p">.</span><span class="n">h</span> <span class="o">&lt;</span> <span class="n">T_NIGHT_MAX</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="n">isSpeeding</span> <span class="o">=</span> <span class="p">(</span><span class="n">limit</span> <span class="o">&lt;</span> <span class="n">speed</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="k">if</span> <span class="p">(</span><span class="n">isSpeeding</span> <span class="o">&amp;&amp;</span> <span class="n">isNight</span><span class="p">){</span> <span class="p">...</span> <span class="p">}</span>
+</span></span></code></pre></div><h3 id="sort-arguments-and-limit-them-to-0--4-per-call">Sort arguments and limit them to 0 – 4 per call.<a href="#sort-arguments-and-limit-them-to-0--4-per-call" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>If the argument list of a subprogram grows too long, try to combine related arguments in a new data structure. For example, instead of passing <code>x</code>, <code>y</code>, <code>z</code> coordinates individually, use a single vector.</p>
+<h3 id="do-not-change-the-same-variable-in-steps-but-compose-once-from-parts">Do not change the same variable in steps but compose once from parts.<a href="#do-not-change-the-same-variable-in-steps-but-compose-once-from-parts" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>Within a subprogram, do not modify the same variable in several steps, e.g. by summing up an amount using <code>total += ...</code> multiple times. Instead, call functions that return some part of the final value and then compose the final value of these parts in one instruction at the end. E.g. <code>total = partA + partB</code>.</p>
+<p><strong>Bad ❌</strong></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="n">totalIncome</span> <span class="o">=</span> <span class="mi">0</span> 
+</span></span><span class="line"><span class="cl"><span class="c1">// ... long code to get contract
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="n">totalIncome</span> <span class="o">+=</span> <span class="n">contract</span><span class="p">.</span><span class="n">salary</span>  
+</span></span><span class="line"><span class="cl"><span class="c1">// ... long code to access taxoffice
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="n">totalIncome</span> <span class="o">-=</span> <span class="n">taxoffice</span><span class="p">[</span><span class="n">id</span><span class="p">].</span><span class="n">tax</span>
+</span></span></code></pre></div><p><strong>Better ✔</strong></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="n">Int</span> <span class="nf">totalIncome</span><span class="p">(</span><span class="n">employee</span><span class="p">){</span>      
+</span></span><span class="line"><span class="cl">    <span class="n">salary</span> <span class="o">=</span> <span class="nf">getSalary</span><span class="p">(</span><span class="n">employee</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="n">tax</span>    <span class="o">=</span> <span class="nf">getTax</span><span class="p">(</span><span class="n">employee</span><span class="p">)</span>   
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="p">(</span><span class="n">salary</span> <span class="o">-</span> <span class="n">tax</span><span class="p">)</span>       
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><h2 id="additional-implementation-rules">Additional Implementation Rules<a href="#additional-implementation-rules" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<h3 id="prefer-early-compile-time-checking-over-late-run-time-checking">Prefer early (compile-time) checking over late (run-time) checking<a href="#prefer-early-compile-time-checking-over-late-run-time-checking" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>If possible, use all of the following mechanisms:</p>
+<ol>
+<li>See the compiler as your friend and care for its warnings. The goal is not to write code that compiles but code that is correct (and readable).</li>
+<li>Use a linter. A linter will check your code while you type and provides the earliest feedback.</li>
+<li>Use static typing with many individual types to detect type mismatches early.</li>
+<li>Use static asserts to detect unintended changes to your code.</li>
+<li>Use exceptions with meaningful trace-output as your last line of defense. Consider any OS-Error(e.g. <code>segfault</code>) or direct microcontroller-reset as the worst-case and as an indication that your workflow – not only your code – is flawed.</li>
+</ol>
+<h3 id="code-simple-not-smart-kiss-and-only-what-you-need-yagni">Code simple, not smart (KISS) and only what you need (YAGNI)<a href="#code-simple-not-smart-kiss-and-only-what-you-need-yagni" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>Keep it simple and stupid (KISS): Write straightforward code to achieve your goal. If you use a compiler, do not try to outsmart it. Compilers are really sophisticated and can optimize simple code much better than you.</p>
+<p>You Ain&rsquo;t Gonna Need It (YAGNI): Don&rsquo;t code out every little detail that you can possibly think of. Instead, implement only what is absolutely necessary but be open for extensions.</p>
+<h3 id="structure-files-into-1-imports-2-constants-3-publics-4-privates">Structure Files into 1. Imports, 2. Constants, 3. Publics, 4. Privates<a href="#structure-files-into-1-imports-2-constants-3-publics-4-privates" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>Structure each code file into parts: 1. imports/includes, 2. lobal constants, 3. public classes/functions, 4. private classes/functions, and optional 5. direct instructions in the <code>main</code> file. Keep these parts in order and separated, e.g. do not include files or define globals within a function declaration. Provide comment headings for these parts such that it easy to identify them when scrolling through the file.</p>
+<h3 id="subprograms-should-either-handle-states-or-calculate-results">Subprograms should either handle states or calculate results<a href="#subprograms-should-either-handle-states-or-calculate-results" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>Most languages do not distinguish between procedures and functions but it is useful. Procedures modify states and may return a value. Pure functions are stateless and always return a value (or throw an exception otherwise). At best, a function should only work with the input variables to make clear on which data it depends. If your subprogram does change a state and returns a result, make sure to name it as a procedure (see 3.1{reference-type=&ldquo;ref&rdquo; reference=&ldquo;name:subs&rdquo;}).</p>
+<h3 id="sort-conditions--and-cases-expected-first">Sort conditions (&lt;) and cases (expected first)<a href="#sort-conditions--and-cases-expected-first" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>Conditional statements should be written in the form <code>(3 &lt; x)</code> instead of <code>(x &gt; 3)</code> even if you think &ldquo;x larger 3&rdquo;. For most cultures, numbers increase from left to right and thus it is easier to understand, especially when you add an upper bound: <code>(3 &lt; x) &amp;&amp; (x &lt; 7)</code>. Handle the nominal or expected case first and avoid negations, e.g. use <code>if hasElement()</code> instead of <code>if not isEmpty()</code>.</p>
+<h3 id="return-often-and-soon-if-errors-ascend-but-valid-result-just-once-at-the-end">Return often and soon, if errors ascend, but valid result, just once at the end.<a href="#return-often-and-soon-if-errors-ascend-but-valid-result-just-once-at-the-end" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>If an input is invalid or if any other error occurs, immediately return to avoid unnecessary code execution and nested errors. However, valid results should be returned only at the very end of a function body. By having a single success exit, it is easier to verify data validity. Furthermore, fail immediately and loudly. For any severe exception, your program should immediately crash and output the cause.</p>
+<h3 id="use-what-you-define-and-avoid-unreachabledead-code">Use what you define and avoid unreachable/dead code.<a href="#use-what-you-define-and-avoid-unreachabledead-code" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>There should be no unused declarations of variables, arguments, functions, or classes. Furthermore, avoid <em>unreachable code</em> (e.g. after <code>return</code>) and <em>dead code</em>, which has no effect (e.g. is redundant).</p>
+<h2 id="naming"><a href="/posts/2025-03/c-common-coding-conventions/#user-content-naming">Naming</a><a href="#naming" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>Code should communicate behavior to other humans with lower complexity than the behavior it inherits. Abstracting with meaningful names is therefore most important for readability.</p>
+<blockquote>
+<p>⚠ <strong>Avoid inappropriate terms:</strong> Many organizations discourage the use of <code>master/slave</code> due to their negative association in different cultures. See <a href="https://www.drupal.org/node/2275877">1</a> and <a href="https://bugs.python.org/issue34605">2</a>.</p></blockquote>
+<h3 id="subprograms-procedurefunction">Subprograms (=Procedure/Function)<a href="#subprograms-procedurefunction" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>Procedures <em>may</em> return values, functions always return a value. Methods are subprograms of a class.</p>
+<ul>
+<li>procedure names should start with a verb. e.g. <code>syncViews()</code>, <code>list.addItem(x)</code>.</li>
+<li>function names should describe the result and, if suitable, its type. e.g. <code>time_ms(), sin(x)</code></li>
+<li>class methods should not repeat or include the name of the class. Define <code>Line.length()</code>, not <code>Line.getLineLength()</code></li>
+</ul>
+<blockquote>
+<p>⚠ <strong>Caution:</strong> <em>Single noun subprograms should be pure functions! Never let e.g. <code>x.length()</code> change a state.</em></p></blockquote>
+<h3 id="types-classstructsubtypes">Types (=Class/Struct/Subtypes)<a href="#types-classstructsubtypes" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<ul>
+<li>type names should be capitalized nouns. E.g. <code>Integer</code>, <code>Date</code>, <code>Line2D</code></li>
+<li>enums/structs are types and named as types without a special prefix/suffix.<!-- raw HTML omitted -->
+E.g. <code>enum Color = {RED, GREEN, BLUE}</code></li>
+<li>interface names can start with a capital <code>I</code> and can also be adjectives. E.g. <code>IObservable</code></li>
+</ul>
+<h3 id="variables">Variables<a href="#variables" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<ul>
+<li>variables with a large scope <em>should</em> have long names, variables with a small scope <em>may</em> have short names [CdCm].</li>
+<li>collections (set, array, dict) should have a plural name. E.g. <code>cars</code>, <code>indices</code></li>
+<li>the prefix <code>n</code> or <code>num</code> should be used for names representing the total number of objects in a collection. E.g. <code>numCars</code></li>
+<li>boolean variables should start with a <code>is/has/can/does</code> prefix (e.g. <code>isEmpty</code>, <code>doesUseIO</code>).</li>
+<li>write constant names in capitals. E.g <code>CFG_TEMPERATURE_MAX = 80.0</code></li>
+<li>prefix global variables with <code>g_</code></li>
+</ul>
+<p><strong>Bad ❌</strong></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-python" data-lang="python"><span class="line"><span class="cl"><span class="n">score_list</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">scores</span> 
+</span></span><span class="line"><span class="cl"><span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">score_list</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">  <span class="n">score_list</span> <span class="o">=</span> <span class="n">val</span> <span class="o">+</span> <span class="mi">1</span>
+</span></span></code></pre></div><p><strong>Better ✔</strong></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-python" data-lang="python"><span class="line"><span class="cl"><span class="n">scores</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">numScores</span> 
+</span></span><span class="line"><span class="cl"><span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">score</span> <span class="ow">in</span> <span class="n">scores</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">  <span class="n">scores</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">score</span> <span class="o">+</span> <span class="mi">1</span>
+</span></span></code></pre></div><h3 id="use-word-pairs-opposites-antonyms">Use word pairs (opposites, antonyms).<a href="#use-word-pairs-opposites-antonyms" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>If you “<code>start</code>” something, you should “<code>stop</code>” it and not “<code>end</code>” it [CdCm].
+While most opposites can be created by using <code>un-</code> or <code>de-</code> prefixes (<code>lock/unlock</code>), some are more distinct and allow code alignment:</p>
+<p>Verb pairs with same length:</p>
+<table>
+  <thead>
+      <tr>
+          <th><code>set</code></th>
+          <th><code>send</code></th>
+          <th><code>query</code></th>
+          <th><code>insert</code></th>
+          <th><code>attach</code></th>
+          <th><code>show</code></th>
+          <th><code>split</code></th>
+          <th><code>enter</code></th>
+          <th><code>accept</code></th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td><code>get</code></td>
+          <td><code>recv</code></td>
+          <td><code>reply</code></td>
+          <td><code>delete</code></td>
+          <td><code>detach</code></td>
+          <td><code>hide</code></td>
+          <td><code>merge</code></td>
+          <td><code>leave</code></td>
+          <td><code>reject</code></td>
+      </tr>
+  </tbody>
+</table>
+<p>Verb pairs that differ by one character are more visually distinct but still easy to align with one extra space:</p>
+<table>
+  <thead>
+      <tr>
+          <th><code>open</code></th>
+          <th><code>read</code></th>
+          <th><code>load</code></th>
+          <th><code>push</code></th>
+          <th><code>start</code></th>
+          <th><code>create</code></th>
+          <th><code>grant</code></th>
+          <th><code>hit</code></th>
+          <th><code>prepend</code></th>
+          <th><code>empty</code></th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td><code>close</code></td>
+          <td><code>write</code></td>
+          <td><code>store</code></td>
+          <td><code>pop</code></td>
+          <td><code>stop</code></td>
+          <td><code>destroy</code></td>
+          <td><code>deny</code></td>
+          <td><code>miss</code></td>
+          <td><code>append</code></td>
+          <td><code>full</code></td>
+      </tr>
+  </tbody>
+</table>
+<p>Noun and adjective pairs with same/similar length:</p>
+<table>
+  <thead>
+      <tr>
+          <th><code>max</code></th>
+          <th><code>next</code></th>
+          <th><code>head</code></th>
+          <th><code>new</code></th>
+          <th><code>row</code></th>
+          <th><code>ack</code></th>
+          <th><code>front</code></th>
+          <th><code>source</code></th>
+          <th><code>client</code></th>
+          <th><code>primary</code></th>
+          <th><code>leader</code></th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td><code>min</code></td>
+          <td><code>prev</code></td>
+          <td><code>tail</code></td>
+          <td><code>old</code></td>
+          <td><code>col</code></td>
+          <td><code>nak</code></td>
+          <td><code>rear</code></td>
+          <td><code>target</code></td>
+          <td><code>server</code></td>
+          <td><code>replica</code></td>
+          <td><code>follower</code></td>
+      </tr>
+  </tbody>
+</table>
+<h2 id="additional-naming-suggestions">Additional Naming Suggestions<a href="#additional-naming-suggestions" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<h3 id="class-name-suffixes">Class Name Suffixes<a href="#class-name-suffixes" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>Class names often have a suffix term that indicates the purpose (and not only the topic) of that class. While there seems to be no common agreement on the notation, we find the following distinction useful:</p>
+<ul>
+<li><code>Factory</code>/<code>Builder</code>: creates objects and transfers ownership (e.g. to a Manager).</li>
+<li><code>Manager</code>: stateless, owns and provides access to same-type objects (e.g. <code>SensorManager</code>).</li>
+<li><code>Controller</code>: stateful, handles communication between different objects (e.g. <code>FlightController</code>).</li>
+<li><code>Handler</code>: waits for and processes a single-type object, without owning it (e.g. <code>EventHandler</code>).</li>
+</ul>
+<h3 id="high-level-scopes--modulepackagenamespace">High-level Scopes (= Module/Package/Namespace)<a href="#high-level-scopes--modulepackagenamespace" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>The names for packages or namespaces, which should prevent name clashes, should be short as they are used often within the code. In this case, choosing an abbreviation or acronym makes sense.</p>
+<h3 id="use-physical-units-as-type-names">Use physical units as type names.<a href="#use-physical-units-as-type-names" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>In embedded systems, you often have to deal with physical quantities. To make clear which unit a certain variable has, you should define your own (sub)types for physical units based on numerical type, such as <code>Meter</code> and <code>Second</code> from <code>Float</code>, and then declare variables as <code>Meter safety_distance = 5.0;</code>.</p>
+<h3 id="use-abbreviations-cautiously-and-only-common-ones">Use abbreviations cautiously and only common ones.<a href="#use-abbreviations-cautiously-and-only-common-ones" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>To abbr. or not to abbreviate? Truth is, neither <code>GetTheLatestWebSiteAccessTimeInMilliseconds()</code>, nor <code>pm_rcv_bat_stat()</code> are reader friendly. Use abbreviations only for small scopes, function arguments, or in combination with full names (<code>move_cmd</code>). Avoid abbreviations if they only save one character (<code>usr</code>), are too cryptic (<code>cmp</code>), or can be confused with other terms (<code>tmp</code>). If you use them, stick to the following common abbreviations (already a lot):</p>
+<table>
+  <thead>
+      <tr>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td><strong>Abbr.</strong></td>
+          <td><strong>Meaning</strong></td>
+          <td></td>
+          <td><strong>Abbr.</strong></td>
+          <td><strong>Meaning</strong></td>
+      </tr>
+      <tr>
+          <td><code>arg</code></td>
+          <td>argument</td>
+          <td></td>
+          <td><code>mid</code></td>
+          <td>middle</td>
+      </tr>
+      <tr>
+          <td><code>app</code></td>
+          <td>application</td>
+          <td></td>
+          <td><code>min</code></td>
+          <td>minimum</td>
+      </tr>
+      <tr>
+          <td><code>auth</code></td>
+          <td>authentication</td>
+          <td></td>
+          <td><code>mem</code></td>
+          <td>memory</td>
+      </tr>
+      <tr>
+          <td><code>avg</code></td>
+          <td>average</td>
+          <td></td>
+          <td><code>mon</code></td>
+          <td>monitor</td>
+      </tr>
+      <tr>
+          <td><code>bat</code></td>
+          <td>battery</td>
+          <td></td>
+          <td><code>msg</code></td>
+          <td>message</td>
+      </tr>
+      <tr>
+          <td><code>buf</code></td>
+          <td>buffer</td>
+          <td></td>
+          <td><code>net</code></td>
+          <td>network</td>
+      </tr>
+      <tr>
+          <td><code>cb</code></td>
+          <td>callback</td>
+          <td></td>
+          <td><code>num</code></td>
+          <td>number</td>
+      </tr>
+      <tr>
+          <td><code>cfg</code></td>
+          <td>config.</td>
+          <td></td>
+          <td><code>obj</code></td>
+          <td>object</td>
+      </tr>
+      <tr>
+          <td><code>clk</code></td>
+          <td>clock</td>
+          <td></td>
+          <td><code>pkg</code></td>
+          <td>package</td>
+      </tr>
+      <tr>
+          <td><code>col</code></td>
+          <td>column</td>
+          <td></td>
+          <td><code>pkt</code></td>
+          <td>packet</td>
+      </tr>
+      <tr>
+          <td><code>cnt</code></td>
+          <td>counter</td>
+          <td></td>
+          <td><code>pos</code></td>
+          <td>position</td>
+      </tr>
+      <tr>
+          <td><code>cmd</code></td>
+          <td>command</td>
+          <td></td>
+          <td><code>pt</code></td>
+          <td>point</td>
+      </tr>
+      <tr>
+          <td><code>ctx</code></td>
+          <td>context</td>
+          <td></td>
+          <td><code>ptr</code></td>
+          <td>pointer</td>
+      </tr>
+      <tr>
+          <td><code>dev</code></td>
+          <td>device</td>
+          <td></td>
+          <td><code>pwr</code></td>
+          <td>power</td>
+      </tr>
+      <tr>
+          <td><code>doc</code></td>
+          <td>document</td>
+          <td></td>
+          <td><code>px</code></td>
+          <td>pixel</td>
+      </tr>
+      <tr>
+          <td><code>drv</code></td>
+          <td>driver</td>
+          <td></td>
+          <td><code>rnd</code></td>
+          <td>round</td>
+      </tr>
+      <tr>
+          <td><code>dt</code></td>
+          <td>delta time</td>
+          <td></td>
+          <td><code>reg</code></td>
+          <td>register</td>
+      </tr>
+      <tr>
+          <td><code>el</code></td>
+          <td>element</td>
+          <td></td>
+          <td><code>rot</code></td>
+          <td>rotation</td>
+      </tr>
+      <tr>
+          <td><code>env</code></td>
+          <td>environment</td>
+          <td></td>
+          <td><code>sep</code></td>
+          <td>separator</td>
+      </tr>
+      <tr>
+          <td><code>err</code></td>
+          <td>error</td>
+          <td></td>
+          <td><code>std</code></td>
+          <td>standard</td>
+      </tr>
+      <tr>
+          <td><code>exc</code></td>
+          <td>exception</td>
+          <td></td>
+          <td><code>str</code></td>
+          <td>string</td>
+      </tr>
+      <tr>
+          <td><code>fh</code></td>
+          <td>file handler</td>
+          <td></td>
+          <td><code>sys</code></td>
+          <td>system</td>
+      </tr>
+      <tr>
+          <td><code>fmt</code></td>
+          <td>format</td>
+          <td></td>
+          <td><code>tmr</code></td>
+          <td>timer</td>
+      </tr>
+      <tr>
+          <td><code>hdr</code></td>
+          <td>header</td>
+          <td></td>
+          <td><code>ts</code></td>
+          <td>timestamp</td>
+      </tr>
+      <tr>
+          <td><code>hex</code></td>
+          <td>hexadecimal</td>
+          <td></td>
+          <td><code>val</code></td>
+          <td>value</td>
+      </tr>
+      <tr>
+          <td><code>img</code></td>
+          <td>image</td>
+          <td></td>
+          <td><code>var</code></td>
+          <td>variable</td>
+      </tr>
+      <tr>
+          <td><code>idx</code></td>
+          <td>index</td>
+          <td></td>
+          <td><code>win</code></td>
+          <td>window</td>
+      </tr>
+      <tr>
+          <td><code>len</code></td>
+          <td>length</td>
+          <td></td>
+          <td></td>
+          <td></td>
+      </tr>
+      <tr>
+          <td><code>lib</code></td>
+          <td>library</td>
+          <td></td>
+          <td></td>
+          <td></td>
+      </tr>
+      <tr>
+          <td><code>lvl</code></td>
+          <td>level</td>
+          <td></td>
+          <td></td>
+          <td></td>
+      </tr>
+      <tr>
+          <td><code>max</code></td>
+          <td>maximum</td>
+          <td></td>
+          <td></td>
+          <td></td>
+      </tr>
+  </tbody>
+</table>
+<h3 id="abbreviations-and-acronyms-in-embedded-systems">Abbreviations and Acronyms in Embedded Systems:<a href="#abbreviations-and-acronyms-in-embedded-systems" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<ul>
+<li>Sensors: <code>IMU</code> (=<code>ACC</code>, <code>GYR</code>, <code>MAG</code>), <code>BARO</code>, <code>TEMP</code>, <code>GPS</code> (= <code>lat</code>, <code>lon</code>, <code>alt</code>)</li>
+<li>Buses: <code>USB</code>, <code>CAN</code>, <code>SPI</code>, <code>I2C</code>, <code>UART</code>, <code>ETH</code>, <code>PCI</code></li>
+<li>Processor: <code>CPU</code>, <code>GPU</code>, <code>MCU</code>: <code>RAM</code>, <code>ROM</code>, <code>ISR</code>, <code>ADC</code>, <code>DAC</code>, <code>RTC</code>, <code>CLK</code>, <code>DMA</code></li>
+<li>Software: <code>API</code>, <code>CLI</code>, <code>GUI</code>, <code>HAL</code>, <code>OS</code>, <code>VM</code>, <code>PID</code>, <code>UID</code>, <code>LSB</code>, <code>MSB</code>, <code>CRC</code></li>
+</ul>
+<h2 id="code-layout"><a href="/posts/2025-03/c-common-coding-conventions/#user-content-code-layout">Code Layout</a><a href="#code-layout" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>A clear and consistent visual appearance of your code improves readability and readability helps to understand the code.</p>
+<ul>
+<li>Existing Project: <a href="/posts/2025-03/c-common-coding-conventions/#user-content-be-consistent-with-the-existent">Stick to the existing</a> recommendations and tools.</li>
+<li>New Project: Use an automatic code formatter. Examples:</li>
+</ul>
+<table>
+  <thead>
+      <tr>
+          <th style="text-align: left">Language</th>
+          <th>Tool</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td style="text-align: left">Python</td>
+          <td><a href="https://pypi.org/project/black/">black</a></td>
+      </tr>
+      <tr>
+          <td style="text-align: left">C</td>
+          <td><a href="http://uncrustify.sourceforge.net/">uncrustify</a></td>
+      </tr>
+      <tr>
+          <td style="text-align: left">C++</td>
+          <td><a href="http://clang.llvm.org/docs/ClangFormat.html">clang-format</a></td>
+      </tr>
+      <tr>
+          <td style="text-align: left">JavaScript</td>
+          <td><a href="https://prettier.io/">prettier.io</a></td>
+      </tr>
+  </tbody>
+</table>
+<ul>
+<li>aim for one statement and less than 80 characters per line</li>
+<li>indent with spaces not tabs because editors do not agree on tab width</li>
+<li>surround top-level function and class definitions with two or three blank lines.</li>
+<li>surround binary operators (=, ==, +) with a single space, except when nested inline</li>
+<li>break lines before operators and align operators vertically</li>
+</ul>
+<h2 id="documentation"><a href="/posts/2025-03/c-common-coding-conventions/#user-content-documentation">Documentation</a><a href="#documentation" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>English is the language of programming, so documentation should also be in English.</p>
+<h3 id="write-brief-comments-of-high-quality">Write brief comments of high quality.<a href="#write-brief-comments-of-high-quality" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>Choose your words carefully. “Comments that contradict the code are worse than no comments” [PEP8]. Change comments when code changes. Comment only what the code cannot say, that is <em>why</em> you did it, maybe <em>what</em> you did, but never <em>how</em>.</p>
+<p>Further Don&rsquo;ts:</p>
+<ul>
+<li>Don&rsquo;t comment out code. Just remove.</li>
+<li>Don&rsquo;t create headings with S E P A R A T E D letters because you cannot search for them.</li>
+<li>Don&rsquo;t assume insider knowledge but write simple comments for anybody on the planet.</li>
+<li>Don&rsquo;t make jokes in comments. Tell them in person.</li>
+</ul>
+<h3 id="use-todo-and-fixme-tags">Use <code>TODO</code> and <code>FIXME</code> tags.<a href="#use-todo-and-fixme-tags" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>Comment unfinished work with <code>TODO:</code> or <code>FIXME:</code>, which allows to search &amp; find these lines later. Some IDEs will automatically highlight these tags via <a href="https://open-vsx.org/extension/wayou/vscode-todo-highlight">extensions</a>.
+A <code>TODO</code> is more urgent and needs to be done, a <code>FIXME</code> would be nice to have but is not required.</p>
+<h3 id="write-readme-files">Write Readme files.<a href="#write-readme-files" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>There are two different interest groups for your code, so please make sure that your Readme addresses both.</p>
+<ul>
+<li><strong>Users:</strong> How to install and run your code with examples. Supported OS. Release versions and change logs.</li>
+<li><strong>Developers:</strong> How to compile. Module structure, dependencies, contribution rules, where to contact developers.</li>
+</ul>
+<h3 id="write-file-headers-for-header-files">Write file headers for header files.<a href="#write-file-headers-for-header-files" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>Each code file with interfaces (e.g. <code>.h</code> files in C) should start with a block comment that briefly explains what this module/class/lib does.</p>
+<h3 id="use-docstrings-for-public-apis">Use Docstrings for public APIs<a href="#use-docstrings-for-public-apis" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>Docstrings are specially formatted comments that can be converted into a code documentation. This is useful as soon as other people start to depend on your interfaces.</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="cm">/**
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * Solves equations of the form a * x = b
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * @example
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * // returns 2
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * globalNS.method(5, 10);
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * @example
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * // returns 3
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * globalNS.method(5, 15);
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * @returns {Number} Returns the value of x for the equation.
+</span></span></span><span class="line"><span class="cl"><span class="cm"> */</span>
+</span></span><span class="line"><span class="cl"><span class="n">globalNS</span><span class="p">.</span><span class="n">method</span> <span class="o">=</span> <span class="nf">function</span> <span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">b</span> <span class="o">/</span> <span class="n">a</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">};</span>
+</span></span></code></pre></div><h2 id="languages"><a href="chapter/6_languages.md">Languages</a><a href="#languages" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>Each programming language has special mechanisms and some rules are only applicable to a certain language. We also try to give an overview of language-specific rules, but the following list is unfinished and work in progress.</p>
+<ul>
+<li><strong><a href="chapter/lang/python-guide.md">Python</a></strong></li>
+<li><strong><a href="chapter/lang/c-guide.md">C</a></strong></li>
+<li><strong><a href="chapter/lang/javascript-guide.md">JavaScript</a></strong></li>
+</ul>
+<h2 id="references">References<a href="#references" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>This guide is partly based on the principles that are explained in the following books and documents and we can recommend them as further reading material.</p>
+<h4 id="general-design-principles">General Design Principles<a href="#general-design-principles" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<p>Students from TUM and other universities can read these books for free. Simply click the links below and login with your university credentials.</p>
+<ul>
+<li>[CdCm] S. McConnell: <a href="https://learning.oreilly.com/library/view/code-complete-second/0735619670/?ar">“Code Complete”</a>, Pearson Education, 2004.</li>
+<li>[ClCd] R. C. Martin: <a href="https://learning.oreilly.com/library/view/clean-code-a/9780136083238/?ar">“Clean Code: A Handbook of Agile Software Craftsmanship”</a>, Pearson Education, 2009.</li>
+<li>[ClAr] R. C. Martin: <a href="https://learning.oreilly.com/library/view/clean-architecture-a/9780134494272/?ar">“Clean Architecture: Guide to Software Structure and Design”</a>, Pearson Education, 2017.</li>
+<li>[HdFi] E. Freeman et al.: <a href="https://learning.oreilly.com/library/view/head-first-design/9781492077992/?ar">“Head First Design Patterns”</a>, 2nd Edition, O’Reilly Media, 2020.</li>
+</ul>
+<h4 id="language-specific-coding-conventions">Language Specific Coding Conventions<a href="#language-specific-coding-conventions" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<ul>
+<li>[PEP8] G. Van Rossum, B. Warsaw, and N. Coghlan: <a href="https://www.python.org/dev/peps/pep-0008/">“PEP 8: Style Guide for Python Code”</a>, Python.org, 2001.</li>
+<li>[MISRA-C] Motor Industry Software Reliability Association: “Guidelines for the use of the C language in critical systems.”, 2004</li>
+<li>[MISRA-C++] Motor Industry Software Reliability Association: “Guidelines for the use of the C++ language in critical systems.”, 2008</li>
+<li>[JPL-C]  <a href="https://yurichev.com/mirrors/C/JPL_Coding_Standard_C.pdf">JPL Institutional Coding Standard for the C Programming Language</a></li>
+<li><a href="http://micro-os-plus.github.io/develop/coding-style/">C++ coding style (JSF+MISRA)</a>:</li>
+<li><a href="https://google.github.io/styleguide/cppguide.html">Google C++ Style Guide</a></li>
+<li><a href="https://google.github.io/styleguide/pyguide.html">Google Python Style Guide</a></li>
+</ul>
+
+      </div></div>
+
+  
+    
+<div class="pagination">
+  <div class="pagination__title">
+    <span class="pagination__title-h">Read other posts</span>
+    <hr />
+  </div>
+  <div class="pagination__buttons">
+    
+      <a href="https://chengzhycn.github.io/posts/2025-08/wasm-internals-overview/" class="button inline prev">
+        &lt; [<span class="button__text">Wasm Internals - Overview</span>]
+      </a>
+    
+    
+      ::
+    
+    
+      <a href="https://chengzhycn.github.io/posts/2022-03/kaist-cs431-lock/" class="button inline next">
+         [<span class="button__text">KAIST-CS431: Lock</span>] &gt;
+      </a>
+    
+  </div>
+</div>
+
+
+  
+
+  
+    
+
+  
+</article>
+
+  </div>
+
+  
+    <footer class="footer">
+  <div class="footer__inner">
+    
+      <div class="copyright">
+        <span>© 2025 Powered by <a href="https://gohugo.io">Hugo</a></span>
+    
+      <span>:: <a href="https://github.com/panr/hugo-theme-terminal" target="_blank">Theme</a> made by <a href="https://github.com/panr" target="_blank">panr</a></span>
+      </div>
+  </div>
+</footer>
+
+
+
+
+
+
+<script type="text/javascript" src="/bundle.min.js"></script>
+
+
+
+
+
+  
+</div>
+
+</body>
+</html>

@@ -10,9 +10,9 @@
     <atom:link href="https://chengzhycn.github.io/tags/dns/index.xml" rel="self" type="application/rss+xml" />
     <item>
       <title>Dns Zone Files</title>
-      <link>https://chengzhycn.github.io/posts/dns-zone-files/</link>
+      <link>https://chengzhycn.github.io/posts/2021-01/dns-zone-files/</link>
       <pubDate>Sun, 03 Jan 2021 10:18:55 +0800</pubDate>
-      <guid>https://chengzhycn.github.io/posts/dns-zone-files/</guid>
+      <guid>https://chengzhycn.github.io/posts/2021-01/dns-zone-files/</guid>
       <description>&lt;h2 id=&#34;cname-记录&#34;&gt;CNAME 记录&lt;/h2&gt;&#xA;&lt;h3 id=&#34;记录格式&#34;&gt;记录格式&lt;/h3&gt;&#xA;&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;bar.example.com.&#x9;CNAME&#x9;foo.example.com.&#xA;foo.example.com.&#x9;A&#x9;&#x9;192.168.0.1&#xA;&lt;/code&gt;&lt;/pre&gt;&lt;h3 id=&#34;cname-记录的限制&#34;&gt;CNAME 记录的限制&lt;/h3&gt;&#xA;&lt;ol&gt;&#xA;&lt;li&gt;如果一个 domain name 有了一个 CNAME 记录，那么它不能再拥有其它类型的记录&lt;/li&gt;&#xA;&lt;li&gt;CNAME 记录必须指向另外一个 domain name，而不是一个 IP&lt;/li&gt;&#xA;&lt;li&gt;CNAME 记录最好不要指向另外一个 CNAME 记录&lt;/li&gt;&#xA;&lt;li&gt;MX 和 NS 记录不能指向一个 CNAME 记录&lt;/li&gt;&#xA;&lt;/ol&gt;&#xA;&lt;h2 id=&#34;srv-记录&#34;&gt;SRV 记录&lt;/h2&gt;&#xA;&lt;p&gt;type code：33&lt;/p&gt;&#xA;&lt;h3 id=&#34;记录格式-1&#34;&gt;记录格式&lt;/h3&gt;&#xA;&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;_service._protocol.name. TTL class SRV priority weight port target.&#xA;&#xA;_sip._tcp.example.com. 86400 IN SRV 0 5 5060 sipserver.example.com.&#xA;&lt;/code&gt;&lt;/pre&gt;&lt;ul&gt;&#xA;&lt;li&gt;_service: 服务名称 symbolic name&lt;/li&gt;&#xA;&lt;li&gt;protocol: 协议&lt;/li&gt;&#xA;&lt;li&gt;name: domain name，以 . 结束&lt;/li&gt;&#xA;&lt;li&gt;priority: 条目优先级, 值越低优先级越高&lt;/li&gt;&#xA;&lt;li&gt;weight: 同样优先级内不同条目的权重&lt;/li&gt;&#xA;&lt;li&gt;target: canonical hostname，以 . 结束&#xA;如果是一个 MX 记录，那么 target 需要是一个 IP 地址（A 或者 AAAA）而不是 CNAME&lt;/li&gt;&#xA;&lt;/ul&gt;&#xA;&lt;h2 id=&#34;soa-记录&#34;&gt;SOA 记录&lt;/h2&gt;&#xA;&lt;p&gt;start of authority, 一个权威的起始&lt;/p&gt;</description>
     </item>
   </channel>

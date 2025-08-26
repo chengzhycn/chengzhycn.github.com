@@ -1,18 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-	<meta name="generator" content="Hugo 0.148.2">
   
-    <title>Terminal</title>
+    <title>Learning :: Terminal</title>
   
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="A simple, retro theme for Hugo" />
+<meta name="description" content="" />
 <meta name="keywords" content="" />
 
   <meta name="robots" content="noodp" />
 
-<link rel="canonical" href="https://chengzhycn.github.io/" />
+<link rel="canonical" href="https://chengzhycn.github.io/categories/learning/" />
 
 
 
@@ -78,9 +77,9 @@
 
 <meta property="og:locale" content="en" />
 <meta property="og:type" content="website" />
-<meta property="og:title" content="Terminal">
-<meta property="og:description" content="A simple, retro theme for Hugo" />
-<meta property="og:url" content="https://chengzhycn.github.io/" />
+<meta property="og:title" content="Learning">
+<meta property="og:description" content="" />
+<meta property="og:url" content="https://chengzhycn.github.io/categories/learning/" />
 <meta property="og:site_name" content="Terminal" />
 
   <meta property="og:image" content="https://chengzhycn.github.io/og-image.png">
@@ -92,7 +91,7 @@
 
 
 
-  <link href="/index.xml" rel="alternate" type="application/rss+xml" title="Terminal" />
+  <link href="/categories/learning/index.xml" rel="alternate" type="application/rss+xml" title="Terminal" />
 
 
 
@@ -199,124 +198,14 @@
 
   <div class="content">
     
+  <h1>Posts for: #Learning</h1>
   
   <div class="posts">
     
-    
-
-    
-    
-      
-    
-    
-
-    
       <article class="post on-list">
-        <h2 class="post-title">
-          <a href="https://chengzhycn.github.io/posts/2025-08/wasm-internals-overview/">Wasm Internals - Overview</a>
-        </h2>
-
-        <div class="post-meta"><time class="post-date">2025-08-26</time></div>
-
-        
-          <span class="post-tags">
-            
-            #<a href="https://chengzhycn.github.io/tags/wasm/">Wasm</a>&nbsp;
-            
-          </span>
-        
-
-        
-
-
-        <div class="post-content">
-          
-            <ul>
-<li><a href="https://rsms.me/wasm-intro">https://rsms.me/wasm-intro</a></li>
-<li><a href="https://hacks.mozilla.org/2017/02/a-cartoon-intro-to-webassembly/">https://hacks.mozilla.org/2017/02/a-cartoon-intro-to-webassembly/</a></li>
-</ul>
-<h2 id="wasm-的历史发展">Wasm 的历史发展</h2>
-<h3 id="早期wasm-mvp---2017">早期（Wasm MVP - 2017）</h3>
-<ul>
-<li><strong>诞生背景：</strong> Wasm 的设计目标是为了替代 asm.js，提供更小、更快、更安全的 Web 二进制格式。</li>
-<li><strong>核心模块的初步定义：</strong> MVP（Minimum Viable Product）阶段定义了 Wasm Core Module 的基本结构：函数、内存、表、导入、导出、全局变量等。</li>
-<li><strong>主要用例：</strong> 游戏引擎、音视频编解码、计算密集型任务等。</li>
-<li><strong>限制：</strong>
-<ul>
-<li><strong>没有模块化系统：</strong> 模块之间没有标准的链接机制，只能通过宿主环境（如 JavaScript）进行协调。</li>
-<li><strong>缺乏垃圾回收（GC）：</strong> 需要手动内存管理或使用语言自带的 GC 机制（如 Emscripten 的 mimalloc）。</li>
-<li><strong>没有线程：</strong> 无法直接利用多核 CPU。</li>
-<li><strong>没有宿主 API 标准化：</strong> 模块与宿主环境的交互方式高度依赖宿主（如浏览器），没有统一的接口定义。</li>
-<li><strong>没有组件模型：</strong> 模块重用和组合非常困难。</li>
-</ul>
-</li>
-</ul>
-<h3 id="中期mvp-之后---持续演进">中期（MVP 之后 - 持续演进）</h3>
-<p>Wasm 社区和工作组认识到 MVP 的局限性，并开始着手扩展 Wasm 的能力，这直接影响了 Core Module 的能力：</p>
-<ul>
-<li><strong>多值（Multiple Returns &amp; Parameters）：</strong> 允许函数返回多个值，接收多个参数，提高表达能力。</li>
-<li><strong>引用类型（Reference Types）：</strong> 引入了 <code>externref</code> 和 <code>funcref</code>，允许 Wasm 直接引用宿主对象和函数，而无需通过数字 ID 传递，为未来的 GC 和组件模型打下基础。</li>
-<li><strong>固定大小的 SIMD（Fixed-width SIMD）：</strong> 引入了新的指令集，允许在 Wasm 中进行向量化操作，进一步提升某些计算密集型任务的性能。</li>
-<li><strong>线程（Threads）：</strong> 引入了共享内存和原子操作，允许 Wasm 模块在多线程环境下运行，极大地提升了并行计算能力。</li>
-<li><strong>内存增长和限制（Memory Growth and Limits）：</strong> 提供了更灵活的内存管理机制。</li>
-<li><strong>Tail Calls（尾调用）：</strong> 优化了函数调用的性能。</li>
-</ul>
-<h3 id="近期和未来wasm-component-model">近期和未来（Wasm Component Model）</h3>
-<p>这是 Wasm 发展中最重要的方向之一，旨在解决 Core Module 在模块化和互操作性方面的根本性问题：</p>
-          
-        </div>
-
-        
-          <div>
-            <a class="read-more button inline" href="/posts/2025-08/wasm-internals-overview/">[Read more]</a>
-          </div>
-        
-      </article>
-    
-      <article class="post on-list">
-        <h2 class="post-title">
-          <a href="https://chengzhycn.github.io/posts/2025-03/c-common-coding-conventions/">C³: Common Coding Conventions</a>
-        </h2>
-
-        <div class="post-meta"><time class="post-date">2025-03-29</time></div>
-
-        
-
-        
-
-
-        <div class="post-content">
-          
-            <h1 id="c-common-coding-conventions">C³: Common Coding Conventions</h1>
-<p><a href="https://google.github.io/eng-practices/">https://google.github.io/eng-practices/</a></p>
-<p><a href="https://github.com/tum-esi/common-coding-conventions">https://github.com/tum-esi/common-coding-conventions</a></p>
-<p>The goal of these conventions is to be concise, universal, and remarkable. It targets emerging code enthusiasts under time pressure and covers 7 topics:</p>
-<ol>
-<li><a href="/posts/2025-03/c-common-coding-conventions/#user-content-general-clarifications">General Clarifications</a>,</li>
-<li><a href="/posts/2025-03/c-common-coding-conventions/#user-content-architecture">Architecture</a>,</li>
-<li><a href="/posts/2025-03/c-common-coding-conventions/#user-content-implementation">Implementation</a>,</li>
-<li><a href="/posts/2025-03/c-common-coding-conventions/#user-content-naming">Naming</a>,</li>
-<li><a href="/posts/2025-03/c-common-coding-conventions/#user-content-code-layout">Code Layout</a>,</li>
-<li><a href="/posts/2025-03/c-common-coding-conventions/#user-content-documentation">Documentation</a>, and</li>
-<li><a href="/posts/2025-03/c-common-coding-conventions/#user-content-languages">Languages</a>.</li>
-</ol>
-<p>To follow this guide, you should already have heard about <a href="https://www.educative.io/blog/object-oriented-programming">Object Oriented Programming</a> and know basic programming rules, such as writing loops and meaningful functions instead of copy pasting
-instructions. In this Readme, we will shortly summarize the most important rules for every topic.</p>
-          
-        </div>
-
-        
-          <div>
-            <a class="read-more button inline" href="/posts/2025-03/c-common-coding-conventions/">[Read more]</a>
-          </div>
-        
-      </article>
-    
-      <article class="post on-list">
-        <h2 class="post-title">
+        <h1 class="post-title">
           <a href="https://chengzhycn.github.io/posts/2022-03/kaist-cs431-lock/">KAIST-CS431: Lock</a>
-        </h2>
-
+        </h1>
         <div class="post-meta"><time class="post-date">2022-03-08</time></div>
 
         
@@ -406,64 +295,6 @@ instructions. In this Readme, we will shortly summarize the most important rules
         
           <div>
             <a class="read-more button inline" href="/posts/2022-03/kaist-cs431-lock/">[Read more]</a>
-          </div>
-        
-      </article>
-    
-      <article class="post on-list">
-        <h2 class="post-title">
-          <a href="https://chengzhycn.github.io/posts/2021-01/dns-zone-files/">Dns Zone Files</a>
-        </h2>
-
-        <div class="post-meta"><time class="post-date">2021-01-03</time></div>
-
-        
-          <span class="post-tags">
-            
-            #<a href="https://chengzhycn.github.io/tags/dns/">dns</a>&nbsp;
-            
-          </span>
-        
-
-        
-
-
-        <div class="post-content">
-          
-            <h2 id="cname-记录">CNAME 记录</h2>
-<h3 id="记录格式">记录格式</h3>
-<pre tabindex="0"><code>bar.example.com.	CNAME	foo.example.com.
-foo.example.com.	A		192.168.0.1
-</code></pre><h3 id="cname-记录的限制">CNAME 记录的限制</h3>
-<ol>
-<li>如果一个 domain name 有了一个 CNAME 记录，那么它不能再拥有其它类型的记录</li>
-<li>CNAME 记录必须指向另外一个 domain name，而不是一个 IP</li>
-<li>CNAME 记录最好不要指向另外一个 CNAME 记录</li>
-<li>MX 和 NS 记录不能指向一个 CNAME 记录</li>
-</ol>
-<h2 id="srv-记录">SRV 记录</h2>
-<p>type code：33</p>
-<h3 id="记录格式-1">记录格式</h3>
-<pre tabindex="0"><code>_service._protocol.name. TTL class SRV priority weight port target.
-
-_sip._tcp.example.com. 86400 IN SRV 0 5 5060 sipserver.example.com.
-</code></pre><ul>
-<li>_service: 服务名称 symbolic name</li>
-<li>protocol: 协议</li>
-<li>name: domain name，以 . 结束</li>
-<li>priority: 条目优先级, 值越低优先级越高</li>
-<li>weight: 同样优先级内不同条目的权重</li>
-<li>target: canonical hostname，以 . 结束
-如果是一个 MX 记录，那么 target 需要是一个 IP 地址（A 或者 AAAA）而不是 CNAME</li>
-</ul>
-<h2 id="soa-记录">SOA 记录</h2>
-<p>start of authority, 一个权威的起始</p>
-          
-        </div>
-
-        
-          <div>
-            <a class="read-more button inline" href="/posts/2021-01/dns-zone-files/">[Read more]</a>
           </div>
         
       </article>

@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  
+    <title>Wasm Internals - Overview :: Terminal</title>
+  
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content=" https://rsms.me/wasm-intro https://hacks.mozilla.org/2017/02/a-cartoon-intro-to-webassembly/ Wasm 的历史发展 早期（Wasm MVP - 2017） 诞生背景： Wasm 的设计目标是为了替代 asm.js，提供更小、更快、更安全的 Web 二进制格式。 核心模块的初步定义： MVP（Minimum Viable Product）阶段定义了 Wasm Core Module 的基本结构：函数、内存、表、导入、导出、全局变量等。 主要用例： 游戏引擎、音视频编解码、计算密集型任务等。 限制： 没有模块化系统： 模块之间没有标准的链接机制，只能通过宿主环境（如 JavaScript）进行协调。 缺乏垃圾回收（GC）： 需要手动内存管理或使用语言自带的 GC 机制（如 Emscripten 的 mimalloc）。 没有线程： 无法直接利用多核 CPU。 没有宿主 API 标准化： 模块与宿主环境的交互方式高度依赖宿主（如浏览器），没有统一的接口定义。 没有组件模型： 模块重用和组合非常困难。 中期（MVP 之后 - 持续演进） Wasm 社区和工作组认识到 MVP 的局限性，并开始着手扩展 Wasm 的能力，这直接影响了 Core Module 的能力：
+多值（Multiple Returns &amp; Parameters）： 允许函数返回多个值，接收多个参数，提高表达能力。 引用类型（Reference Types）： 引入了 externref 和 funcref，允许 Wasm 直接引用宿主对象和函数，而无需通过数字 ID 传递，为未来的 GC 和组件模型打下基础。 固定大小的 SIMD（Fixed-width SIMD）： 引入了新的指令集，允许在 Wasm 中进行向量化操作，进一步提升某些计算密集型任务的性能。 线程（Threads）： 引入了共享内存和原子操作，允许 Wasm 模块在多线程环境下运行，极大地提升了并行计算能力。 内存增长和限制（Memory Growth and Limits）： 提供了更灵活的内存管理机制。 Tail Calls（尾调用）： 优化了函数调用的性能。 近期和未来（Wasm Component Model） 这是 Wasm 发展中最重要的方向之一，旨在解决 Core Module 在模块化和互操作性方面的根本性问题：
+" />
+<meta name="keywords" content="" />
+
+  <meta name="robots" content="noodp" />
+
+<link rel="canonical" href="https://chengzhycn.github.io/posts/2025-08/wasm-internals-overview/" />
+
+
+
+
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/buttons.min.86f6b4c106b6c6eb690ae5203d36b442c1f66f718ff4e8164fa86cf6c61ad641.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/code.min.d529ea4b2fb8d34328d7d31afc5466d5f7bc2f0bc9abdd98b69385335d7baee4.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/fonts.min.5bb7ed13e1d00d8ff39ea84af26737007eb5051b157b86fc24487c94f3dc8bbe.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/footer.min.eb8dfc2c6a7eafa36cd3ba92d63e69e849e2200e0002a228d137f236b09ecd75.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/gist.min.a751e8b0abe1ba8bc53ced52a38b19d8950fe78ca29454ea8c2595cf26aad5c0.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/header.min.75c7eb0e2872d95ff48109c6647d0223a38db52e2561dd87966eb5fc7c6bdac6.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/main.min.775ac2af004d44c22a6d000fbd1d9af529642f5cef27399d0280d180af2c2e9b.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/menu.min.310d32205bdedd6f43144e3c3273c9deecd238eba5f9108db5ea96ca0cfbe377.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/pagination.min.bbb986dbce00a5ce5aca0504b7925fc1c581992a4bf57f163e5d69cc1db7d836.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/post.min.ad50c7f4d00e7975918f37fc74c6029e1959a40d66fb5b2c6564a8715e985573.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/syntax.min.e9ab635cf918bc84b901eb65c0b2caa74c9544245e3647c1af5c129896ef276e.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/terminal.min.e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/terms.min.b81791663c3790e738e571cdbf802312390d30e4b1d8dc9d814a5b5454d0ac11.css">
+
+
+
+
+
+
+
+<link rel="shortcut icon" href="https://chengzhycn.github.io/favicon.png">
+<link rel="apple-touch-icon" href="https://chengzhycn.github.io/apple-touch-icon.png">
+
+
+<meta name="twitter:card" content="summary" />
+
+  
+    <meta name="twitter:site" content="" />
+  
+    <meta name="twitter:creator" content="" />
+
+
+
+<meta property="og:locale" content="en" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="Wasm Internals - Overview">
+<meta property="og:description" content=" https://rsms.me/wasm-intro https://hacks.mozilla.org/2017/02/a-cartoon-intro-to-webassembly/ Wasm 的历史发展 早期（Wasm MVP - 2017） 诞生背景： Wasm 的设计目标是为了替代 asm.js，提供更小、更快、更安全的 Web 二进制格式。 核心模块的初步定义： MVP（Minimum Viable Product）阶段定义了 Wasm Core Module 的基本结构：函数、内存、表、导入、导出、全局变量等。 主要用例： 游戏引擎、音视频编解码、计算密集型任务等。 限制： 没有模块化系统： 模块之间没有标准的链接机制，只能通过宿主环境（如 JavaScript）进行协调。 缺乏垃圾回收（GC）： 需要手动内存管理或使用语言自带的 GC 机制（如 Emscripten 的 mimalloc）。 没有线程： 无法直接利用多核 CPU。 没有宿主 API 标准化： 模块与宿主环境的交互方式高度依赖宿主（如浏览器），没有统一的接口定义。 没有组件模型： 模块重用和组合非常困难。 中期（MVP 之后 - 持续演进） Wasm 社区和工作组认识到 MVP 的局限性，并开始着手扩展 Wasm 的能力，这直接影响了 Core Module 的能力：
+多值（Multiple Returns &amp; Parameters）： 允许函数返回多个值，接收多个参数，提高表达能力。 引用类型（Reference Types）： 引入了 externref 和 funcref，允许 Wasm 直接引用宿主对象和函数，而无需通过数字 ID 传递，为未来的 GC 和组件模型打下基础。 固定大小的 SIMD（Fixed-width SIMD）： 引入了新的指令集，允许在 Wasm 中进行向量化操作，进一步提升某些计算密集型任务的性能。 线程（Threads）： 引入了共享内存和原子操作，允许 Wasm 模块在多线程环境下运行，极大地提升了并行计算能力。 内存增长和限制（Memory Growth and Limits）： 提供了更灵活的内存管理机制。 Tail Calls（尾调用）： 优化了函数调用的性能。 近期和未来（Wasm Component Model） 这是 Wasm 发展中最重要的方向之一，旨在解决 Core Module 在模块化和互操作性方面的根本性问题：
+" />
+<meta property="og:url" content="https://chengzhycn.github.io/posts/2025-08/wasm-internals-overview/" />
+<meta property="og:site_name" content="Terminal" />
+
+  <meta property="og:image" content="https://chengzhycn.github.io/og-image.png">
+
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="627">
+
+  <meta property="article:section" content="Work" />
+
+
+  <meta property="article:published_time" content="2025-08-26 12:29:03 &#43;0800 &#43;0800" />
+
+
+
+
+
+
+
+
+
+
+
+
+</head>
+<body>
+
+
+<div class="container center">
+
+  <header class="header">
+  <div class="header__inner">
+    <div class="header__logo">
+      <a href="/">
+  <div class="logo">
+    Terminal
+  </div>
+</a>
+
+    </div>
+    
+      <ul class="menu menu--mobile">
+  <li class="menu__trigger">Menu&nbsp;▾</li>
+  <li>
+    <ul class="menu__dropdown">
+      
+        
+          <li><a href="/">Home</a></li>
+        
+      
+        
+          <li><a href="/about">About</a></li>
+        
+      
+        
+          <li><a href="/posts/">Archives</a></li>
+        
+      
+        
+          <li><a href="/categories/">Categories</a></li>
+        
+      
+        
+          <li><a href="/tags/">Tags</a></li>
+        
+      
+      
+    </ul>
+  </li>
+</ul>
+
+    
+    
+  </div>
+  
+    <nav class="navigation-menu">
+  <ul class="navigation-menu__inner menu--desktop">
+    
+      
+        
+          <li><a href="/" >Home</a></li>
+        
+      
+        
+          <li><a href="/about" >About</a></li>
+        
+      
+      
+        <li>
+          <ul class="menu">
+            <li class="menu__trigger">Show more&nbsp;▾</li>
+            <li>
+              <ul class="menu__dropdown">
+                
+                  
+                    <li><a href="/posts/" >Archives</a></li>
+                  
+                
+                  
+                    <li><a href="/categories/" >Categories</a></li>
+                  
+                
+                  
+                    <li><a href="/tags/" >Tags</a></li>
+                  
+                
+              </ul>
+            </li>
+          </ul>
+        </li>
+      
+    
+  </ul>
+</nav>
+
+  
+</header>
+
+
+  <div class="content">
+    
+<article class="post">
+  <h1 class="post-title">
+    <a href="https://chengzhycn.github.io/posts/2025-08/wasm-internals-overview/">Wasm Internals - Overview</a>
+  </h1>
+  <div class="post-meta"><time class="post-date">2025-08-26</time></div>
+
+  
+    <span class="post-tags">
+      
+      #<a href="https://chengzhycn.github.io/tags/wasm/">Wasm</a>&nbsp;
+      
+    </span>
+  
+  
+
+
+  
+    <div class="table-of-contents">
+      <h2>
+        Table of Contents
+      </h2>
+      <nav id="TableOfContents">
+  <ul>
+    <li><a href="#wasm-的历史发展">Wasm 的历史发展</a>
+      <ul>
+        <li><a href="#早期wasm-mvp---2017">早期（Wasm MVP - 2017）</a></li>
+        <li><a href="#中期mvp-之后---持续演进">中期（MVP 之后 - 持续演进）</a></li>
+        <li><a href="#近期和未来wasm-component-model">近期和未来（Wasm Component Model）</a></li>
+      </ul>
+    </li>
+    <li><a href="#core-module">Core Module</a>
+      <ul>
+        <li><a href="#内存使用">内存使用</a></li>
+      </ul>
+    </li>
+    <li><a href="#component-model">Component Model</a>
+      <ul>
+        <li><a href="#canonical-abi">Canonical ABI</a></li>
+      </ul>
+    </li>
+  </ul>
+</nav>
+    </div>
+  
+
+  <div class="post-content"><div>
+        <ul>
+<li><a href="https://rsms.me/wasm-intro">https://rsms.me/wasm-intro</a></li>
+<li><a href="https://hacks.mozilla.org/2017/02/a-cartoon-intro-to-webassembly/">https://hacks.mozilla.org/2017/02/a-cartoon-intro-to-webassembly/</a></li>
+</ul>
+<h2 id="wasm-的历史发展">Wasm 的历史发展<a href="#wasm-的历史发展" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<h3 id="早期wasm-mvp---2017">早期（Wasm MVP - 2017）<a href="#早期wasm-mvp---2017" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<ul>
+<li><strong>诞生背景：</strong> Wasm 的设计目标是为了替代 asm.js，提供更小、更快、更安全的 Web 二进制格式。</li>
+<li><strong>核心模块的初步定义：</strong> MVP（Minimum Viable Product）阶段定义了 Wasm Core Module 的基本结构：函数、内存、表、导入、导出、全局变量等。</li>
+<li><strong>主要用例：</strong> 游戏引擎、音视频编解码、计算密集型任务等。</li>
+<li><strong>限制：</strong>
+<ul>
+<li><strong>没有模块化系统：</strong> 模块之间没有标准的链接机制，只能通过宿主环境（如 JavaScript）进行协调。</li>
+<li><strong>缺乏垃圾回收（GC）：</strong> 需要手动内存管理或使用语言自带的 GC 机制（如 Emscripten 的 mimalloc）。</li>
+<li><strong>没有线程：</strong> 无法直接利用多核 CPU。</li>
+<li><strong>没有宿主 API 标准化：</strong> 模块与宿主环境的交互方式高度依赖宿主（如浏览器），没有统一的接口定义。</li>
+<li><strong>没有组件模型：</strong> 模块重用和组合非常困难。</li>
+</ul>
+</li>
+</ul>
+<h3 id="中期mvp-之后---持续演进">中期（MVP 之后 - 持续演进）<a href="#中期mvp-之后---持续演进" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>Wasm 社区和工作组认识到 MVP 的局限性，并开始着手扩展 Wasm 的能力，这直接影响了 Core Module 的能力：</p>
+<ul>
+<li><strong>多值（Multiple Returns &amp; Parameters）：</strong> 允许函数返回多个值，接收多个参数，提高表达能力。</li>
+<li><strong>引用类型（Reference Types）：</strong> 引入了 <code>externref</code> 和 <code>funcref</code>，允许 Wasm 直接引用宿主对象和函数，而无需通过数字 ID 传递，为未来的 GC 和组件模型打下基础。</li>
+<li><strong>固定大小的 SIMD（Fixed-width SIMD）：</strong> 引入了新的指令集，允许在 Wasm 中进行向量化操作，进一步提升某些计算密集型任务的性能。</li>
+<li><strong>线程（Threads）：</strong> 引入了共享内存和原子操作，允许 Wasm 模块在多线程环境下运行，极大地提升了并行计算能力。</li>
+<li><strong>内存增长和限制（Memory Growth and Limits）：</strong> 提供了更灵活的内存管理机制。</li>
+<li><strong>Tail Calls（尾调用）：</strong> 优化了函数调用的性能。</li>
+</ul>
+<h3 id="近期和未来wasm-component-model">近期和未来（Wasm Component Model）<a href="#近期和未来wasm-component-model" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>这是 Wasm 发展中最重要的方向之一，旨在解决 Core Module 在模块化和互操作性方面的根本性问题：</p>
+<ul>
+<li><strong>Wasm Component Model 的提出：</strong>
+<ul>
+<li><strong>核心痛点：</strong> Wasm Core Modules 是“低级指令集”，它们之间直接通信非常困难。不同的语言编译出的 Wasm 模块可能使用不同的内存布局、字符串编码、错误处理机制等，导致模块复用性差，“乐高积木”式的组合难以实现。</li>
+<li><strong>解决方案：</strong> Component Model 引入了<strong>高层语义</strong>。它不是替换 Core Module，而是在 Core Module 之上构建了一个标准化层。一个 Component 是一个或多个 Core Modules 的封装，它定义了明确的、语言无关的接口（WIT - WebAssembly Interface Type）。</li>
+<li><strong>WIT（WebAssembly Interface Type）：</strong> 类似于 IDL（Interface Definition Language），用于定义组件的输入和输出类型，包括结构体、枚举、变体、结果类型等，这些类型可以跨语言边界安全地传递。</li>
+<li><strong>适配器（Adapters）：</strong> Component Model 运行时会自动生成适配器代码，处理不同 Core Module 之间的类型转换、内存布局差异等，使得模块开发者无需关心这些底层细节。</li>
+<li><strong>虚拟化和实例隔离：</strong> 允许组件在不同的虚拟实例中运行，增强了安全性。</li>
+</ul>
+</li>
+<li><strong>发展阶段：</strong>
+<ul>
+<li>Component Model 仍在积极开发中，但已经取得了显著进展，并且有多个实现（如 <code>wasmtime</code> 的 Wasm Component 支持）。</li>
+<li>它旨在实现真正的“跨语言模块化”，让用 Rust 编写的 Wasm 组件可以无缝地调用用 Go 编写的 Wasm 组件，反之亦然，而无需通过 JavaScript 或系统调用作为中介。</li>
+</ul>
+</li>
+<li><strong>对 Core Module 的影响：</strong> Core Module 仍然是 Wasm 的基本执行单元，但 Component Model 将会是 Wasm 生态的未来，它使得 Core Module 能够被更高效、更安全、更灵活地组合和复用。</li>
+</ul>
+<h2 id="core-module">Core Module<a href="#core-module" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p><strong>Wasm Core Module 是一个独立的、可部署的 WebAssembly 单元，它包含了编译后的 WebAssembly 二进制代码（字节码）以及与这些代码相关的元数据。</strong></p>
+<p><img src="/images/notes/wasm-internals-overview/009feded3444b9ac0491d74b84572c5e_MD5.jpeg" alt="009feded3444b9ac0491d74b84572c5e_MD5"></p>
+<p>Binary Section 组成：</p>
+<ol>
+<li><strong>类型（Type Section）：</strong> 模块中使用的函数签名的定义。Wasm 只有 4 种具体类型，i32, i64, f32, f64。其它的复杂类型都是构建在这4种基础类型之上的。<strong>==Type Section 对于所有模块是必须的。==</strong></li>
+</ol>
+<pre tabindex="0"><code class="language-wasm" data-lang="wasm">(i32 i32 -&gt; i32)  // func_type #0
+(i64 -&gt; i64)      // func_type #1
+( -&gt; )            // func_type #2
+</code></pre><ol start="2">
+<li><strong>导入（Imports Section）：</strong> 列出了模块从外部（宿主环境或其它 Wasm 模块）导入的函数、内存、表或全局变量。宿主机环境解析 Import Section，决定如何将外部函数动态链接到 Wasm。这也是 Wasm 与非 Wasm functions 交互的 FFI。</li>
+</ol>
+<pre tabindex="0"><code class="language-wasm" data-lang="wasm">(&#34;dumb-math&#34;, &#34;quadruple&#34;, (func_type 1))        // func #0
+(&#34;dumb-math&#34;, &#34;pi&#34;, (global_type i64 immutable))
+</code></pre><ol start="3">
+<li><strong>函数（Function Section）：</strong> function section 为 code section 中定义的每个函数声明索引，其中列表中的位置是函数的索引，值是其类型。有效的函数索引 import section 中的函数类型开始，这意味着模块中可用的有效函数列表是 import section 中 func_type 的个数加上 function section 的条目数。<strong>==Function Section 对于所有模块也是必须的。==</strong></li>
+</ol>
+<pre tabindex="0"><code class="language-wasm" data-lang="wasm">(func_type 1)  // func #1
+(func_type 1)  // func #2
+(func_type 0)  // func #3
+</code></pre><ol start="4">
+<li><strong>代码（Code Section）：</strong> 这是模块最重要的部分，包含了一系列 Wasm 函数的二进制指令。这些指令是低级的、栈式的虚拟机指令，执行效率高。</li>
+</ol>
+<pre tabindex="0"><code class="language-wasm" data-lang="wasm">get_local 0  // push parameter #0 on stack (our dividend)
+i64.const 2  // push constant int64 &#34;2&#34; on stack (our divisor)
+i64.div_u    // unsigned division; pushes result onto stack
+end          // ends function, resulting in one i64 (top of stack)
+</code></pre><p><img src="/images/notes/wasm-internals-overview/538d8c005c0a8509eb5438f7fd96cc54_MD5.jpeg" alt="538d8c005c0a8509eb5438f7fd96cc54_MD5"></p>
+<ol start="5">
+<li><strong>数据（Data Section）：</strong> 定义了模块初始化时需要加载到内存中的静态数据。这些数据可以是字符串、常量数组或其他预定义的值。如下的 data section 将使用提供的字节值初始化第 0 个内存中的字节 [4–8]，如果将其作为无符号 i32 读取，则会得到数字 &ldquo;42&rdquo;。</li>
+</ol>
+<pre tabindex="0"><code class="language-wasm" data-lang="wasm">(data_segment
+  0                          // linear memory index
+  (init_expr (i32.const 4))  // byte offset at which to place the data
+  (data 0x2a 0x0 0x0 0x0))
+</code></pre><ol start="6">
+<li><strong>内存（Memory Section）：</strong> 声明模块所需的线性内存（通常是字节数组）。模块可以通过指令读写这块内存。Wasm 内存是<strong>沙盒化</strong>的，每个模块通常有自己独立的内存空间，增强了安全性。</li>
+<li><strong>表（Table Section）：</strong> 声明了模块所需的表。目前 Wasm 表主要用于存储函数引用，管理函数指针，这对于实现高级语言特性（如高阶函数、间接调用）非常重要。</li>
+<li><strong>导出（Exports Section）：</strong> 列出了模块对外暴露的函数、内存、表或全局变量。外部环境（如 JavaScript）可以通过这些导出接口与 Wasm 模块进行交互。如下面的例子，通过查找 <code>func 1</code> 的类型是 <code>func_type 1</code>，可知导出的 <code>half</code> 函数签名。</li>
+</ol>
+<pre tabindex="0"><code class="language-wasm" data-lang="wasm">(&#34;half&#34; (func 1))
+// func half(arg int64) int64
+</code></pre><ol start="9">
+<li><strong>全局变量（Global Section）：</strong> 定义了模块内部的全局变量，可以是可变或不可变的。</li>
+<li><strong>开始函数（Start Section - Optional）：</strong> 可以指定一个函数作为模块加载后的自动执行入口点。可以用来使模块成为可执行程序，或用于动态初始化模块的全局变量或内存。</li>
+<li><strong>元素（Element Section）：</strong> 主要用于初始化模块的<strong>表（Tables）</strong>。</li>
+</ol>
+<p><strong>核心理念：</strong></p>
+<ul>
+<li><strong>沙盒化（Sandboxing）：</strong> 每个 Wasm 模块在一个受限的环境中运行，不能直接访问宿主系统的资源，只能通过明确的导入/导出机制进行交互。这极大地提高了安全性。</li>
+<li><strong>平台无关性（Platform Independence）：</strong> Wasm 字节码是平台无关的，可以在任何支持 Wasm 运行时的环境中执行（浏览器、Node.js、服务器、IoT 设备等）。</li>
+<li><strong>高性能（High Performance）：</strong> Wasm 被设计为接近原生代码的执行速度。运行时通常会进行即时编译（JIT）或提前编译（AOT）来优化性能。</li>
+<li><strong>确定性（Determinism）：</strong> Wasm 模块的执行是确定性的，只要输入相同，输出就相同。这对于调试和安全性很重要。</li>
+<li><strong>语言无关性（Language Agnostic）：</strong> 任何能编译成 Wasm 的语言（C/C++, Rust, Go, C#, AssemblyScript 等）都可以生成 Wasm 模块。</li>
+</ul>
+<h3 id="内存使用">内存使用<a href="#内存使用" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<ul>
+<li>WebAssembly 的内存是线性内存，通常以页为单位，每页大小为 64KB。Wasm 始终使用小端序做字节存储。</li>
+<li>内存可以通过 <code>export</code> 导出到宿主机环境中，供外部代码读取或写入。</li>
+</ul>
+<pre tabindex="0"><code class="language-wasm" data-lang="wasm">export &#34;string_mem&#34; (mem 1)
+</code></pre><ol>
+<li><strong><code>export</code></strong>:
+<ul>
+<li>这是 WebAssembly 的一个指令，用于将模块中的某些资源（例如函数、内存、全局变量等）导出。</li>
+<li>导出的资源可以被外部环境（例如 JavaScript）访问和使用。</li>
+</ul>
+</li>
+<li><strong><code>&quot;string_mem&quot;</code></strong>:
+<ul>
+<li>这是导出的内存资源的名称。</li>
+<li>外部环境（比如 JavaScript）会通过这个名字来引用和使用该内存。</li>
+</ul>
+</li>
+<li><strong><code>(mem 1)</code></strong>:
+<ul>
+<li><code>mem</code> 表示内存对象。</li>
+<li><code>1</code> 是内存索引，表示这是模块中的第 2 个内存（索引从 0 开始）。</li>
+<li>WebAssembly 模块可以包含多个内存对象，每个内存对象都有一个唯一的索引。</li>
+</ul>
+</li>
+</ol>
+<h4 id="访存操作">访存操作<a href="#访存操作" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<p>内存的 load 和 store 有两个参数，align 和 offset，分别表示对齐边界和基址偏移量。</p>
+<pre tabindex="0"><code class="language-wasm" data-lang="wasm">i32.const 3      // address-operand = 3
+i64.const 1234   // value
+i64.store16 1 3  // alignment = 1 = 16-bit, offset-immediate = 3
+                 // effective-address = 3 + 3 = 6
+</code></pre><p>如上例子，基址是 3，偏移量是 3，所以有效地址是 6， 1234（0x04D2）会放在 [6-7] 上，小端序 D2 放地址低位。2 字节对齐，符合对齐规则。</p>
+<pre tabindex="0"><code class="language-wasm" data-lang="wasm">i64.store32 2 3  // align = 2 = 32-bit, offset = 3  =&gt;  addr = 6
+</code></pre><p>如果把 store 命令对齐边界设置为 32 bit，同时存储一个 32 bit 的数值，那么存储的地址为 [6-9]，很明显不符合 32 bit 对齐。<strong>只有当有效地址位于承诺的对齐边界内时，load 或 store 指令才被认为是对齐的。</strong>
+对齐在 Wasm 中不是强制要求，但是有助于 Wasm runtime 进行潜在的性能优化。如果声明了对齐，但实际访存操作没有对齐，可能会导致性能下降。</p>
+<h2 id="component-model">Component Model<a href="#component-model" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>Wasm Component Model 的核心概念围绕着如何让不同的 Wasm 模块（或“组件”）能够以类型安全、跨语言、隔离的方式相互通信和协作。其核心目标是：</p>
+<ol>
+<li>添加一致的高级类型表示（Canonical ABI）</li>
+<li>接口驱动的开发模式（WIT）</li>
+<li>使 WebAssembly Core Modules 可组合（Component）：提供功能的组件和使用它们的组件可以组合成另外一个组件</li>
+</ol>
+<p>以下是一些关键概念：</p>
+<ol>
+<li><strong>组件 (Component):</strong>
+<ul>
+<li><strong>定义:</strong> 组件是 Wasm 模块的升级版。它不仅仅是裸的 WebAssembly 代码，还包含清晰定义的<strong>接口</strong>，描述了它提供的功能（导出 export）和它所需的外部功能（导入 import）。</li>
+<li><strong>抽象:</strong> 组件隐藏了其内部实现细节，只暴露其接口。这意味着你可以用任何支持 Wasm 的语言（Rust, C, Go, JS, Python 等）实现一个组件，只要它符合接口定义，其他组件就能使用它。</li>
+<li><strong>可组合性:</strong> 组件是可组合的基本单元。你可以将多个组件连接起来形成更复杂的应用程序。</li>
+</ul>
+</li>
+<li><strong>接口 (Interface / WIT):</strong>
+<ul>
+<li><strong>定义:</strong> 接口是使用一种名为 <strong>WIT (WebAssembly Interface Type)</strong> 的语言定义的。WIT 是一个与语言无关的接口描述语言，类似于 Protocol Buffers 或 OpenAPI Specification，但专门为 Wasm 设计。</li>
+<li><strong>类型安全:</strong> WIT 定义了数据结构、函数签名、枚举等，确保组件之间的通信是类型安全的。这极大地减少了运行时错误。</li>
+<li><strong>跨语言互操作:</strong> 任何语言，只要实现了 WIT 到其原生类型的映射，就可以实现或使用一个 WIT 接口。这是实现跨语言互操作的关键。</li>
+<li><strong>能力驱动:</strong> 接口不仅定义了数据和函数，还可以定义组件所需或提供的“能力”（如文件系统访问、网络请求等），这有助于实现基于能力的安全模型。</li>
+</ul>
+</li>
+<li><strong>适配器 (Adapter):</strong>
+<ul>
+<li><strong>定义:</strong> 适配器是连接不同 Wasm ABIs（应用二进制接口）或类型表示的关键。当不同的语言或工具链生成 Wasm 时，它们可能使用不同的底层内存布局或调用约定。</li>
+<li><strong>作用:</strong> 适配器在组件的入口和出口处进行数据转换和函数签名适配，确保即使底层实现不同，组件之间也能无缝通信。</li>
+<li><strong>自动化生成:</strong> 适配器通常由 Wasm Component Model 工具链自动生成，开发者无需手动编写。</li>
+</ul>
+</li>
+<li><strong>世界 (World):</strong>
+<ul>
+<li><strong>定义:</strong> “世界”是 WIT 中的一个高级概念，它代表了一个特定应用程序或上下文所需的完整接口集合。</li>
+<li><strong>作用:</strong> 它定义了一个组件在特定环境中需要提供的功能和所需的功能。例如，一个“命令行工具世界”可能定义了访问标准输入/输出、环境变量和文件系统的接口。一个“浏览器插件世界”可能定义了与 DOM 交互的接口。</li>
+<li><strong>契约:</strong> 世界可以看作是组件与其运行环境之间的契约。一个组件声明它实现了某个世界，就意味着它遵循了该世界定义的所有导入和导出要求。</li>
+</ul>
+</li>
+<li><strong>Lift &amp; Lower (提升与降低):</strong>
+<ul>
+<li><strong>定义:</strong> 这是 Wasm Component Model 在幕后进行类型转换的过程。</li>
+<li><strong>Lower:</strong> 将高级语言（如 Rust struct）的数据结构“降低”为 WebAssembly 内存中的原始字节序列，以便在组件之间传递。</li>
+<li><strong>Lift:</strong> 将 WebAssembly 内存中的原始字节序列“提升”回高级语言（如 JavaScript 对象）的数据结构。</li>
+<li><strong>自动化:</strong> 这些操作通常是工具链自动完成的，开发者无需关心底层细节。</li>
+</ul>
+</li>
+<li><strong>包 (Package):</strong>
+<ul>
+<li><strong>定义:</strong> 包是组件、接口、世界和其他相关资源的集合，可以进行分发和版本管理。</li>
+<li><strong>可发现性:</strong> 包注册表（如 <code>wasm.io</code>）将允许开发者发布和发现 Wasm 组件包。</li>
+</ul>
+</li>
+<li><strong>平台(Platform):</strong>
+<ul>
+<li><strong>定义：</strong></li>
+</ul>
+</li>
+</ol>
+<p>一个 WIT 定义的例子：</p>
+<pre tabindex="0"><code class="language-wasm" data-lang="wasm">package docs:adder@0.1.0;
+
+interface add {
+    add: func(x: u32, y: u32) -&gt; u32;
+}
+
+world adder {
+    include wasi:cli/imports@0.2.0;
+    export add;
+}
+</code></pre><ul>
+<li>package
+<ul>
+<li><code>package</code>: 这关键字表示定义一个 WIT 包。</li>
+<li><code>docs:adder</code>: 这是包的名称。遵循一种常见的命名约定，即 <code>registry_prefix:package_name</code>。在这里，<code>docs</code> 可以理解为一个虚构的组织或领域，<code>adder</code> 是这个包的具体名称。</li>
+<li><code>@0.1.0</code>: 这是包的版本号，遵循语义化版本（Semantic Versioning）规范。</li>
+</ul>
+</li>
+<li>interface
+<ul>
+<li><code>interface add</code>: 这关键字开始定义一个名为 <code>add</code> 的接口。接口是 WIT 中定义一组相关函数和数据类型的方式。它可以被其他接口或世界导入或导出。</li>
+<li><code>add: func(x: u32, y: u32) -&gt; u32;</code>:
+<ul>
+<li><code>add</code>: 这是接口内部定义的一个函数的名称。这个函数与接口同名，但实际上这只是一个巧合，它们可以不同名。</li>
+<li><code>func</code>: 表示这是一个函数定义。</li>
+<li><code>(x: u32, y: u32)</code>: 这是函数的参数列表。
+<ul>
+<li><code>x</code> 和 <code>y</code> 是参数名，用于在描述中清晰指代。</li>
+<li><code>u32</code> 是参数的类型，表示一个无符号32位整数。WIT 支持多种基本类型，如 <code>u8</code>, <code>u16</code>, <code>u32</code>, <code>u64</code>, <code>s8</code>, <code>s16</code>, <code>s32</code>, <code>s64</code>, <code>float32</code>, <code>float64</code>, <code>char</code>, <code>bool</code>, <code>string</code>, 以及复合类型（如 <code>record</code>, <code>variant</code>, <code>list</code>, <code>option</code>, <code>result</code> 等）。</li>
+</ul>
+</li>
+<li><code>-&gt; u32</code>: 这是函数的返回类型。表示函数将返回一个无符号32位整数。</li>
+<li><code>;</code>: 语句结束符。</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>world
+<ul>
+<li><code>world adder</code>: 这关键字开始定义一个名为 <code>adder</code> 的“世界”。“世界”是 WIT 中最高级别的概念，它代表了一个特定组件或应用程序的完整接口需求和提供能力。它描述了组件与其运行环境之间的契约。</li>
+<li><code>include wasi:cli/imports@0.2.0;</code>:
+<ul>
+<li><code>include</code>: 这个关键字用于将另一个包或接口的定义导入到当前世界中。</li>
+<li><code>wasi:cli/imports@0.2.0</code>: 这是指定要导入的外部包。
+<ul>
+<li><code>wasi:cli/imports</code>: 是 WASI (WebAssembly System Interface) 标准中的一个特定部分，它定义了命令行接口（CLI）应用程序所需的功能。</li>
+<li><code>@0.2.0</code>: 指定导入该接口的 <code>0.2.0</code> 版本。</li>
+</ul>
+</li>
+<li><strong>作用</strong>: 这行表示，实现 <code>adder</code> 世界的组件需要能够访问 WASI CLI 定义的导入功能。这通常包括能够解析命令行参数、访问标准输入/输出流、环境变量等，使得这个 Wasm 组件可以像一个标准的命令行程序一样运行。它<strong>导入</strong>了宿主环境提供给它的能力。</li>
+</ul>
+</li>
+<li><code>export add;</code>:
+<ul>
+<li><code>export</code>: 这个关键字用于指定当前世界（即实现它的组件）将向其宿主环境或调用者<strong>提供</strong>哪些功能。</li>
+<li><code>add</code>: 这里引用的是上面定义的 <code>add</code> 接口。</li>
+<li><strong>作用</strong>: 这行表示，实现 <code>adder</code> 世界的 Wasm 组件将导出 <code>add</code> 接口中定义的 <code>add</code> 函数。这意味着外部代码（比如 Wasm runtime 或其他 Wasm 组件）可以通过这个接口调用 <code>adder</code> 组件的加法功能。</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<h3 id="canonical-abi">Canonical ABI<a href="#canonical-abi" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>Wasm 的 Canonical ABI（Application Binary Interface）是一个<strong>关于 WebAssembly 模块如何与外部世界（通常是宿主环境或其它 Wasm 模块）进行高效、类型安全且语言无关的数据交换和函数调用的规范。</strong> 它的核心目标是解决 Wasm 生态系统中的互操作性痛点，特别是在 Wasm Component Model 出现之后，显得尤为重要。</p>
+<h4 id="为什么需要-canonical-abi">为什么需要 Canonical ABI？<a href="#为什么需要-canonical-abi" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<p>在 Wasm Component Model 出现之前，Core Wasm Module 的 ABI 是非常底层的：</p>
+<ol>
+<li><strong>仅支持基本数值类型：</strong> Wasm Core 只支持 <code>i32</code>, <code>i64</code>, <code>f32</code>, <code>f64</code>。</li>
+<li><strong>手动内存管理：</strong> 传递复杂数据结构（如字符串、数组、结构体）时，需要手动在模块的线性内存中分配空间、拷贝数据，并通过指针（<code>i32</code>）传递给对方。</li>
+<li><strong>语言特定的 ABI：</strong> 不同的源语言（C, Rust, Go 等）有自己的 ABI 约定，导致它们编译生成的 Wasm 模块之间直接通信非常困难。例如，C 的字符串是零终止的字节数组，而 Rust 的字符串是<code>utf8</code>编码的<code>Vec&lt;u8&gt;</code>与长度的组合。</li>
+<li><strong>错误处理混乱：</strong> 没有统一的错误传播机制。</li>
+<li><strong>资源管理：</strong> 缺乏对宿主资源（如文件句柄、网络套接字）的统一抽象和传递机制。
+这些问题使得 Wasm 模块在进行复杂交互时，需要大量的手动“胶水代码”，效率低下且容易出错。<strong>Canonical ABI 就是为了解决这些问题，提供一个标准的、宿主无关的、多语言通用的数据交换和函数调用约定。</strong></li>
+</ol>
+<h4 id="canonical-abi-的核心概念">Canonical ABI 的核心概念<a href="#canonical-abi-的核心概念" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<p>Canonical ABI 主要定义了两件事：</p>
+<ol>
+<li><strong>数据布局（Data Layout）：</strong> 复杂数据结构（字符串、列表、记录、变体、资源等）如何在 Wasm 线性内存中表示。</li>
+<li><strong>调用约定（Calling Convention）：</strong> 函数如何接收和返回这些复杂数据结构，以及错误如何传播。</li>
+</ol>
+<p>以下是其关键特性：</p>
+<ol>
+<li><strong>丰富的类型系统（Interface Types）：</strong>
+<ul>
+<li><strong>基础类型：</strong> 除了 <code>i32</code>, <code>i64</code>, <code>f32</code>, <code>f64</code>，还引入了 <code>bool</code>, <code>char</code>, <code>u8</code>, <code>u16</code>, <code>u32</code>, <code>u64</code>, <code>s8</code>, <code>s16</code>, <code>s32</code>, <code>s64</code> 等整数类型。</li>
+<li><strong>复合类型：</strong>
+<ul>
+<li><strong><code>string</code>：</strong> UTF-8 编码的不可变字符串。</li>
+<li><strong><code>list&lt;T&gt;</code>：</strong> 任意 Wasm 类型 <code>T</code> 的列表（类似于数组或向量）。</li>
+<li><strong><code>record { ... }</code>：</strong> 结构体，包含命名字段。</li>
+<li><strong><code>variant { ... }</code>：</strong> 枚举类型，包含不同的变体和关联值（类似于 Rust 的 <code>enum</code> 或 Scala 的 <code>sealed trait</code>）。</li>
+<li><strong><code>option&lt;T&gt;</code>：</strong> 可选值，类似于 <code>Nullable</code> 或 <code>Option</code>。</li>
+<li><strong><code>result&lt;Ok, Err&gt;</code>：</strong> 结果类型，用于表示成功或失败以及相关值。</li>
+<li><strong><code>resource&lt;T&gt;</code>：</strong> 表示宿主创建并管理的抽象资源句柄（如文件描述符、网络连接、数据库连接）。这使得 Wasm 模块可以透明地传递和操作这些宿主资源，而不需要关心底层的整数 ID。</li>
+</ul>
+</li>
+</ul>
+</li>
+<li><strong>标准化的内存布局：</strong>
+<ul>
+<li><strong>Flat Memory Model：</strong> 所有数据（包括复杂类型）都被序列化并存储在 Wasm 模块的线性内存中。</li>
+<li><strong>“所有权”传递：</strong> Canonical ABI 会明确区分数据的所有权（ownership）。当一个 Wasm 模块将数据传递给另一个模块时，如果数据是“owned”（例如，创建一个新字符串并传递），那么接收方会获得该内存区域的所有权，并负责释放。</li>
+<li><strong>自动处理：</strong> 工具链（如 <code>wasm-tools</code>、<code>wit-bindgen</code>）负责将高级接口类型映射到 Core Wasm 的低级内存操作。这意味着开发者无需手动编写内存分配、拷贝、释放的代码。</li>
+</ul>
+</li>
+<li><strong>标准化的调用约定：</strong>
+<ul>
+<li><strong>Multiple Results：</strong> 支持函数返回多个值（Wasm Core 本身就支持多返回值）。</li>
+<li><strong>参数和返回值传递：</strong> 对于简单类型，直接通过 Wasm 栈传递。对于复杂类型，通过在 Wasm 线性内存中分配空间、拷贝数据，然后传递指针和长度。</li>
+<li><strong>特定目的的函数：</strong> 可能会引入一些辅助函数，例如内存分配 (<code>canonical_abi_malloc</code>) 和释放 (<code>canonical_abi_free</code>)，但这通常会被工具链隐藏。</li>
+<li><strong>错误传播：</strong> 通过 <code>result&lt;Ok, Err&gt;</code> 类型来统一表示和传递操作的成功或失败状态。</li>
+</ul>
+</li>
+<li><strong>资源管理机制：</strong>
+<ul>
+<li>通过 <code>resource&lt;T&gt;</code> 类型，Wasm 组件可以安全地传递和消费宿主资源。</li>
+<li>这些资源具有引用计数语义，当最后一个引用被释放时，宿主会清理底层资源。这解决了 Wasm 模块内外的资源生命周期管理问题。</li>
+</ul>
+</li>
+</ol>
+<h4 id="如何实现">如何实现？<a href="#如何实现" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<p>Canonical ABI 并非 Wasm 运行时直接实现的，而是通过<strong>工具链（如 <code>wit-bindgen</code>）和 Wasm Component Model 的适配层</strong>来实现的：</p>
+<ol>
+<li><strong>WIT (WebAssembly Interface Type) 文件：</strong> 开发者使用 WIT 语言定义组件的接口（数据类型和函数签名）。WIT 文件是语言中立的，它描述了组件的“世界”及其能力。</li>
+<li><strong><code>wit-bindgen</code>：</strong> 这个工具根据 WIT 文件生成特定语言的抽象（如 Rust 的 Traits、Python 的类）和 Wasm Core Module 级别的“适配器代码”。</li>
+<li><strong>适配器代码：</strong> 这些适配器代码负责：
+<ul>
+<li><strong>数据序列化/反序列化：</strong> 将宿主语言的高级数据结构转换为 Wasm 线性内存中的 Canonical ABI 格式，反之亦然。</li>
+<li><strong>内存管理：</strong> 调用 Wasm 模块内部的内存分配和释放函数，或宿主提供的内存分配器。</li>
+<li><strong>错误转换：</strong> 将宿主的错误类型映射到 Wasm <code>result</code> 类型。</li>
+<li><strong>资源映射：</strong> 将宿主资源的句柄映射到 Wasm <code>resource</code> 类型。</li>
+</ul>
+</li>
+</ol>
+<h4 id="优势">优势<a href="#优势" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<ul>
+<li><strong>真正的语言无关性：</strong> 任何支持 Canonical ABI 的语言（通过 <code>wit-bindgen</code>）都可以与任何其他支持相同 ABI 的语言无缝交互，无需编写手动绑定。</li>
+<li><strong>类型安全：</strong> 提供了更丰富的类型系统和更严格的类型检查，减少了运行时错误。</li>
+<li><strong>开发效率：</strong> 自动化了复杂的数据 marshalling 和内存管理，大大降低了开发难度。</li>
+<li><strong>模块化和可组合性：</strong> 促进了更细粒度、更易于组合的 Wasm 组件的创建。</li>
+<li><strong>性能：</strong> 尽管引入了适配层，但相较于手动实现复杂的 C-style ABI，自动生成的 Canonical ABI 通常能提供更优化的性能，且避免了因手动操作导致的错误。</li>
+<li><strong>未来扩展性：</strong> 为 Wasm 生态系统的未来发展（如垃圾回收、多态、异步操作等）奠定了坚实的基础。</li>
+</ul>
+<p>简而言之，Wasm Canonical ABI 是 Wasm Component Model 的核心组成部分，它为 Wasm 模块提供了一个<strong>通用的、高效的、类型安全的“对话语言”和“数据交换协议”</strong>，从而实现了 Wasm 生态系统内不同模块和宿主环境之间的无缝互操作。</p>
+
+      </div></div>
+
+  
+    
+<div class="pagination">
+  <div class="pagination__title">
+    <span class="pagination__title-h">Read other posts</span>
+    <hr />
+  </div>
+  <div class="pagination__buttons">
+    
+    
+    
+      <a href="https://chengzhycn.github.io/posts/2025-03/c-common-coding-conventions/" class="button inline next">
+         [<span class="button__text">C³: Common Coding Conventions</span>] &gt;
+      </a>
+    
+  </div>
+</div>
+
+
+  
+
+  
+    
+
+  
+</article>
+
+  </div>
+
+  
+    <footer class="footer">
+  <div class="footer__inner">
+    
+      <div class="copyright">
+        <span>© 2025 Powered by <a href="https://gohugo.io">Hugo</a></span>
+    
+      <span>:: <a href="https://github.com/panr/hugo-theme-terminal" target="_blank">Theme</a> made by <a href="https://github.com/panr" target="_blank">panr</a></span>
+      </div>
+  </div>
+</footer>
+
+
+
+
+
+
+<script type="text/javascript" src="/bundle.min.js"></script>
+
+
+
+
+
+  
+</div>
+
+</body>
+</html>

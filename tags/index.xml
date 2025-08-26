@@ -6,20 +6,34 @@
     <description>Recent content in Tags on Terminal</description>
     <generator>Hugo</generator>
     <language>en</language>
-    <lastBuildDate>Sun, 03 Jan 2021 10:18:55 +0800</lastBuildDate>
+    <lastBuildDate>Tue, 26 Aug 2025 12:29:03 +0800</lastBuildDate>
     <atom:link href="https://chengzhycn.github.io/tags/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Wasm</title>
+      <link>https://chengzhycn.github.io/tags/wasm/</link>
+      <pubDate>Tue, 26 Aug 2025 12:29:03 +0800</pubDate>
+      <guid>https://chengzhycn.github.io/tags/wasm/</guid>
+      <description></description>
+    </item>
+    <item>
+      <title>Concurrent Programming</title>
+      <link>https://chengzhycn.github.io/tags/concurrent-programming/</link>
+      <pubDate>Tue, 08 Mar 2022 00:00:00 +0000</pubDate>
+      <guid>https://chengzhycn.github.io/tags/concurrent-programming/</guid>
+      <description></description>
+    </item>
+    <item>
+      <title>Rust</title>
+      <link>https://chengzhycn.github.io/tags/rust/</link>
+      <pubDate>Tue, 08 Mar 2022 00:00:00 +0000</pubDate>
+      <guid>https://chengzhycn.github.io/tags/rust/</guid>
+      <description></description>
+    </item>
     <item>
       <title>Dns</title>
       <link>https://chengzhycn.github.io/tags/dns/</link>
       <pubDate>Sun, 03 Jan 2021 10:18:55 +0800</pubDate>
       <guid>https://chengzhycn.github.io/tags/dns/</guid>
-      <description></description>
-    </item>
-    <item>
-      <title>Zone</title>
-      <link>https://chengzhycn.github.io/tags/zone/</link>
-      <pubDate>Sun, 03 Jan 2021 10:18:55 +0800</pubDate>
-      <guid>https://chengzhycn.github.io/tags/zone/</guid>
       <description></description>
     </item>
   </channel>
