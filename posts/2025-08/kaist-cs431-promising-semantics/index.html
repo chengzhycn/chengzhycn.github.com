@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  
+    <title>KAIST-CS431: Promising Semantics :: Terminal</title>
+  
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="本章是基于作者的研究“Promising semantics”: https://sf.snu.ac.kr/promise-concurrency/ ，提出的一种对宽松内存（relaxed-memory）并发的建模方法。
+主要观点有4个：
+modeling load hoisting w/ multi-valued memory 允许一个线程从某个位置读取到一个旧值 modeling read-modify-write w/ message adjacency 禁止对单个值同时进行多个read-modify-write操作 modeling coherence &amp; ordering w/ views 限制线程的行为 modeling store hoisting w/ promises Allowing a thread to speculatively write a value 个人理解，**即便是编译器/硬件的指令重排，也是需要遵循一定的规则的，不能随意乱排。**作者从值读取、存储、read-modify-write多种角度对线程的行为进行了建模，是为了解释哪些情况下出现多线程执行出现哪些结果是可能的，哪些是不被允许的。
+hoisting load/store在网上没有搜到解释，但是有个gcc的优化提到了这个概念。大概意思时将存值/取值操作从原先的指令顺序中调整位置，优化执行效率。
+Load/Store Hoisting - GNU Project
+multi-value memory 内存是一系列消息（message）所在的位置，而消息可以看作是值和时间戳的组合。线程很有可能在读取时从内存中读到一个旧值。（effectively hoisting loads）
+在作者举的例子中，r1=r2=0是被允许的，因为r1 r2都有可能从Y X中读到一个旧值。从后文的view角度理解，因为在独立的线程中，X和Y的赋值并没有改变当前线程中相应Y和X的view，所以，r1 r2的读取操作是可以读到旧值的。
+message adjacency 上面说了，消息是值和时间戳范围的组合。read-modify-write操作修改了消息的值，在时间轴上应该和前值紧邻在一起（no gap）。
+可以看到，两次fetch_add操作后，从X的视角上看，0、1、2是紧邻的。第二次fetch_add操作，只能紧贴着1操作，而不能插到0和1之间。
+views 这个semantics对我是启发性最强的一章。
+multi-valued memory允许了太多不在预期中的行为，因此我们需要做些限制，保证一致性和同步。
+View分为三种，分别是：
+Per-thread view：一致性 Per-message view：release/acquire同步 Global view：SC同步 Per-thread view Per-thread view表示线程对消息的确认。
+" />
+<meta name="keywords" content="" />
+
+  <meta name="robots" content="noodp" />
+
+<link rel="canonical" href="https://chengzhycn.github.io/posts/2025-08/kaist-cs431-promising-semantics/" />
+
+
+
+
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/buttons.min.86f6b4c106b6c6eb690ae5203d36b442c1f66f718ff4e8164fa86cf6c61ad641.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/code.min.d529ea4b2fb8d34328d7d31afc5466d5f7bc2f0bc9abdd98b69385335d7baee4.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/fonts.min.176c65cdf7082e9866e90b1fa123c60056f6d985b7cd3c4235600dada719e971.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/footer.min.eb8dfc2c6a7eafa36cd3ba92d63e69e849e2200e0002a228d137f236b09ecd75.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/gist.min.a751e8b0abe1ba8bc53ced52a38b19d8950fe78ca29454ea8c2595cf26aad5c0.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/header.min.75c7eb0e2872d95ff48109c6647d0223a38db52e2561dd87966eb5fc7c6bdac6.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/main.min.0909aaaf12e6fc3cdf2758321db2805239dc85602baff9dc07ce57d3d7365095.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/menu.min.310d32205bdedd6f43144e3c3273c9deecd238eba5f9108db5ea96ca0cfbe377.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/pagination.min.bbb986dbce00a5ce5aca0504b7925fc1c581992a4bf57f163e5d69cc1db7d836.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/post.min.ad50c7f4d00e7975918f37fc74c6029e1959a40d66fb5b2c6564a8715e985573.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/syntax.min.e9ab635cf918bc84b901eb65c0b2caa74c9544245e3647c1af5c129896ef276e.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/terminal.min.e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/terms.min.b81791663c3790e738e571cdbf802312390d30e4b1d8dc9d814a5b5454d0ac11.css">
+
+
+
+
+
+
+
+<link rel="shortcut icon" href="https://chengzhycn.github.io/favicon.png">
+<link rel="apple-touch-icon" href="https://chengzhycn.github.io/apple-touch-icon.png">
+
+
+<meta name="twitter:card" content="summary" />
+
+  
+    <meta name="twitter:site" content="" />
+  
+    <meta name="twitter:creator" content="" />
+
+
+
+<meta property="og:locale" content="en" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="KAIST-CS431: Promising Semantics">
+<meta property="og:description" content="本章是基于作者的研究“Promising semantics”: https://sf.snu.ac.kr/promise-concurrency/ ，提出的一种对宽松内存（relaxed-memory）并发的建模方法。
+主要观点有4个：
+modeling load hoisting w/ multi-valued memory 允许一个线程从某个位置读取到一个旧值 modeling read-modify-write w/ message adjacency 禁止对单个值同时进行多个read-modify-write操作 modeling coherence &amp; ordering w/ views 限制线程的行为 modeling store hoisting w/ promises Allowing a thread to speculatively write a value 个人理解，**即便是编译器/硬件的指令重排，也是需要遵循一定的规则的，不能随意乱排。**作者从值读取、存储、read-modify-write多种角度对线程的行为进行了建模，是为了解释哪些情况下出现多线程执行出现哪些结果是可能的，哪些是不被允许的。
+hoisting load/store在网上没有搜到解释，但是有个gcc的优化提到了这个概念。大概意思时将存值/取值操作从原先的指令顺序中调整位置，优化执行效率。
+Load/Store Hoisting - GNU Project
+multi-value memory 内存是一系列消息（message）所在的位置，而消息可以看作是值和时间戳的组合。线程很有可能在读取时从内存中读到一个旧值。（effectively hoisting loads）
+在作者举的例子中，r1=r2=0是被允许的，因为r1 r2都有可能从Y X中读到一个旧值。从后文的view角度理解，因为在独立的线程中，X和Y的赋值并没有改变当前线程中相应Y和X的view，所以，r1 r2的读取操作是可以读到旧值的。
+message adjacency 上面说了，消息是值和时间戳范围的组合。read-modify-write操作修改了消息的值，在时间轴上应该和前值紧邻在一起（no gap）。
+可以看到，两次fetch_add操作后，从X的视角上看，0、1、2是紧邻的。第二次fetch_add操作，只能紧贴着1操作，而不能插到0和1之间。
+views 这个semantics对我是启发性最强的一章。
+multi-valued memory允许了太多不在预期中的行为，因此我们需要做些限制，保证一致性和同步。
+View分为三种，分别是：
+Per-thread view：一致性 Per-message view：release/acquire同步 Global view：SC同步 Per-thread view Per-thread view表示线程对消息的确认。
+" />
+<meta property="og:url" content="https://chengzhycn.github.io/posts/2025-08/kaist-cs431-promising-semantics/" />
+<meta property="og:site_name" content="Terminal" />
+
+  <meta property="og:image" content="https://chengzhycn.github.io/og-image.png">
+
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="627">
+
+  <meta property="article:section" content="Courses" />
+
+
+  <meta property="article:published_time" content="2025-08-27 13:40:27 &#43;0800 &#43;0800" />
+
+
+
+
+
+
+
+
+
+
+
+
+</head>
+<body>
+
+
+<div class="container center">
+
+  <header class="header">
+  <div class="header__inner">
+    <div class="header__logo">
+      <a href="/">
+  <div class="logo">
+    Terminal
+  </div>
+</a>
+
+    </div>
+    
+      <ul class="menu menu--mobile">
+  <li class="menu__trigger">Menu&nbsp;▾</li>
+  <li>
+    <ul class="menu__dropdown">
+      
+        
+          <li><a href="/">Home</a></li>
+        
+      
+        
+          <li><a href="/about">About</a></li>
+        
+      
+        
+          <li><a href="/posts/">Archives</a></li>
+        
+      
+        
+          <li><a href="/categories/">Categories</a></li>
+        
+      
+        
+          <li><a href="/tags/">Tags</a></li>
+        
+      
+      
+    </ul>
+  </li>
+</ul>
+
+    
+    
+  </div>
+  
+    <nav class="navigation-menu">
+  <ul class="navigation-menu__inner menu--desktop">
+    
+      
+        
+          <li><a href="/" >Home</a></li>
+        
+      
+        
+          <li><a href="/about" >About</a></li>
+        
+      
+      
+        <li>
+          <ul class="menu">
+            <li class="menu__trigger">Show more&nbsp;▾</li>
+            <li>
+              <ul class="menu__dropdown">
+                
+                  
+                    <li><a href="/posts/" >Archives</a></li>
+                  
+                
+                  
+                    <li><a href="/categories/" >Categories</a></li>
+                  
+                
+                  
+                    <li><a href="/tags/" >Tags</a></li>
+                  
+                
+              </ul>
+            </li>
+          </ul>
+        </li>
+      
+    
+  </ul>
+</nav>
+
+  
+</header>
+
+
+  <div class="content">
+    
+<article class="post">
+  <h1 class="post-title">
+    <a href="https://chengzhycn.github.io/posts/2025-08/kaist-cs431-promising-semantics/">KAIST-CS431: Promising Semantics</a>
+  </h1>
+  <div class="post-meta"><time class="post-date">2025-08-27</time><span class="post-reading-time">2 min read (403 words)</span></div>
+
+  
+    <span class="post-tags">
+      
+      #<a href="https://chengzhycn.github.io/tags/rust/">Rust</a>&nbsp;
+      
+      #<a href="https://chengzhycn.github.io/tags/concurrency/">Concurrency</a>&nbsp;
+      
+      #<a href="https://chengzhycn.github.io/tags/kaist-cs431/">KAIST-CS431</a>&nbsp;
+      
+    </span>
+  
+  
+
+
+  
+    <div class="table-of-contents">
+      <h2>
+        Table of Contents
+      </h2>
+      <nav id="TableOfContents">
+  <ul>
+    <li><a href="#multi-value-memory">multi-value memory</a></li>
+    <li><a href="#message-adjacency">message adjacency</a></li>
+    <li><a href="#views">views</a>
+      <ul>
+        <li><a href="#per-thread-view">Per-thread view</a></li>
+        <li><a href="#per-message-view">Per-message view</a></li>
+        <li><a href="#global-view">Global view</a></li>
+      </ul>
+    </li>
+    <li><a href="#promises">promises</a>
+      <ul>
+        <li><a href="#store-hoisting-without-dependency">Store hoisting without dependency</a></li>
+        <li><a href="#store-hoisting-with-dependency">Store hoisting with dependency</a></li>
+        <li><a href="#store-hoisting-with-syntactic-dependency">Store hoisting with syntactic dependency</a></li>
+      </ul>
+    </li>
+    <li><a href="#总结">总结</a></li>
+    <li><a href="#相关资料">相关资料</a></li>
+  </ul>
+</nav>
+    </div>
+  
+
+  <div class="post-content"><div>
+        <p>本章是基于作者的研究“Promising semantics”: <a href="https://sf.snu.ac.kr/promise-concurrency/">https://sf.snu.ac.kr/promise-concurrency/</a> ，提出的一种对宽松内存（relaxed-memory）并发的建模方法。</p>
+<p>主要观点有4个：</p>
+<ul>
+<li>modeling load hoisting w/ <strong>multi-valued memory</strong>
+<ul>
+<li>允许一个线程从某个位置读取到一个旧值</li>
+</ul>
+</li>
+<li>modeling read-modify-write w/ <strong>message adjacency</strong>
+<ul>
+<li>禁止对单个值同时进行多个read-modify-write操作</li>
+</ul>
+</li>
+<li>modeling coherence &amp; ordering w/ <strong>views</strong>
+<ul>
+<li>限制线程的行为</li>
+</ul>
+</li>
+<li>modeling store hoisting w/ <strong>promises</strong>
+<ul>
+<li>Allowing a thread to speculatively write a value</li>
+</ul>
+</li>
+</ul>
+<p>个人理解，**即便是编译器/硬件的指令重排，也是需要遵循一定的规则的，不能随意乱排。**作者从值读取、存储、read-modify-write多种角度对线程的行为进行了建模，是为了解释哪些情况下出现多线程执行出现哪些结果是可能的，哪些是不被允许的。</p>
+<p>hoisting load/store在网上没有搜到解释，但是有个gcc的优化提到了这个概念。大概意思时将存值/取值操作从原先的指令顺序中调整位置，优化执行效率。</p>
+<p><a href="https://gcc.gnu.org/news/hoist.html">Load/Store Hoisting - GNU Project</a></p>
+<h2 id="multi-value-memory">multi-value memory<a href="#multi-value-memory" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>内存是一系列消息（message）所在的位置，而消息可以看作是<strong>值和时间戳</strong>的组合。线程很有可能在读取时从内存中读到一个旧值。（effectively hoisting loads）</p>
+<p><img src="/images/notes/kaist-cs431-promising-semantics/image-20220318080820894.png" alt="image-20220318080820894"></p>
+<p>在作者举的例子中，r1=r2=0是被允许的，因为r1 r2都有可能从Y X中读到一个旧值。从后文的view角度理解，因为在独立的线程中，X和Y的赋值并没有改变当前线程中相应Y和X的view，所以，r1 r2的读取操作是可以读到旧值的。</p>
+<h2 id="message-adjacency">message adjacency<a href="#message-adjacency" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>上面说了，消息是值和时间戳范围的组合。read-modify-write操作修改了消息的值，在时间轴上应该和前值紧邻在一起（no gap）。</p>
+<p><img src="/images/notes/kaist-cs431-promising-semantics/image-20220318081606125.png" alt="image-20220318081606125"></p>
+<p>可以看到，两次fetch_add操作后，从X的视角上看，0、1、2是紧邻的。第二次fetch_add操作，只能紧贴着1操作，而不能插到0和1之间。</p>
+<h2 id="views">views<a href="#views" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>这个semantics对我是启发性最强的一章。</p>
+<p>multi-valued memory允许了太多不在预期中的行为，因此我们需要做些限制，保证一致性和同步。</p>
+<p>View分为三种，分别是：</p>
+<ul>
+<li>Per-thread view：一致性</li>
+<li>Per-message view：release/acquire同步</li>
+<li>Global view：SC同步</li>
+</ul>
+<h3 id="per-thread-view">Per-thread view<a href="#per-thread-view" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>Per-thread view表示线程对消息的确认。</p>
+<p><img src="/images/notes/kaist-cs431-promising-semantics/image-20220318213213161.png" alt="image-20220318213213161"></p>
+<p>如上图示例，初始情况下，X=0，Y=0。</p>
+<ul>
+<li>
+<pre tabindex="0"><code>X = 1 || r1 = X; r2 = X
+</code></pre><ul>
+<li><strong>[RR coherence]</strong>：在左边线程赋值后，右边线程进行两次读操作。因为左右线程均是独立视角，所以右边线程读取时，只会有X=0,Y=0或者X=1,Y=0两种view。如果r1=1，那么r2读取时view必定为X=1,Y=0，所以r1=1,r2=0是不可能出现的；</li>
+</ul>
+</li>
+<li>
+<pre tabindex="0"><code>r=X; X=1
+</code></pre><ul>
+<li><strong>[RW coherence]</strong>：同一个线程中，如果在X赋值之前进行读取，r只能看到X=0的view，所以r=0；即X=1不可能重排到r=X读取指令之前；</li>
+</ul>
+</li>
+<li>
+<pre tabindex="0"><code>X=1; r=X
+</code></pre><ul>
+<li><strong>[WR coherence]</strong>：同一个线程中，先赋值后读取，那么读取操作只能看到赋值之后的view，也就是r=1；</li>
+</ul>
+</li>
+<li>
+<pre tabindex="0"><code>X=1; X=2
+</code></pre><ul>
+<li><strong>[WW coherence]</strong>：同一个线程中，后赋值必定覆盖先赋值语句，即执行完成后，X=2。</li>
+</ul>
+</li>
+</ul>
+<p>总结：</p>
+<ul>
+<li><strong>读写操作应当发生在当前线程的view之后</strong>，也就是说，view之前的值是不能被当下的读写操作获取的；</li>
+<li><strong>读写操作改变了当前线程的view</strong>。在读写操作后，view就由读写操作确定的新值决定。后续的读写只能在这个新的view之后；</li>
+</ul>
+<p>线程视角给予了重排一定的基本约束，即便发生重排，最终执行的效果也是看起来和没有重排一样。</p>
+<h3 id="per-message-view">Per-message view<a href="#per-message-view" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p><strong>Per-message view</strong> representing the released view of the corresponding store。可以用来对release/acquire模型建模。</p>
+<pre tabindex="0"><code>X = 1;                ||   if Y.load(acquire) {
+Y.store(1, release);  ||       assert(X == 42);
+                      ||   }
+</code></pre><p><img src="/images/notes/kaist-cs431-promising-semantics/image-20220318214013377.png" alt="image-20220318214013377"></p>
+<p>初始状态下，左边线程和右边线程的视角都为X=0, Y=0。</p>
+<p><img src="/images/notes/kaist-cs431-promising-semantics/image-20220318214215081.png" alt="image-20220318214215081"></p>
+<p>在执行完X=1后，左边线程的视角切换成X=1, Y=0。</p>
+<p><img src="/images/notes/kaist-cs431-promising-semantics/image-20220318214331776.png" alt="image-20220318214331776"></p>
+<p>执行完Y.store(1, release)后，左边线程视角切换成X=1, Y=1。对于released message来说，它的视角和当前线程的视角是一样的，X=1, Y=1。</p>
+<p><img src="/images/notes/kaist-cs431-promising-semantics/image-20220408073043050.png" alt="image-20220408073043050"></p>
+<p>在右边线程执行Y.load(acquire)后，实际上完成了一次message passing。将message的视角同步给右边线程，所以，此时右边线程的视角也是X=1, Y=1。最终assert成功。</p>
+<p>总结：release/acquire实际上是强制将release线程的视角同步给了acquire线程，实现访存一致性。release/acquire起到了message passing的作用。</p>
+<h3 id="global-view">Global view<a href="#global-view" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p><strong>A global view</strong> representing the currently accumulated view of SC fences。SC是sequentially consistency（序列一致性）的缩写。</p>
+<pre tabindex="0"><code>X = 1;                ||   if Y.load(relaxed) {
+fence(SC);            ||       fence(SC);
+Y.store(1, relaxed);  ||       assert(X == 1);  }
+</code></pre><p>同样，初始状态下，左边线程和右边线程的视角都为X=0, Y=0，执行完X=1后，左边线程的视角切换成X=1, Y=0。</p>
+<p><img src="/images/notes/kaist-cs431-promising-semantics/image-20220318220013810.png" alt="image-20220318220013810"></p>
+<p>在执行完fence(SC)后，SC的视角和当前线程的视角保持同步，X=1, Y=0。</p>
+<p><img src="/images/notes/kaist-cs431-promising-semantics/image-20220318220151575.png" alt="image-20220318220151575"></p>
+<p>执行完Y.store(1, relaxed)后，左边线程的视角发生变化，X=1, Y=1，SC视角因为没有执行同步，保持不变。</p>
+<p><img src="/images/notes/kaist-cs431-promising-semantics/image-20220318220524178.png" alt="image-20220318220524178"></p>
+<p>在右边线程执行完Y.load(relaxed)后，线程视角变为X=0, Y=1。</p>
+<p><img src="/images/notes/kaist-cs431-promising-semantics/image-20220318220756191.png" alt="image-20220318220756191"></p>
+<p>而在右边线程执行完fence(SC)后，SC视角同步当前最新的变化，即X=1, Y=1，同时也将该视角同步给右边线程。最终assert成功。</p>
+<p>总结：SC view就像序列一致性一样，每次执行fence(SC)后，将当前线程的变更同步到一个全局统一的视角中，而同时也会将SC视角中的变化同步到当前的线程上，完成message passing。</p>
+<h2 id="promises">promises<a href="#promises" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>promises语义用来对store hoisting建模。promises建模的目标是只允许**==语义上独立的写操作（semantically independent writes）==**进行hoisting。什么叫语义上独立的写操作？作者介绍了三种场景：</p>
+<ul>
+<li><strong>Store hoisting without dependency</strong></li>
+<li><strong>Store hoisting with dependency</strong></li>
+<li><strong>Store hoisting with syntactic dependency</strong></li>
+</ul>
+<p>在这些场景中，哪些可以进行store hoisting，哪些不能进行。作者提出的思路是**==语义上独立的写操作始终会在未来的某个时刻写入==**。具体来说，有如下两个步骤：</p>
+<ul>
+<li>线程可以<strong>预期</strong>去写入一个值（“promise to write”）；</li>
+<li>线程应该能够始终在未来某个时刻写入它的promises。</li>
+</ul>
+<p>概念有点绕，我们可以通过上面的三种场景来理解作者的这种思路。</p>
+<h3 id="store-hoisting-without-dependency">Store hoisting without dependency<a href="#store-hoisting-without-dependency" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>所谓的<strong>Store hoisting without dependency</strong>，就是指在线程中没有其他的指令对store操作有影响。</p>
+<pre tabindex="0"><code>r1 = X    ||    r2 = Y
+Y = r1    ||    X = 1
+</code></pre><p>上面的例子可以看到，左边线程Y=r1很明显是对上一条指令r1=X有依赖的。但是右边线程的两条指令就没有关联。从线程的view上看，右边线程可以进行store hoisting，将X=1先执行，所以最终结果r1=r2=1是允许的。</p>
+<p><img src="/images/notes/kaist-cs431-promising-semantics/image-20220319095124191.png" alt="image-20220319095124191"></p>
+<p>作者在这里采取了另外一种建模方式。首先我们从右边线程的独立视角去执行，最终可以得到X=1, Y=0的视角。于是X会<strong>预期</strong>写入1（<strong>certified</strong>），见下图。</p>
+<p><img src="/images/notes/kaist-cs431-promising-semantics/image-20220319095507142.png" alt="image-20220319095507142"></p>
+<p><img src="/images/notes/kaist-cs431-promising-semantics/image-20220319095745872.png" alt="image-20220319095745872"></p>
+<p>在实际执行时，左边线程读到<strong>Certified</strong>的view，X=1, Y=1。</p>
+<p><img src="/images/notes/kaist-cs431-promising-semantics/image-20220319095855140.png" alt="image-20220319095855140"></p>
+<p>右边线程执行r2=Y，视角如上图。此时，<strong>X=1是在线程视角右侧，是允许写入的。</strong></p>
+<p><img src="/images/notes/kaist-cs431-promising-semantics/image-20220319100046710.png" alt="image-20220319100046710"></p>
+<p>所以<strong>X=1 Re-certified</strong>成功，允许r1=r2=1的结果。</p>
+<h3 id="store-hoisting-with-dependency">Store hoisting with dependency<a href="#store-hoisting-with-dependency" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<pre tabindex="0"><code>r1 = X    ||    r2 = Y
+Y = r1    ||    X = r2
+</code></pre><p><img src="/images/notes/kaist-cs431-promising-semantics/image-20220319100344016.png" alt="image-20220319100344016"></p>
+<p>按照上一节的建模方法，我们看右边线程视角时无法对X=1进行Certified，也就没有promised，拿不到r1=r2=1（感觉这个例子有点奇怪，因为始终没有对X/Y=1的赋值）。从线程的视角上看，两边线程也都受到<strong>RW coherence</strong>的约束。</p>
+<h3 id="store-hoisting-with-syntactic-dependency">Store hoisting with syntactic dependency<a href="#store-hoisting-with-syntactic-dependency" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<pre tabindex="0"><code>r1 = X    ||    r2 = Y
+Y = r1    ||    if r2 == 1 { X = r2 }
+          ||    else       { X = 1 }
+</code></pre><p>这个例子是最能够理解作者的promises思路的。我们按照<strong>Store hoisting with dependency</strong>中的步骤来看。</p>
+<p><img src="/images/notes/kaist-cs431-promising-semantics/image-20220319102427150.png" alt="image-20220319102427150"></p>
+<p>在右边线程的独立视角中，r2=Y=0，所以进入else分支，X=1，能够<strong>Certified</strong>。</p>
+<p><img src="/images/notes/kaist-cs431-promising-semantics/image-20220319102907006.png" alt="image-20220319102907006"></p>
+<p>同样，左边线程执行完后，右边线程给r2赋值，得到r2=Y=1，X=0的视角。</p>
+<p><img src="/images/notes/kaist-cs431-promising-semantics/image-20220319103027105.png" alt="image-20220319103027105"></p>
+<p>此时，进入if分支，X=r2=1，能够<strong>Re-certified</strong>。所以r1=r2=1的结果是被允许的。</p>
+<p><strong>==Certification and real execution may diverge to capture semantic dependency only.==</strong></p>
+<pre tabindex="0"><code>r1 = X    ||    r2 = Y; r3 = X
+Y = r1    ||    if r2 == 1 { X = r2 }
+          ||    else       { X = 1 }
+</code></pre><p>如果在上面的例子扩展一下，加上r3=X；此时Certified没问题，但是<strong>在re-certified时，由于r3的读取操作，使得此时右边线程的视角是X=1, Y=1，而写入操作只能在当前线程视角的右侧，所以X=r2=1无法写入，re-certified失败。<strong>r1=r2=r3=1是不被允许的。从另外一个角度来看，r3=X的使得右边线程加入了</strong>RW coherence</strong>，X=1的指令无法重排到r3=X之前。</p>
+<p><img src="/images/notes/kaist-cs431-promising-semantics/image-20220319103702878.png" alt="image-20220319103702878"></p>
+<h2 id="总结">总结<a href="#总结" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>这一章实际上是作者从理论建模的角度分析了什么时候能够进行指令重排，对于分析硬件/编译器行为是很有用的。尤其是通过线程视角和全局视角来分析多线程的读写操作，启发性很大。</p>
+<h2 id="相关资料">相关资料<a href="#相关资料" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<ul>
+<li><a href="https://sf.snu.ac.kr/promise-concurrency/">https://sf.snu.ac.kr/promise-concurrency/</a> for more details</li>
+<li>Designated courses for details on lower-level (e.g. (micro-)architecture)</li>
+</ul>
+<p>Related work</p>
+<ul>
+<li>View-based semantics for ARM/RISC-V architectures
+<ul>
+<li><a href="https://sf.snu.ac.kr/promising-arm-riscv/View-based">https://sf.snu.ac.kr/promising-arm-riscv/View-based</a></li>
+</ul>
+</li>
+<li>semantics for persistent memory
+<ul>
+<li><a href="https://cp.kaist.ac.kr/pmemA">https://cp.kaist.ac.kr/pmemA</a></li>
+</ul>
+</li>
+<li>program logic (formal reasoning principle) for promising semantics
+<ul>
+<li><a href="https://people.mpi-sws.org/~viktor/papers/esop2018-slr.pdf">https://people.mpi-sws.org/~viktor/papers/esop2018-slr.pdf</a></li>
+</ul>
+</li>
+</ul>
+<p>Research ideas</p>
+<ul>
+<li>View-based semantics for interrupts, non-cacheables, I/O, PCIe, CXL, &hellip;</li>
+<li>Verified compilation for promising semantics</li>
+</ul>
+
+      </div></div>
+
+  
+    
+<div class="pagination">
+  <div class="pagination__title">
+    <span class="pagination__title-h">Read other posts</span>
+    <hr />
+  </div>
+  <div class="pagination__buttons">
+    
+    
+    
+      <a href="https://chengzhycn.github.io/posts/2025-08/kaist-cs431-nondeterminisms-of-shared-memory-concurrency/" class="button inline next">
+         [<span class="button__text">KAIST-CS431: Nondeterminisms of Shared-memory Concurrency</span>] &gt;
+      </a>
+    
+  </div>
+</div>
+
+
+  
+
+  
+    
+
+  
+</article>
+
+  </div>
+
+  
+    <footer class="footer">
+  <div class="footer__inner">
+    
+      <div class="copyright">
+        <span>© 2025 Powered by <a href="https://gohugo.io">Hugo</a></span>
+    
+      <span>:: <a href="https://github.com/panr/hugo-theme-terminal" target="_blank">Theme</a> made by <a href="https://github.com/panr" target="_blank">panr</a></span>
+      </div>
+  </div>
+</footer>
+
+
+
+
+
+
+<script type="text/javascript" src="/bundle.min.js"></script>
+
+
+
+
+
+  
+</div>
+
+</body>
+</html>

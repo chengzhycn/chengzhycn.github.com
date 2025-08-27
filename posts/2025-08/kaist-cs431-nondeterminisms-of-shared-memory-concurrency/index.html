@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  
+    <title>KAIST-CS431: Nondeterminisms of Shared-memory Concurrency :: Terminal</title>
+  
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Nondeterminism thread interleaving interleaving semantics： 将多线程的指令交替组合成好像是单线程执行一样。
+不同线程间的Load/store指令是穿插执行的，导致最终的行为有多种多样的可能。
+static COUNTER = AtomicUsize::new(0); // thread A &amp; B let c = COUNTER.load(); COUNTER.store(c &#43; 1); 如上示例，两个线程A和B同时对COUNTER进行&#43;1操作，预期结果当然是2。但是由于线程调度的不确定性可能出现如下的执行顺序：
+[COUNTER=0] A load, B load, A store, B store [COUNTER=1] 导致结果不符合预期。
+解决方案 使用原子的reading &amp; writing，禁止掉这种不符预期的执行顺序。
+// thread A &amp; B let c = COUNTER.fetch_and_add(1); “Read-modify-write”, e.g. swap, compare-and-swap, fetch-and-add reordering 同一个线程中的指令会因为硬件和编译器的优化发生指令重排。
+DATA = 42; || if FLAG.load() { FLAG.store(1); || assert(DATA == 42); || } 如上图示例，预期是当FLAG.load()为1时，DATA == 42。但是因为指令重排，左边线程中，FLAG.store(1)可能发生在赋值语句前面；右边线程中assert语句也可能发生在if语句前面。
+" />
+<meta name="keywords" content="" />
+
+  <meta name="robots" content="noodp" />
+
+<link rel="canonical" href="https://chengzhycn.github.io/posts/2025-08/kaist-cs431-nondeterminisms-of-shared-memory-concurrency/" />
+
+
+
+
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/buttons.min.86f6b4c106b6c6eb690ae5203d36b442c1f66f718ff4e8164fa86cf6c61ad641.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/code.min.d529ea4b2fb8d34328d7d31afc5466d5f7bc2f0bc9abdd98b69385335d7baee4.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/fonts.min.176c65cdf7082e9866e90b1fa123c60056f6d985b7cd3c4235600dada719e971.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/footer.min.eb8dfc2c6a7eafa36cd3ba92d63e69e849e2200e0002a228d137f236b09ecd75.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/gist.min.a751e8b0abe1ba8bc53ced52a38b19d8950fe78ca29454ea8c2595cf26aad5c0.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/header.min.75c7eb0e2872d95ff48109c6647d0223a38db52e2561dd87966eb5fc7c6bdac6.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/main.min.0909aaaf12e6fc3cdf2758321db2805239dc85602baff9dc07ce57d3d7365095.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/menu.min.310d32205bdedd6f43144e3c3273c9deecd238eba5f9108db5ea96ca0cfbe377.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/pagination.min.bbb986dbce00a5ce5aca0504b7925fc1c581992a4bf57f163e5d69cc1db7d836.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/post.min.ad50c7f4d00e7975918f37fc74c6029e1959a40d66fb5b2c6564a8715e985573.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/syntax.min.e9ab635cf918bc84b901eb65c0b2caa74c9544245e3647c1af5c129896ef276e.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/terminal.min.e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/terms.min.b81791663c3790e738e571cdbf802312390d30e4b1d8dc9d814a5b5454d0ac11.css">
+
+
+
+
+
+
+
+<link rel="shortcut icon" href="https://chengzhycn.github.io/favicon.png">
+<link rel="apple-touch-icon" href="https://chengzhycn.github.io/apple-touch-icon.png">
+
+
+<meta name="twitter:card" content="summary" />
+
+  
+    <meta name="twitter:site" content="" />
+  
+    <meta name="twitter:creator" content="" />
+
+
+
+<meta property="og:locale" content="en" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="KAIST-CS431: Nondeterminisms of Shared-memory Concurrency">
+<meta property="og:description" content="Nondeterminism thread interleaving interleaving semantics： 将多线程的指令交替组合成好像是单线程执行一样。
+不同线程间的Load/store指令是穿插执行的，导致最终的行为有多种多样的可能。
+static COUNTER = AtomicUsize::new(0); // thread A &amp; B let c = COUNTER.load(); COUNTER.store(c &#43; 1); 如上示例，两个线程A和B同时对COUNTER进行&#43;1操作，预期结果当然是2。但是由于线程调度的不确定性可能出现如下的执行顺序：
+[COUNTER=0] A load, B load, A store, B store [COUNTER=1] 导致结果不符合预期。
+解决方案 使用原子的reading &amp; writing，禁止掉这种不符预期的执行顺序。
+// thread A &amp; B let c = COUNTER.fetch_and_add(1); “Read-modify-write”, e.g. swap, compare-and-swap, fetch-and-add reordering 同一个线程中的指令会因为硬件和编译器的优化发生指令重排。
+DATA = 42; || if FLAG.load() { FLAG.store(1); || assert(DATA == 42); || } 如上图示例，预期是当FLAG.load()为1时，DATA == 42。但是因为指令重排，左边线程中，FLAG.store(1)可能发生在赋值语句前面；右边线程中assert语句也可能发生在if语句前面。
+" />
+<meta property="og:url" content="https://chengzhycn.github.io/posts/2025-08/kaist-cs431-nondeterminisms-of-shared-memory-concurrency/" />
+<meta property="og:site_name" content="Terminal" />
+
+  <meta property="og:image" content="https://chengzhycn.github.io/og-image.png">
+
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="627">
+
+  <meta property="article:section" content="Courses" />
+
+
+  <meta property="article:published_time" content="2025-08-27 13:31:59 &#43;0800 &#43;0800" />
+
+
+
+
+
+
+
+
+
+
+
+
+</head>
+<body>
+
+
+<div class="container center">
+
+  <header class="header">
+  <div class="header__inner">
+    <div class="header__logo">
+      <a href="/">
+  <div class="logo">
+    Terminal
+  </div>
+</a>
+
+    </div>
+    
+      <ul class="menu menu--mobile">
+  <li class="menu__trigger">Menu&nbsp;▾</li>
+  <li>
+    <ul class="menu__dropdown">
+      
+        
+          <li><a href="/">Home</a></li>
+        
+      
+        
+          <li><a href="/about">About</a></li>
+        
+      
+        
+          <li><a href="/posts/">Archives</a></li>
+        
+      
+        
+          <li><a href="/categories/">Categories</a></li>
+        
+      
+        
+          <li><a href="/tags/">Tags</a></li>
+        
+      
+      
+    </ul>
+  </li>
+</ul>
+
+    
+    
+  </div>
+  
+    <nav class="navigation-menu">
+  <ul class="navigation-menu__inner menu--desktop">
+    
+      
+        
+          <li><a href="/" >Home</a></li>
+        
+      
+        
+          <li><a href="/about" >About</a></li>
+        
+      
+      
+        <li>
+          <ul class="menu">
+            <li class="menu__trigger">Show more&nbsp;▾</li>
+            <li>
+              <ul class="menu__dropdown">
+                
+                  
+                    <li><a href="/posts/" >Archives</a></li>
+                  
+                
+                  
+                    <li><a href="/categories/" >Categories</a></li>
+                  
+                
+                  
+                    <li><a href="/tags/" >Tags</a></li>
+                  
+                
+              </ul>
+            </li>
+          </ul>
+        </li>
+      
+    
+  </ul>
+</nav>
+
+  
+</header>
+
+
+  <div class="content">
+    
+<article class="post">
+  <h1 class="post-title">
+    <a href="https://chengzhycn.github.io/posts/2025-08/kaist-cs431-nondeterminisms-of-shared-memory-concurrency/">KAIST-CS431: Nondeterminisms of Shared-memory Concurrency</a>
+  </h1>
+  <div class="post-meta"><time class="post-date">2025-08-27</time><span class="post-reading-time">1 min read (212 words)</span></div>
+
+  
+    <span class="post-tags">
+      
+      #<a href="https://chengzhycn.github.io/tags/rust/">Rust</a>&nbsp;
+      
+      #<a href="https://chengzhycn.github.io/tags/concurrency/">Concurrency</a>&nbsp;
+      
+      #<a href="https://chengzhycn.github.io/tags/kaist-cs431/">KAIST-CS431</a>&nbsp;
+      
+    </span>
+  
+  
+
+
+  
+    <div class="table-of-contents">
+      <h2>
+        Table of Contents
+      </h2>
+      <nav id="TableOfContents">
+  <ul>
+    <li><a href="#nondeterminism">Nondeterminism</a>
+      <ul>
+        <li><a href="#thread-interleaving">thread interleaving</a></li>
+        <li><a href="#reordering">reordering</a></li>
+      </ul>
+    </li>
+    <li><a href="#modeling-relaxed-behaviors--orderings">modeling relaxed behaviors &amp; orderings</a></li>
+  </ul>
+</nav>
+    </div>
+  
+
+  <div class="post-content"><div>
+        <h2 id="nondeterminism">Nondeterminism<a href="#nondeterminism" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<h3 id="thread-interleaving">thread interleaving<a href="#thread-interleaving" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p><strong>interleaving semantics：</strong> 将多线程的指令交替组合成好像是单线程执行一样。</p>
+<p>不同线程间的Load/store指令是穿插执行的，导致最终的行为有多种多样的可能。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-rust" data-lang="rust"><span class="line"><span class="cl"><span class="k">static</span><span class="w"> </span><span class="no">COUNTER</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">AtomicUsize</span>::<span class="n">new</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="c1">// thread A &amp; B
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">let</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="no">COUNTER</span><span class="p">.</span><span class="n">load</span><span class="p">();</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="no">COUNTER</span><span class="p">.</span><span class="n">store</span><span class="p">(</span><span class="n">c</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span><span class="w">
+</span></span></span></code></pre></div><p>如上示例，两个线程A和B同时对COUNTER进行+1操作，预期结果当然是2。但是<strong>由于线程调度的不确定性</strong>可能出现如下的执行顺序：</p>
+<pre tabindex="0"><code>[COUNTER=0] A load, B load, A store, B store [COUNTER=1]
+</code></pre><p>导致结果不符合预期。</p>
+<h4 id="解决方案">解决方案<a href="#解决方案" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<p>使用原子的reading &amp; writing，禁止掉这种不符预期的执行顺序。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-rust" data-lang="rust"><span class="line"><span class="cl"><span class="c1">// thread A &amp; B
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">let</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="no">COUNTER</span><span class="p">.</span><span class="n">fetch_and_add</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span><span class="w">
+</span></span></span></code></pre></div><ul>
+<li><strong>“Read-modify-write”</strong>, e.g. swap, compare-and-swap, fetch-and-add</li>
+</ul>
+<h3 id="reordering">reordering<a href="#reordering" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p><strong>同一个线程中的指令会因为硬件和编译器的优化发生指令重排。</strong></p>
+<pre tabindex="0"><code>DATA = 42;       ||   if FLAG.load() {
+FLAG.store(1);   ||       assert(DATA == 42);
+                 ||   }
+</code></pre><p>如上图示例，预期是当<code>FLAG.load()</code>为1时，<code>DATA == 42</code>。但是因为指令重排，左边线程中，<code>FLAG.store(1)</code>可能发生在赋值语句前面；右边线程中assert语句也可能发生在if语句前面。</p>
+<p><strong>Relaxed behaviors：</strong> 观察到的行为不在任意一种 <strong>interleaving semeantics</strong> 中。</p>
+<ul>
+<li><a href="http://www.cs.umd.edu/~pugh/java/memoryModel/CausalityTestCases.html">http://www.cs.umd.edu/~pugh/java/memoryModel/CausalityTestCases.html</a></li>
+</ul>
+<h4 id="解决方案-1">解决方案<a href="#解决方案-1" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<p>使用<strong>ordering primitives</strong>禁止这种重排。</p>
+<ul>
+<li>
+<p><strong>Fence</strong>：在指令之间加上栅栏（fence），禁止越过栅栏重排指令。</p>
+<pre tabindex="0"><code>DATA = 42;                ||   if FLAG.load(relaxed) {
+fence(SC);                ||       fence(SC);
+FLAG.store(1, relaxed);   ||       assert(DATA == 42);  }
+</code></pre><ul>
+<li><strong>SC fence:</strong> forbidding any reordering across itself</li>
+<li><strong>Relaxed:</strong> imposing no orderings</li>
+</ul>
+</li>
+<li>
+<p><strong>Access ordering</strong>：FLAG.store(1, release) and FLAG.load(acquire)</p>
+<pre tabindex="0"><code>DATA = 42;                ||   if FLAG.load(acquire) {
+FLAG.store(1, release);   ||       assert(DATA == 42);
+                          ||   }
+</code></pre><ul>
+<li><strong>Release store:</strong> forbidding reordering itself w/ earlier instructions</li>
+<li><strong>Acquire load:</strong> forbidding reordering itself w/ later instructions</li>
+</ul>
+</li>
+</ul>
+<h2 id="modeling-relaxed-behaviors--orderings">modeling relaxed behaviors &amp; orderings<a href="#modeling-relaxed-behaviors--orderings" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<ul>
+<li><strong>Approach 1: disallowing SMAs altogether</strong>
+<ul>
+<li>DRF (data-race freedom): w/o SMAs, no relaxed behaviors happen.</li>
+<li>Problem: SMAs are essential</li>
+</ul>
+</li>
+<li><strong>Approach 2: constraining executions by “axioms”</strong>
+<ul>
+<li>Representing an execution as a value-flow graph, validated w/ axioms</li>
+<li>Problem 1: not operational semantics (less intuitive)</li>
+<li>Problem 2: allowing the bad “out-of-thin-air” behaviors</li>
+</ul>
+</li>
+<li><strong>Approach 3: modeling reorderings w/ operational semantics</strong>
+<ul>
+<li>“Promising semantics”: <a href="https://sf.snu.ac.kr/promise-concurrency/">https://sf.snu.ac.kr/promise-concurrency/</a></li>
+<li>Operational semantics</li>
+</ul>
+</li>
+</ul>
+
+      </div></div>
+
+  
+    
+<div class="pagination">
+  <div class="pagination__title">
+    <span class="pagination__title-h">Read other posts</span>
+    <hr />
+  </div>
+  <div class="pagination__buttons">
+    
+      <a href="https://chengzhycn.github.io/posts/2025-08/kaist-cs431-promising-semantics/" class="button inline prev">
+        &lt; [<span class="button__text">KAIST-CS431: Promising Semantics</span>]
+      </a>
+    
+    
+      ::
+    
+    
+      <a href="https://chengzhycn.github.io/posts/2025-08/kaist-cs431-lock-based-api/" class="button inline next">
+         [<span class="button__text">KAIST-CS431: Lock Based API</span>] &gt;
+      </a>
+    
+  </div>
+</div>
+
+
+  
+
+  
+    
+
+  
+</article>
+
+  </div>
+
+  
+    <footer class="footer">
+  <div class="footer__inner">
+    
+      <div class="copyright">
+        <span>© 2025 Powered by <a href="https://gohugo.io">Hugo</a></span>
+    
+      <span>:: <a href="https://github.com/panr/hugo-theme-terminal" target="_blank">Theme</a> made by <a href="https://github.com/panr" target="_blank">panr</a></span>
+      </div>
+  </div>
+</footer>
+
+
+
+
+
+
+<script type="text/javascript" src="/bundle.min.js"></script>
+
+
+
+
+
+  
+</div>
+
+</body>
+</html>

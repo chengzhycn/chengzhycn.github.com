@@ -3,30 +3,36 @@
   xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url>
     <loc>https://chengzhycn.github.io/categories/</loc>
-    <lastmod>2025-08-27T12:58:54+08:00</lastmod>
+    <lastmod>2025-08-27T13:40:27+08:00</lastmod>
   </url><url>
     <loc>https://chengzhycn.github.io/tags/concurrency/</loc>
-    <lastmod>2025-08-27T12:58:54+08:00</lastmod>
+    <lastmod>2025-08-27T13:40:27+08:00</lastmod>
   </url><url>
     <loc>https://chengzhycn.github.io/categories/courses/</loc>
-    <lastmod>2025-08-27T12:58:54+08:00</lastmod>
+    <lastmod>2025-08-27T13:40:27+08:00</lastmod>
   </url><url>
     <loc>https://chengzhycn.github.io/tags/kaist-cs431/</loc>
-    <lastmod>2025-08-27T12:58:54+08:00</lastmod>
+    <lastmod>2025-08-27T13:40:27+08:00</lastmod>
   </url><url>
-    <loc>https://chengzhycn.github.io/posts/2025-08/kaist-cs431-lock-based-api/</loc>
-    <lastmod>2025-08-27T12:58:54+08:00</lastmod>
+    <loc>https://chengzhycn.github.io/posts/2025-08/kaist-cs431-promising-semantics/</loc>
+    <lastmod>2025-08-27T13:40:27+08:00</lastmod>
   </url><url>
     <loc>https://chengzhycn.github.io/posts/</loc>
-    <lastmod>2025-08-27T12:58:54+08:00</lastmod>
+    <lastmod>2025-08-27T13:40:27+08:00</lastmod>
   </url><url>
     <loc>https://chengzhycn.github.io/tags/rust/</loc>
-    <lastmod>2025-08-27T12:58:54+08:00</lastmod>
+    <lastmod>2025-08-27T13:40:27+08:00</lastmod>
   </url><url>
     <loc>https://chengzhycn.github.io/tags/</loc>
-    <lastmod>2025-08-27T12:58:54+08:00</lastmod>
+    <lastmod>2025-08-27T13:40:27+08:00</lastmod>
   </url><url>
     <loc>https://chengzhycn.github.io/</loc>
+    <lastmod>2025-08-27T13:40:27+08:00</lastmod>
+  </url><url>
+    <loc>https://chengzhycn.github.io/posts/2025-08/kaist-cs431-nondeterminisms-of-shared-memory-concurrency/</loc>
+    <lastmod>2025-08-27T13:31:59+08:00</lastmod>
+  </url><url>
+    <loc>https://chengzhycn.github.io/posts/2025-08/kaist-cs431-lock-based-api/</loc>
     <lastmod>2025-08-27T12:58:54+08:00</lastmod>
   </url><url>
     <loc>https://chengzhycn.github.io/tags/wasm/</loc>
