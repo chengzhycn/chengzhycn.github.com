@@ -203,6 +203,96 @@
     
       <article class="post on-list">
         <h2 class="post-title">
+          <a href="https://chengzhycn.github.io/posts/2025-08/kaist-cs431-lock-based-api/">KAIST-CS431: Lock Based API</a>
+        </h2>
+        <div class="post-meta"><time class="post-date">2025-08-27</time></div>
+
+        
+          <span class="post-tags">
+            
+            #<a href="https://chengzhycn.github.io/tags/rust/">Rust</a>&nbsp;
+            
+            #<a href="https://chengzhycn.github.io/tags/concurrency/">Concurrency</a>&nbsp;
+            
+            #<a href="https://chengzhycn.github.io/tags/kaist-cs431/">KAIST-CS431</a>&nbsp;
+            
+          </span>
+        
+
+        
+
+
+        <div class="post-content">
+          
+            <h2 id="标准库中的并发api">标准库中的并发API</h2>
+<p>Rust 标准库中基于锁的 API 主要围绕几个核心原语构建，这些原语提供了不同级别的并发控制和用途。它们都包含在 <code>std::sync</code> 模块中。以下是一些最常用的基于锁的 API：</p>
+<ol>
+<li><strong><code>std::sync::Mutex&lt;T&gt;</code> (互斥锁)</strong>
+<ul>
+<li><strong>用途：</strong> 最常见的互斥锁，用于保护共享数据，确保一次只有一个线程可以访问该数据。</li>
+<li><strong>特点：</strong>
+<ul>
+<li>当线程尝试获取已被锁定的 Mutex 时，它会阻塞直到锁被释放。</li>
+<li>提供内部可变性（<code>&amp;T</code> -&gt; <code>&amp;mut T</code>）通过 RAII (Resource Acquisition Is Initialization) 机制，即 <code>MutexGuard</code>。当 <code>MutexGuard</code> 离开作用域时，锁会自动释放。</li>
+<li>是“poisoning”感知的：如果持有锁的线程在锁被释放前发生 panic，<code>Mutex</code> 会被标记为 poisoned。后续尝试获取锁的线程会得到一个 <code>PoisonError</code>，其中包含原始的 <code>MutexGuard</code>，允许它们决定如何处理被中断的数据。</li>
+</ul>
+</li>
+<li><strong>何时使用：</strong> 当你需要独占访问某个共享资源时，例如全局计数器、数据结构或配置设置。</li>
+</ul>
+</li>
+<li><strong><code>std::sync::RwLock&lt;T&gt;</code> (读写锁)</strong>
+<ul>
+<li><strong>用途：</strong> 允许多个读取者同时访问共享数据，但只允许一个写入者独占访问数据。</li>
+<li><strong>特点：</strong>
+<ul>
+<li><strong>读取者（<code>read()</code>）：</strong> 允许多个线程并行获取读锁。只要没有写入者持有锁，所有读锁请求都会成功。</li>
+<li><strong>写入者（<code>write()</code>）：</strong> 只允许一个线程获取写锁。当有写入者持有锁时，所有读锁和写锁请求都会阻塞。</li>
+<li>也提供 RAII 机制，通过 <code>RwLockReadGuard</code> 和 <code>RwLockWriteGuard</code>。</li>
+<li>同样是“poisoning”感知的。</li>
+</ul>
+</li>
+<li><strong>何时使用：</strong> 当你的数据被频繁读取但很少写入时，<code>RwLock</code> 可以提供比 <code>Mutex</code> 更好的并发性能。例如，一个缓存系统或一个配置对象。</li>
+</ul>
+</li>
+<li><strong><code>std::sync::Once</code> (只运行一次)</strong>
+<ul>
+<li><strong>用途：</strong> 确保某个代码块（一个初始化函数）在程序生命周期中只被执行一次，即使有多个线程同时尝试触发它。</li>
+<li><strong>特点：</strong>
+<ul>
+<li><code>call_once()</code> 方法会执行一个闭包。第一次调用会实际执行闭包，后续的调用会等待第一次调用完成，但不会再次执行闭包。</li>
+<li>通常用于惰性初始化全局数据或单例模式。</li>
+</ul>
+</li>
+<li><strong>何时使用：</strong> 初始化全局静态变量（例如日志系统、配置加载器）或实现单例模式。通常与 <code>lazy_static</code> crate (在稳定版 Rust 中) 或 <code>std::sync::OnceLock</code> (在 1.70+ 版本中，见下文) 结合使用。</li>
+</ul>
+</li>
+<li><strong><code>std::sync::Barrier</code> (屏障)</strong>
+<ul>
+<li><strong>用途：</strong> 用于同步一组线程，确保所有线程都到达某个预定义点后才能继续执行。</li>
+<li><strong>特点：</strong>
+<ul>
+<li>通过 <code>wait()</code> 方法实现等待。当调用 <code>wait()</code> 的线程数量达到预设值时，所有等待的线程都会同时被释放。</li>
+<li><code>wait()</code> 返回一个 <code>BarrierWaitResult</code>，指示当前线程是否是最后一个到达屏障的。</li>
+</ul>
+</li>
+<li><strong>何时使用：</strong> 需要协调多个并行任务的执行，例如在某个阶段结束后开始下一阶段，或者在所有子任务完成后进行汇总。</li>
+</ul>
+</li>
+</ol>
+<hr>
+<p><strong>Rust 1.70+ 中引入的更现代的基于锁的 API：</strong></p>
+          
+        </div>
+
+        
+           <div>
+            <a class="read-more button inline" href="/posts/2025-08/kaist-cs431-lock-based-api/">[Read more]</a>
+          </div>
+        
+      </article>
+    
+      <article class="post on-list">
+        <h2 class="post-title">
           <a href="https://chengzhycn.github.io/posts/2025-08/wasm-internals-overview/">Wasm Internals - Overview</a>
         </h2>
         <div class="post-meta"><time class="post-date">2025-08-26</time></div>
@@ -309,9 +399,11 @@ instructions. In this Readme, we will shortly summarize the most important rules
         
           <span class="post-tags">
             
-            #<a href="https://chengzhycn.github.io/tags/concurrent-programming/">Concurrent Programming</a>&nbsp;
+            #<a href="https://chengzhycn.github.io/tags/concurrency/">Concurrency</a>&nbsp;
             
             #<a href="https://chengzhycn.github.io/tags/rust/">Rust</a>&nbsp;
+            
+            #<a href="https://chengzhycn.github.io/tags/kaist-cs431/">KAIST-CS431</a>&nbsp;
             
           </span>
         
@@ -321,8 +413,7 @@ instructions. In this Readme, we will shortly summarize the most important rules
 
         <div class="post-content">
           
-            <h1 id="lock">Lock</h1>
-<ul>
+            <ul>
 <li><strong>Pros &amp; cons:</strong> simple &amp; possibly inefficient</li>
 </ul>
 <h2 id="low-level-lock-api">Low-Level Lock API</h2>

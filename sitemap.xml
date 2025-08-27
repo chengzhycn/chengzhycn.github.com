@@ -3,16 +3,31 @@
   xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url>
     <loc>https://chengzhycn.github.io/categories/</loc>
-    <lastmod>2025-08-26T12:29:03+08:00</lastmod>
+    <lastmod>2025-08-27T12:58:54+08:00</lastmod>
+  </url><url>
+    <loc>https://chengzhycn.github.io/tags/concurrency/</loc>
+    <lastmod>2025-08-27T12:58:54+08:00</lastmod>
+  </url><url>
+    <loc>https://chengzhycn.github.io/categories/courses/</loc>
+    <lastmod>2025-08-27T12:58:54+08:00</lastmod>
+  </url><url>
+    <loc>https://chengzhycn.github.io/tags/kaist-cs431/</loc>
+    <lastmod>2025-08-27T12:58:54+08:00</lastmod>
+  </url><url>
+    <loc>https://chengzhycn.github.io/posts/2025-08/kaist-cs431-lock-based-api/</loc>
+    <lastmod>2025-08-27T12:58:54+08:00</lastmod>
   </url><url>
     <loc>https://chengzhycn.github.io/posts/</loc>
-    <lastmod>2025-08-26T12:29:03+08:00</lastmod>
+    <lastmod>2025-08-27T12:58:54+08:00</lastmod>
+  </url><url>
+    <loc>https://chengzhycn.github.io/tags/rust/</loc>
+    <lastmod>2025-08-27T12:58:54+08:00</lastmod>
   </url><url>
     <loc>https://chengzhycn.github.io/tags/</loc>
-    <lastmod>2025-08-26T12:29:03+08:00</lastmod>
+    <lastmod>2025-08-27T12:58:54+08:00</lastmod>
   </url><url>
     <loc>https://chengzhycn.github.io/</loc>
-    <lastmod>2025-08-26T12:29:03+08:00</lastmod>
+    <lastmod>2025-08-27T12:58:54+08:00</lastmod>
   </url><url>
     <loc>https://chengzhycn.github.io/tags/wasm/</loc>
     <lastmod>2025-08-26T12:29:03+08:00</lastmod>
@@ -29,19 +44,7 @@
     <loc>https://chengzhycn.github.io/posts/2025-03/c-common-coding-conventions/</loc>
     <lastmod>2025-03-29T13:52:28+08:00</lastmod>
   </url><url>
-    <loc>https://chengzhycn.github.io/categories/computer-science/</loc>
-    <lastmod>2022-03-08T00:00:00+00:00</lastmod>
-  </url><url>
-    <loc>https://chengzhycn.github.io/tags/concurrent-programming/</loc>
-    <lastmod>2022-03-08T00:00:00+00:00</lastmod>
-  </url><url>
     <loc>https://chengzhycn.github.io/posts/2022-03/kaist-cs431-lock/</loc>
-    <lastmod>2022-03-08T00:00:00+00:00</lastmod>
-  </url><url>
-    <loc>https://chengzhycn.github.io/categories/learning/</loc>
-    <lastmod>2022-03-08T00:00:00+00:00</lastmod>
-  </url><url>
-    <loc>https://chengzhycn.github.io/tags/rust/</loc>
     <lastmod>2022-03-08T00:00:00+00:00</lastmod>
   </url><url>
     <loc>https://chengzhycn.github.io/tags/dns/</loc>
