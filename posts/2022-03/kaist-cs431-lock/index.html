@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   
-    <title>KAIST-CS431: Lock :: Terminal</title>
+    <title>KAIST-CS431: Lock :: chengzhycn&#39;s blog</title>
   
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -90,7 +90,7 @@ High cost：程序员需要始终关注API的使用； Potential bugs：不正�
 #include &lt;string&gt; #include &lt;mutex&gt; #include &lt;iostream&gt; #include &lt;fstream&gt; #include &lt;stdexcept&gt; void write_to_file(const std::string &amp; message) { // 创建关于文件的互斥锁 static std::mutex mutex; // 在访问文件前进行加锁 std::lock_guard&lt;std::mutex&gt; lock(mutex); // 尝试打开文件 std::ofstream file(&#34;example.txt&#34;); if (!file.is_open()) throw std::runtime_error(&#34;unable to open file&#34;); // 输出文件内容 file &lt;&lt; message &lt;&lt; std::endl; // 当离开作用域时，文件句柄会被首先析构 (不管是否抛出了异常) // 互斥锁也会被析构 (同样地，不管是否抛出了异常) } RAII要求，资源的有效期与持有资源的对象的生命期严格绑定，即由对象的构造函数完成资源的分配（获取），同时由析构函数完成资源的释放。在这种要求下，只要对象能正确地析构，就不会出现资源泄露问题。
 " />
 <meta property="og:url" content="https://chengzhycn.github.io/posts/2022-03/kaist-cs431-lock/" />
-<meta property="og:site_name" content="Terminal" />
+<meta property="og:site_name" content="chengzhycn&#39;s blog" />
 
   <meta property="og:image" content="https://chengzhycn.github.io/og-image.png">
 
@@ -124,7 +124,7 @@ High cost：程序员需要始终关注API的使用； Potential bugs：不正�
     <div class="header__logo">
       <a href="/">
   <div class="logo">
-    Terminal
+    chengzhycn&#39;s blog
   </div>
 </a>
 

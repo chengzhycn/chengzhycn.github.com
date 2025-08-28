@@ -5,6 +5,9 @@
     <loc>https://chengzhycn.github.io/categories/</loc>
     <lastmod>2025-08-27T13:40:27+08:00</lastmod>
   </url><url>
+    <loc>https://chengzhycn.github.io/</loc>
+    <lastmod>2025-08-27T13:40:27+08:00</lastmod>
+  </url><url>
     <loc>https://chengzhycn.github.io/tags/concurrency/</loc>
     <lastmod>2025-08-27T13:40:27+08:00</lastmod>
   </url><url>
@@ -24,9 +27,6 @@
     <lastmod>2025-08-27T13:40:27+08:00</lastmod>
   </url><url>
     <loc>https://chengzhycn.github.io/tags/</loc>
-    <lastmod>2025-08-27T13:40:27+08:00</lastmod>
-  </url><url>
-    <loc>https://chengzhycn.github.io/</loc>
     <lastmod>2025-08-27T13:40:27+08:00</lastmod>
   </url><url>
     <loc>https://chengzhycn.github.io/posts/2025-08/kaist-cs431-nondeterminisms-of-shared-memory-concurrency/</loc>
