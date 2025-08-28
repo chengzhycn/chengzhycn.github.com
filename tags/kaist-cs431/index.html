@@ -204,6 +204,236 @@
     
       <article class="post on-list">
         <h1 class="post-title">
+          <a href="https://chengzhycn.github.io/posts/2025-08/kaist-cs431-safe-memory-reclamation/">KAIST-CS431: Safe Memory Reclamation</a>
+        </h1>
+        <div class="post-meta"><time class="post-date">2025-08-28</time></div>
+
+        
+          <span class="post-tags">
+            
+            #<a href="https://chengzhycn.github.io/tags/rust/">Rust</a>&nbsp;
+            
+            #<a href="https://chengzhycn.github.io/tags/concurrency/">Concurrency</a>&nbsp;
+            
+            #<a href="https://chengzhycn.github.io/tags/kaist-cs431/">KAIST-CS431</a>&nbsp;
+            
+          </span>
+        
+
+        
+
+
+        <div class="post-content">
+          
+            <p>无锁数据结构和传统的数据结构在内存管理有一点区别是：当数据不用了，需要释放内存时，传统数据结构直接调用<code>free()</code>就可以了，但是无锁数据结构不行。举个例子，如下图所示，T1正在读取b1的时候，T2释放了b1，T1中的指针就变成了野指针，造成不安全的内存访问。</p>
+<p><img src="/images/notes/kaist-cs431-safe-memory-reclamation/image-20220410114205442.png" alt="image-20220410114205442"></p>
+<p>因此，在无锁数据结构中，内存的释放操作一般要延后执行，即保证没有线程能够访问到该片内存后，再执行内存回收。这种方式被称作Safe Memory Reclamation（SMR）。</p>
+<p>从上述例子中，我们可以从两个方面去理解一个SMR算法：</p>
+<ol>
+<li><strong>如何保护正在使用的数据不被释放？</strong></li>
+<li><strong>什么时候能安全地释放已经被标记为需要释放的内存？</strong></li>
+</ol>
+<p>下面介绍两种常用的SMR算法：</p>
+<ol>
+<li>Hazard Pointers（Protected Pointers）</li>
+<li>Epoch-Based Reclamation（基于代际的内存释放）</li>
+</ol>
+<p><img src="/images/notes/kaist-cs431-safe-memory-reclamation/image-20220411074041712.png" alt="image-20220411074041712"></p>
+<h2 id="hazard-pointers">Hazard Pointers</h2>
+<p>Hazard Pointers的基本思想是<strong>线程访问数据块时会将指针记录下来，其它线程尝试释放内存时会感知到数据块引用的存在，从而延迟释放内存，直到所有线程对该数据块的访问结束。</strong></p>
+<p><img src="/images/notes/kaist-cs431-safe-memory-reclamation/image-20220411083606925.png" alt="image-20220411083606925"></p>
+<p>如上图所示，使用hazard pointers有如下几个步骤：</p>
+<ol>
+<li>在线程访问共享数据时，先调用<code>reserve()</code>方法，将指针记录在一个list内；</li>
+<li>T2线程尝试释放释放b1时，调用<code>retire()</code>，因为检测到还有线程访问b1，延迟释放内存；</li>
+<li>因为内存没有真正释放，T1能在b1 retire后继续访问b1。访问结束后，T1调用<code>unreserve()</code>将指针从list中移除；</li>
+<li>T3调用<code>gc()</code>（可以周期性运行，也可以事件触发），遍历所有retired的数据块，如果list内没有指向数据块的指针，即可以真正回收内存。</li>
+</ol>
+<p>Hazard Pointers有些致命的缺点：</p>
+<ol>
+<li>不够快。因为<code>reserve()</code>保护的指针需要立即被<code>gc()</code>感知到，所以，两个函数都需要引入开销非常大的store-load fence。在遍历整个数据结构时，每个数据块都会调用<code>reserve()</code>，导致遍历效率降低；</li>
+<li>并不是所有的数据结构都适用Hazard Pointers。在前文的Lock-free Linked List中，我们也提过Harris-Michael‘s traversing是为了专门支持Hazard Pointers的。Harris&rsquo;s traversing会retire一个连续的数据块，这样，即便T1线程保护了其中一个数据块，<code>gc()</code>仍然可以回收其它的数据块内存，T1线程访问next指针时，仍然会出现问题。</li>
+</ol>
+<h2 id="epoch-based-reclamation">Epoch-Based Reclamation</h2>
+<p>Hazard Pointers只保护无锁数据结构中真正被访问的那部分数据，这也导致了上文中Hazard Pointers的两个缺陷。与Hazard Pointers不同的是，<strong>EBR保护的是数据结构中所有可能潜在的访问</strong>。这样也就不需要频繁地在线程间同步。</p>
+<p><img src="/images/notes/kaist-cs431-safe-memory-reclamation/image-20220413090336739.png" alt="image-20220413090336739"></p>
+<p>每个线程在访问数据结构前都会开启一个代际（epoch）。T1在代际e中retire了b1和b2。那么什么时候能安全地reclaim b1和b2的内存呢？</p>
+<p>如上图，我们在这个EBR算法中规定了一个<strong>代际一致性规则：并发的代际之间最多只能相差1。<strong>也就是说，只要T1还没有调用<code>set_quiescent()</code>结束掉e代，那么其它线程通过<code>set_active()</code>开启的代际号只能是e+1。而所有的e+1代的线程是有可能引用到b1和b2的。当e代结束，T2开启e+2代时，因为e+2代和e代不存在</strong>同时发生</strong>的可能性（通过代际一致性规则保证），所以在e+2代是不可能访问到e代retire的b1和b2的。到了e+3代，表示所有可能访问到b1和b2的e+1代都已经结束，此时即可安全地回收b1和b2内存。</p>
+<p>不同的代际一致性规则，可以安全回收的代际是不一样的。</p>
+          
+        </div>
+
+        
+          <div>
+            <a class="read-more button inline" href="/posts/2025-08/kaist-cs431-safe-memory-reclamation/">[Read more]</a>
+          </div>
+        
+      </article>
+    
+      <article class="post on-list">
+        <h1 class="post-title">
+          <a href="https://chengzhycn.github.io/posts/2025-08/kaist-cs431-concurrent-data-structure/">KAIST-CS431: Concurrent Data Structure</a>
+        </h1>
+        <div class="post-meta"><time class="post-date">2025-08-28</time></div>
+
+        
+          <span class="post-tags">
+            
+            #<a href="https://chengzhycn.github.io/tags/rust/">Rust</a>&nbsp;
+            
+            #<a href="https://chengzhycn.github.io/tags/concurrency/">Concurrency</a>&nbsp;
+            
+            #<a href="https://chengzhycn.github.io/tags/kaist-cs431/">KAIST-CS431</a>&nbsp;
+            
+          </span>
+        
+
+        
+
+
+        <div class="post-content">
+          
+            <h2 id="并发数据结构的关键点">并发数据结构的关键点</h2>
+<ul>
+<li><strong>安全性：</strong> 安全是并发程序对CDS的最基本的要求
+<ul>
+<li>Sequential specification：多线程对数据结构的操作要能像一个队列一样</li>
+<li>Synchronization：如在栈操作中，不同的线程进行pushing和popping操作时是要同步的，不能这边线程执行完了，另外一边无法感知到这边的操作。</li>
+<li><strong>通过锁或者更加底层的同步原语来保护并发数据结构</strong></li>
+</ul>
+</li>
+<li><strong>可扩展性：</strong> 随着CPU核数/并发度的增长，有着良好的性能增长
+<ul>
+<li>理想情况下，性能增长应该是线性的，但现实情况往往因为各种限制因素达不到线性增长</li>
+<li><strong>通过减少锁保护范围（更细粒度的锁）来减少竞争</strong>
+<ul>
+<li>hand-over-hand locking, lock coupling, read-write locking</li>
+</ul>
+</li>
+<li><strong>通过避免写操作降低缓存失效</strong></li>
+</ul>
+</li>
+<li><strong>Progress:</strong> guaranteeing the completion (or progress) of operations
+<ul>
+<li>Lock freedom: progress of at least one</li>
+<li>Wait freedom: progress of everyone</li>
+</ul>
+</li>
+</ul>
+<h2 id="无锁策略">无锁策略</h2>
+<p>Lock-Free 和 Wait-Free 都旨在解决传统锁（如互斥锁 mutex）带来的性能和活性问题，但采用了不同的策略和提供了不同的保证。</p>
+<h3 id="lock-free">Lock-Free</h3>
+<p>Lock-Free 是一个相对较弱的保证，但仍然非常强大和有用。它的核心思想是：<strong>总会有一个线程能够前进，即使其他线程被任意延迟或阻塞。</strong></p>
+<p><strong>核心特点：</strong></p>
+<ul>
+<li><strong>没有死锁 (Deadlock-Free)：</strong> 由于没有线程需要等待其他线程释放锁，所以不会发生死锁。</li>
+<li><strong>没有活锁 (Livelock-Free)：</strong> 虽然有可能发生活锁（即线程反复尝试但总是失败），但通常通过回退策略（如指数退避）或设计良好的原子操作序列可以避免。然而，严格意义上的 Lock-Free 并不直接保证 Livelock-Free。</li>
+<li><strong>进度保证 (Progress Guarantee)：</strong> 只要系统不是完全停滞，总有一个或多个线程可以完成操作。这意味着整个系统的吞吐量不会因为某个线程的无限期暂停而归零。</li>
+<li><strong>饥饿可能 (Starvation Possible)：</strong> 某个特定的线程可能会无限期地重试它的操作，而从未成功（即所谓的“饥饿”）。这是 Lock-Free 与 Wait-Free 的一个主要区别。</li>
+<li><strong>实现方式：</strong> 主要依赖于原子操作，如<code>CAS (Compare-And-Swap)</code>，<code>FAA (Fetch-And-Add)</code>，<code>LL/SC (Load-Link/Store-Conditional)</code>等。这些操作通常由硬件提供，能够以原子方式读取、修改和写入内存位置，而无需使用操作系统级别的锁。</li>
+<li><strong>常见数据结构：</strong> 无锁队列 (Lock-Free Queue)，无锁栈 (Lock-Free Stack)，无锁哈希表 (Lock-Free Hash Table) 等。</li>
+</ul>
+<p><strong>工作原理示例（CAS）：</strong></p>
+          
+        </div>
+
+        
+          <div>
+            <a class="read-more button inline" href="/posts/2025-08/kaist-cs431-concurrent-data-structure/">[Read more]</a>
+          </div>
+        
+      </article>
+    
+      <article class="post on-list">
+        <h1 class="post-title">
+          <a href="https://chengzhycn.github.io/posts/2025-08/kaist-cs431-lock-implementations/">KAIST-CS431: Lock Implementations</a>
+        </h1>
+        <div class="post-meta"><time class="post-date">2025-08-28</time></div>
+
+        
+          <span class="post-tags">
+            
+            #<a href="https://chengzhycn.github.io/tags/rust/">Rust</a>&nbsp;
+            
+            #<a href="https://chengzhycn.github.io/tags/concurrency/">Concurrency</a>&nbsp;
+            
+            #<a href="https://chengzhycn.github.io/tags/kaist-cs431/">KAIST-CS431</a>&nbsp;
+            
+          </span>
+        
+
+        
+
+
+        <div class="post-content">
+          
+            <h2 id="naive-spin-lock">Naive Spin Lock</h2>
+<p><img src="/images/notes/kaist-cs431-lock-implementations/image-20220324081153922.png" alt="image-20220324081153922"></p>
+<h3 id="naive-spin-lock的缺陷">Naive Spin Lock的缺陷</h3>
+<ul>
+<li>无法保证公平性，可能有的倒霉蛋空转了一辈子也无法cas成功，无法做到按竞争线程先来后到的次序占有锁。</li>
+<li>扩展性差，大量对同一内存区域的自旋引发性能问题。</li>
+</ul>
+<h2 id="对naive-spin-lock的优化">对Naive Spin Lock的优化</h2>
+<p>关键思路：</p>
+<ul>
+<li>通过release/acquire同步机制保证互斥量的排他性
+<ul>
+<li>从一个临界区的结束（release）到另一个临界区的开始（acquire）</li>
+<li>在ticket lock里面是<code>curr</code>成员，CLH/MCS lock是每个waiter的一个新内存区域</li>
+</ul>
+</li>
+<li>通过排队和等待不同的区域释放保证公平性
+<ul>
+<li>通过公平的指令来排队（如swap, fetch-and-add）</li>
+<li>Ticket lock：通过<code>next</code>来排队，<code>curr</code>来等待锁</li>
+<li>CLH/MCS lock：通过<code>tail</code>来排队，等待每个锁调用者申请的不同区域中值的变化来获取锁</li>
+</ul>
+</li>
+</ul>
+<h3 id="ticket-lock">Ticket Lock</h3>
+<p><img src="/images/notes/kaist-cs431-lock-implementations/image-20220323075751550.png" alt="image-20220323075751550"></p>
+<p>ticket lock在锁的结构体里面新增了一个原子变量<code>next</code>，每次需要竞争锁时，需要先从<code>next</code>中拿到一个ticket，然后再去监听<code>curr</code>，只有<code>curr</code>被更新成当前的ticket值后，才能去占领锁。</p>
+<h4 id="优点">优点</h4>
+<ul>
+<li>利用公平指令排队解决了公平性问题</li>
+</ul>
+<h4 id="缺点">缺点</h4>
+<ul>
+<li>API相对较复杂（调用者感知ticket）（为什么不直接用curr+1？）</li>
+<li>没有解决spinlock中所有线程监听同一个原子变量的问题</li>
+</ul>
+<h3 id="clh-lock">CLH Lock</h3>
+<p><img src="/images/notes/kaist-cs431-lock-implementations/image-20220323082114800.png" alt="image-20220323082114800"></p>
+<p>为了减少缓存一致性带来的开销，CLH lock被发明了。CLH是三个人首字母的缩写：Craig, Landin, and Hagersten。</p>
+<p>CLH lock给所有等待线程分配了一个Node，每个Node初始为true，在锁内维护一个链表，所有竞争锁的线程都会获取到前一个线程的Node，并将<code>tail</code>指针指向自己的Node。</p>
+<p>不同于spin lock和Ticket lock，CLH lock的临界区是前一个Node中的原子变量。在锁释放时，当前线程会将自己的Node值置为false，而排队的下一个线程监听到这个变化，则可以安全地占有锁了。</p>
+<h4 id="优点-1">优点</h4>
+<ul>
+<li>线程监听的不同临界区，减少缓存一致性的开销</li>
+<li>链表排队，也能保证公平性</li>
+</ul>
+<h4 id="缺点-1">缺点</h4>
+<ul>
+<li>O(n)的空间复杂度开销，n是临界区数目</li>
+<li>每个线程都是在前驱节点的Node上自旋，如果跨NUMA会有性能问题</li>
+</ul>
+<h3 id="mcs-lock">MCS Lock</h3>
+<p><img src="/images/notes/kaist-cs431-lock-implementations/image-20220324080334262.png" alt="image-20220324080334262"></p>
+<p>MCS lock也是以三个人名命名的：John M. Mellor-Crummey and Michael L. Scott。MCS lock和LCH lock最大的不同是：CLH lock是在前驱节点上自旋，MCS则是在自己节点上自旋。</p>
+<p>在CLH的Node结构里面，MCS又添加了一个<code>next</code>字段，新的线程竞争锁时，会将自己的Node添加到前驱节点的<code>next</code>字段中。</p>
+          
+        </div>
+
+        
+          <div>
+            <a class="read-more button inline" href="/posts/2025-08/kaist-cs431-lock-implementations/">[Read more]</a>
+          </div>
+        
+      </article>
+    
+      <article class="post on-list">
+        <h1 class="post-title">
           <a href="https://chengzhycn.github.io/posts/2025-08/kaist-cs431-promising-semantics/">KAIST-CS431: Promising Semantics</a>
         </h1>
         <div class="post-meta"><time class="post-date">2025-08-27</time></div>
@@ -338,199 +568,15 @@ FLAG.store(1);   ||       assert(DATA == 42);
         
       </article>
     
-      <article class="post on-list">
-        <h1 class="post-title">
-          <a href="https://chengzhycn.github.io/posts/2025-08/kaist-cs431-lock-based-api/">KAIST-CS431: Lock Based API</a>
-        </h1>
-        <div class="post-meta"><time class="post-date">2025-08-27</time></div>
-
-        
-          <span class="post-tags">
-            
-            #<a href="https://chengzhycn.github.io/tags/rust/">Rust</a>&nbsp;
-            
-            #<a href="https://chengzhycn.github.io/tags/concurrency/">Concurrency</a>&nbsp;
-            
-            #<a href="https://chengzhycn.github.io/tags/kaist-cs431/">KAIST-CS431</a>&nbsp;
-            
-          </span>
-        
-
-        
-
-
-        <div class="post-content">
-          
-            <h2 id="标准库中的并发api">标准库中的并发API</h2>
-<p>Rust 标准库中基于锁的 API 主要围绕几个核心原语构建，这些原语提供了不同级别的并发控制和用途。它们都包含在 <code>std::sync</code> 模块中。以下是一些最常用的基于锁的 API：</p>
-<ol>
-<li><strong><code>std::sync::Mutex&lt;T&gt;</code> (互斥锁)</strong>
-<ul>
-<li><strong>用途：</strong> 最常见的互斥锁，用于保护共享数据，确保一次只有一个线程可以访问该数据。</li>
-<li><strong>特点：</strong>
-<ul>
-<li>当线程尝试获取已被锁定的 Mutex 时，它会阻塞直到锁被释放。</li>
-<li>提供内部可变性（<code>&amp;T</code> -&gt; <code>&amp;mut T</code>）通过 RAII (Resource Acquisition Is Initialization) 机制，即 <code>MutexGuard</code>。当 <code>MutexGuard</code> 离开作用域时，锁会自动释放。</li>
-<li>是“poisoning”感知的：如果持有锁的线程在锁被释放前发生 panic，<code>Mutex</code> 会被标记为 poisoned。后续尝试获取锁的线程会得到一个 <code>PoisonError</code>，其中包含原始的 <code>MutexGuard</code>，允许它们决定如何处理被中断的数据。</li>
-</ul>
-</li>
-<li><strong>何时使用：</strong> 当你需要独占访问某个共享资源时，例如全局计数器、数据结构或配置设置。</li>
-</ul>
-</li>
-<li><strong><code>std::sync::RwLock&lt;T&gt;</code> (读写锁)</strong>
-<ul>
-<li><strong>用途：</strong> 允许多个读取者同时访问共享数据，但只允许一个写入者独占访问数据。</li>
-<li><strong>特点：</strong>
-<ul>
-<li><strong>读取者（<code>read()</code>）：</strong> 允许多个线程并行获取读锁。只要没有写入者持有锁，所有读锁请求都会成功。</li>
-<li><strong>写入者（<code>write()</code>）：</strong> 只允许一个线程获取写锁。当有写入者持有锁时，所有读锁和写锁请求都会阻塞。</li>
-<li>也提供 RAII 机制，通过 <code>RwLockReadGuard</code> 和 <code>RwLockWriteGuard</code>。</li>
-<li>同样是“poisoning”感知的。</li>
-</ul>
-</li>
-<li><strong>何时使用：</strong> 当你的数据被频繁读取但很少写入时，<code>RwLock</code> 可以提供比 <code>Mutex</code> 更好的并发性能。例如，一个缓存系统或一个配置对象。</li>
-</ul>
-</li>
-<li><strong><code>std::sync::Once</code> (只运行一次)</strong>
-<ul>
-<li><strong>用途：</strong> 确保某个代码块（一个初始化函数）在程序生命周期中只被执行一次，即使有多个线程同时尝试触发它。</li>
-<li><strong>特点：</strong>
-<ul>
-<li><code>call_once()</code> 方法会执行一个闭包。第一次调用会实际执行闭包，后续的调用会等待第一次调用完成，但不会再次执行闭包。</li>
-<li>通常用于惰性初始化全局数据或单例模式。</li>
-</ul>
-</li>
-<li><strong>何时使用：</strong> 初始化全局静态变量（例如日志系统、配置加载器）或实现单例模式。通常与 <code>lazy_static</code> crate (在稳定版 Rust 中) 或 <code>std::sync::OnceLock</code> (在 1.70+ 版本中，见下文) 结合使用。</li>
-</ul>
-</li>
-<li><strong><code>std::sync::Barrier</code> (屏障)</strong>
-<ul>
-<li><strong>用途：</strong> 用于同步一组线程，确保所有线程都到达某个预定义点后才能继续执行。</li>
-<li><strong>特点：</strong>
-<ul>
-<li>通过 <code>wait()</code> 方法实现等待。当调用 <code>wait()</code> 的线程数量达到预设值时，所有等待的线程都会同时被释放。</li>
-<li><code>wait()</code> 返回一个 <code>BarrierWaitResult</code>，指示当前线程是否是最后一个到达屏障的。</li>
-</ul>
-</li>
-<li><strong>何时使用：</strong> 需要协调多个并行任务的执行，例如在某个阶段结束后开始下一阶段，或者在所有子任务完成后进行汇总。</li>
-</ul>
-</li>
-</ol>
-<hr>
-<p><strong>Rust 1.70+ 中引入的更现代的基于锁的 API：</strong></p>
-          
-        </div>
-
-        
-          <div>
-            <a class="read-more button inline" href="/posts/2025-08/kaist-cs431-lock-based-api/">[Read more]</a>
-          </div>
-        
-      </article>
-    
-      <article class="post on-list">
-        <h1 class="post-title">
-          <a href="https://chengzhycn.github.io/posts/2022-03/kaist-cs431-lock/">KAIST-CS431: Lock</a>
-        </h1>
-        <div class="post-meta"><time class="post-date">2022-03-08</time></div>
-
-        
-          <span class="post-tags">
-            
-            #<a href="https://chengzhycn.github.io/tags/concurrency/">Concurrency</a>&nbsp;
-            
-            #<a href="https://chengzhycn.github.io/tags/rust/">Rust</a>&nbsp;
-            
-            #<a href="https://chengzhycn.github.io/tags/kaist-cs431/">KAIST-CS431</a>&nbsp;
-            
-          </span>
-        
-
-        
-
-
-        <div class="post-content">
-          
-            <ul>
-<li><strong>Pros &amp; cons:</strong> simple &amp; possibly inefficient</li>
-</ul>
-<h2 id="low-level-lock-api">Low-Level Lock API</h2>
-<p>常用的low-level锁的API有：</p>
-<ul>
-<li><strong>Lock.acquire()</strong>: 阻塞，直到获取到锁</li>
-<li><strong>Lock.try_acquire():</strong> 返回锁是否已经被占用了，如果是，返回false，否，占用锁并返回true。不阻塞</li>
-<li><strong>Lock.release()</strong>: 释放锁</li>
-</ul>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c++" data-lang="c++"><span class="line"><span class="cl"><span class="n">L</span><span class="p">.</span><span class="n">acquire</span><span class="p">();</span>
-</span></span><span class="line"><span class="cl"><span class="n">r1</span> <span class="o">=</span> <span class="n">X</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl"><span class="n">X</span> <span class="o">=</span> <span class="n">r1</span> <span class="o">+</span> <span class="mi">1</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl"><span class="n">L</span><span class="p">.</span><span class="n">release</span><span class="p">();</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl"><span class="n">L</span><span class="p">.</span><span class="n">acquire</span><span class="p">();</span>
-</span></span><span class="line"><span class="cl"><span class="n">r2</span> <span class="o">=</span> <span class="n">X</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl"><span class="n">X</span> <span class="o">=</span> <span class="n">r2</span> <span class="o">+</span> <span class="mi">1</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl"><span class="n">L</span><span class="p">.</span><span class="n">release</span><span class="p">();</span>
-</span></span></code></pre></div><p>但是，这些API给用户在使用时造成了很多挑战（心智负担）：</p>
-<ul>
-<li><strong>Relating lock and resource</strong>: 用户只有在拿到锁时才能访问被保护的变量；</li>
-<li><strong>Matching acquire/release</strong>: 用户只能释放已经拿到的锁。</li>
-</ul>
-<p>如果锁没有得到正确的处理，会造成很多潜在的问题，并且，这些问题很难发现。因此，在并发编程时，low-level的锁API存在如下问题：</p>
-<ul>
-<li><strong>High cost</strong>：程序员需要始终关注API的使用；</li>
-<li><strong>Potential bugs</strong>：不正确的使用容易造成很多潜在的bugs。</li>
-</ul>
-<h2 id="high-level-lock-api">High-Level Lock API</h2>
-<ul>
-<li>想要一个易用地，始终能保证安全地high-level API。
-<ul>
-<li>Acquire/release自动匹配；</li>
-<li>Lock和resource显式关联。</li>
-</ul>
-</li>
-</ul>
-<p>C++中，这种API被称作<strong>RAII</strong>：<strong>Resource Acquisition Is Initialization</strong>。</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c++" data-lang="c++"><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;string&gt;</span><span class="cp">
-</span></span></span><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;mutex&gt;</span><span class="cp">
-</span></span></span><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;iostream&gt;</span><span class="cp">
-</span></span></span><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;fstream&gt;</span><span class="cp">
-</span></span></span><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;stdexcept&gt;</span><span class="cp">
-</span></span></span><span class="line"><span class="cl"><span class="cp"></span>
-</span></span><span class="line"><span class="cl"><span class="kt">void</span> <span class="nf">write_to_file</span><span class="p">(</span><span class="k">const</span> <span class="n">std</span><span class="o">::</span><span class="n">string</span> <span class="o">&amp;</span> <span class="n">message</span><span class="p">)</span>
-</span></span><span class="line"><span class="cl"><span class="p">{</span>
-</span></span><span class="line"><span class="cl">    <span class="c1">// 创建关于文件的互斥锁
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="k">static</span> <span class="n">std</span><span class="o">::</span><span class="n">mutex</span> <span class="n">mutex</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl">    <span class="c1">// 在访问文件前进行加锁
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="n">std</span><span class="o">::</span><span class="n">lock_guard</span><span class="o">&lt;</span><span class="n">std</span><span class="o">::</span><span class="n">mutex</span><span class="o">&gt;</span> <span class="n">lock</span><span class="p">(</span><span class="n">mutex</span><span class="p">);</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl">    <span class="c1">// 尝试打开文件
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="n">std</span><span class="o">::</span><span class="n">ofstream</span> <span class="n">file</span><span class="p">(</span><span class="s">&#34;example.txt&#34;</span><span class="p">);</span>
-</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="n">file</span><span class="p">.</span><span class="n">is_open</span><span class="p">())</span>
-</span></span><span class="line"><span class="cl">        <span class="k">throw</span> <span class="n">std</span><span class="o">::</span><span class="n">runtime_error</span><span class="p">(</span><span class="s">&#34;unable to open file&#34;</span><span class="p">);</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl">    <span class="c1">// 输出文件内容
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="n">file</span> <span class="o">&lt;&lt;</span> <span class="n">message</span> <span class="o">&lt;&lt;</span> <span class="n">std</span><span class="o">::</span><span class="n">endl</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl">    <span class="c1">// 当离开作用域时，文件句柄会被首先析构 (不管是否抛出了异常)
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">// 互斥锁也会被析构 (同样地，不管是否抛出了异常)
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="p">}</span>
-</span></span></code></pre></div><p>RAII要求，资源的有效期与持有资源的<a href="https://zh.wikipedia.org/w/index.php?title=%e5%af%b9%e8%b1%a1%e7%9a%84%e7%94%9f%e5%91%bd%e6%9c%9f&amp;action=edit&amp;redlink=1">对象的生命期</a>严格绑定，即由对象的<a href="https://zh.wikipedia.org/wiki/%E6%9E%84%E9%80%A0%E5%87%BD%E6%95%B0">构造函数</a>完成<a href="https://zh.wikipedia.org/w/index.php?title=%e8%b5%84%e6%ba%90%e7%9a%84%e5%88%86%e9%85%8d&amp;action=edit&amp;redlink=1">资源的分配</a>（获取），同时由<a href="https://zh.wikipedia.org/wiki/%E6%9E%90%E6%9E%84%E5%87%BD%E6%95%B0">析构函数</a>完成资源的释放。在这种要求下，只要对象能正确地析构，就不会出现<a href="https://zh.wikipedia.org/w/index.php?title=%e8%b5%84%e6%ba%90%e6%b3%84%e9%9c%b2&amp;action=edit&amp;redlink=1">资源泄露</a>问题。</p>
-          
-        </div>
-
-        
-          <div>
-            <a class="read-more button inline" href="/posts/2022-03/kaist-cs431-lock/">[Read more]</a>
-          </div>
-        
-      </article>
-    
 
     <div class="pagination">
   <div class="pagination__buttons">
     
     
+    
+      <a href="/tags/kaist-cs431/page/2/" class="button inline next">
+        [<span class="button__text">Older posts</span>] &gt;
+      </a>
     
   </div>
 </div>

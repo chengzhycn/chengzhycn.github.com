@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  
+    <title>KAIST-CS431: Safe Memory Reclamation :: chengzhycn&#39;s blog</title>
+  
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="无锁数据结构和传统的数据结构在内存管理有一点区别是：当数据不用了，需要释放内存时，传统数据结构直接调用free()就可以了，但是无锁数据结构不行。举个例子，如下图所示，T1正在读取b1的时候，T2释放了b1，T1中的指针就变成了野指针，造成不安全的内存访问。
+因此，在无锁数据结构中，内存的释放操作一般要延后执行，即保证没有线程能够访问到该片内存后，再执行内存回收。这种方式被称作Safe Memory Reclamation（SMR）。
+从上述例子中，我们可以从两个方面去理解一个SMR算法：
+如何保护正在使用的数据不被释放？ 什么时候能安全地释放已经被标记为需要释放的内存？ 下面介绍两种常用的SMR算法：
+Hazard Pointers（Protected Pointers） Epoch-Based Reclamation（基于代际的内存释放） Hazard Pointers Hazard Pointers的基本思想是线程访问数据块时会将指针记录下来，其它线程尝试释放内存时会感知到数据块引用的存在，从而延迟释放内存，直到所有线程对该数据块的访问结束。
+如上图所示，使用hazard pointers有如下几个步骤：
+在线程访问共享数据时，先调用reserve()方法，将指针记录在一个list内； T2线程尝试释放释放b1时，调用retire()，因为检测到还有线程访问b1，延迟释放内存； 因为内存没有真正释放，T1能在b1 retire后继续访问b1。访问结束后，T1调用unreserve()将指针从list中移除； T3调用gc()（可以周期性运行，也可以事件触发），遍历所有retired的数据块，如果list内没有指向数据块的指针，即可以真正回收内存。 Hazard Pointers有些致命的缺点：
+不够快。因为reserve()保护的指针需要立即被gc()感知到，所以，两个函数都需要引入开销非常大的store-load fence。在遍历整个数据结构时，每个数据块都会调用reserve()，导致遍历效率降低； 并不是所有的数据结构都适用Hazard Pointers。在前文的Lock-free Linked List中，我们也提过Harris-Michael‘s traversing是为了专门支持Hazard Pointers的。Harris&rsquo;s traversing会retire一个连续的数据块，这样，即便T1线程保护了其中一个数据块，gc()仍然可以回收其它的数据块内存，T1线程访问next指针时，仍然会出现问题。 Epoch-Based Reclamation Hazard Pointers只保护无锁数据结构中真正被访问的那部分数据，这也导致了上文中Hazard Pointers的两个缺陷。与Hazard Pointers不同的是，EBR保护的是数据结构中所有可能潜在的访问。这样也就不需要频繁地在线程间同步。
+每个线程在访问数据结构前都会开启一个代际（epoch）。T1在代际e中retire了b1和b2。那么什么时候能安全地reclaim b1和b2的内存呢？
+如上图，我们在这个EBR算法中规定了一个代际一致性规则：并发的代际之间最多只能相差1。也就是说，只要T1还没有调用set_quiescent()结束掉e代，那么其它线程通过set_active()开启的代际号只能是e&#43;1。而所有的e&#43;1代的线程是有可能引用到b1和b2的。当e代结束，T2开启e&#43;2代时，因为e&#43;2代和e代不存在同时发生的可能性（通过代际一致性规则保证），所以在e&#43;2代是不可能访问到e代retire的b1和b2的。到了e&#43;3代，表示所有可能访问到b1和b2的e&#43;1代都已经结束，此时即可安全地回收b1和b2内存。
+不同的代际一致性规则，可以安全回收的代际是不一样的。
+" />
+<meta name="keywords" content="" />
+
+  <meta name="robots" content="noodp" />
+
+<link rel="canonical" href="https://chengzhycn.github.io/posts/2025-08/kaist-cs431-safe-memory-reclamation/" />
+
+
+
+
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/buttons.min.86f6b4c106b6c6eb690ae5203d36b442c1f66f718ff4e8164fa86cf6c61ad641.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/code.min.d529ea4b2fb8d34328d7d31afc5466d5f7bc2f0bc9abdd98b69385335d7baee4.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/fonts.min.176c65cdf7082e9866e90b1fa123c60056f6d985b7cd3c4235600dada719e971.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/footer.min.eb8dfc2c6a7eafa36cd3ba92d63e69e849e2200e0002a228d137f236b09ecd75.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/gist.min.a751e8b0abe1ba8bc53ced52a38b19d8950fe78ca29454ea8c2595cf26aad5c0.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/header.min.75c7eb0e2872d95ff48109c6647d0223a38db52e2561dd87966eb5fc7c6bdac6.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/main.min.0909aaaf12e6fc3cdf2758321db2805239dc85602baff9dc07ce57d3d7365095.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/menu.min.310d32205bdedd6f43144e3c3273c9deecd238eba5f9108db5ea96ca0cfbe377.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/pagination.min.bbb986dbce00a5ce5aca0504b7925fc1c581992a4bf57f163e5d69cc1db7d836.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/post.min.ad50c7f4d00e7975918f37fc74c6029e1959a40d66fb5b2c6564a8715e985573.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/syntax.min.e9ab635cf918bc84b901eb65c0b2caa74c9544245e3647c1af5c129896ef276e.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/terminal.min.e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/terms.min.b81791663c3790e738e571cdbf802312390d30e4b1d8dc9d814a5b5454d0ac11.css">
+
+
+
+
+
+
+
+<link rel="shortcut icon" href="https://chengzhycn.github.io/favicon.png">
+<link rel="apple-touch-icon" href="https://chengzhycn.github.io/apple-touch-icon.png">
+
+
+<meta name="twitter:card" content="summary" />
+
+  
+    <meta name="twitter:site" content="" />
+  
+    <meta name="twitter:creator" content="" />
+
+
+
+<meta property="og:locale" content="en" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="KAIST-CS431: Safe Memory Reclamation">
+<meta property="og:description" content="无锁数据结构和传统的数据结构在内存管理有一点区别是：当数据不用了，需要释放内存时，传统数据结构直接调用free()就可以了，但是无锁数据结构不行。举个例子，如下图所示，T1正在读取b1的时候，T2释放了b1，T1中的指针就变成了野指针，造成不安全的内存访问。
+因此，在无锁数据结构中，内存的释放操作一般要延后执行，即保证没有线程能够访问到该片内存后，再执行内存回收。这种方式被称作Safe Memory Reclamation（SMR）。
+从上述例子中，我们可以从两个方面去理解一个SMR算法：
+如何保护正在使用的数据不被释放？ 什么时候能安全地释放已经被标记为需要释放的内存？ 下面介绍两种常用的SMR算法：
+Hazard Pointers（Protected Pointers） Epoch-Based Reclamation（基于代际的内存释放） Hazard Pointers Hazard Pointers的基本思想是线程访问数据块时会将指针记录下来，其它线程尝试释放内存时会感知到数据块引用的存在，从而延迟释放内存，直到所有线程对该数据块的访问结束。
+如上图所示，使用hazard pointers有如下几个步骤：
+在线程访问共享数据时，先调用reserve()方法，将指针记录在一个list内； T2线程尝试释放释放b1时，调用retire()，因为检测到还有线程访问b1，延迟释放内存； 因为内存没有真正释放，T1能在b1 retire后继续访问b1。访问结束后，T1调用unreserve()将指针从list中移除； T3调用gc()（可以周期性运行，也可以事件触发），遍历所有retired的数据块，如果list内没有指向数据块的指针，即可以真正回收内存。 Hazard Pointers有些致命的缺点：
+不够快。因为reserve()保护的指针需要立即被gc()感知到，所以，两个函数都需要引入开销非常大的store-load fence。在遍历整个数据结构时，每个数据块都会调用reserve()，导致遍历效率降低； 并不是所有的数据结构都适用Hazard Pointers。在前文的Lock-free Linked List中，我们也提过Harris-Michael‘s traversing是为了专门支持Hazard Pointers的。Harris&rsquo;s traversing会retire一个连续的数据块，这样，即便T1线程保护了其中一个数据块，gc()仍然可以回收其它的数据块内存，T1线程访问next指针时，仍然会出现问题。 Epoch-Based Reclamation Hazard Pointers只保护无锁数据结构中真正被访问的那部分数据，这也导致了上文中Hazard Pointers的两个缺陷。与Hazard Pointers不同的是，EBR保护的是数据结构中所有可能潜在的访问。这样也就不需要频繁地在线程间同步。
+每个线程在访问数据结构前都会开启一个代际（epoch）。T1在代际e中retire了b1和b2。那么什么时候能安全地reclaim b1和b2的内存呢？
+如上图，我们在这个EBR算法中规定了一个代际一致性规则：并发的代际之间最多只能相差1。也就是说，只要T1还没有调用set_quiescent()结束掉e代，那么其它线程通过set_active()开启的代际号只能是e&#43;1。而所有的e&#43;1代的线程是有可能引用到b1和b2的。当e代结束，T2开启e&#43;2代时，因为e&#43;2代和e代不存在同时发生的可能性（通过代际一致性规则保证），所以在e&#43;2代是不可能访问到e代retire的b1和b2的。到了e&#43;3代，表示所有可能访问到b1和b2的e&#43;1代都已经结束，此时即可安全地回收b1和b2内存。
+不同的代际一致性规则，可以安全回收的代际是不一样的。
+" />
+<meta property="og:url" content="https://chengzhycn.github.io/posts/2025-08/kaist-cs431-safe-memory-reclamation/" />
+<meta property="og:site_name" content="chengzhycn&#39;s blog" />
+
+  <meta property="og:image" content="https://chengzhycn.github.io/og-image.png">
+
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="627">
+
+  <meta property="article:section" content="Courses" />
+
+
+  <meta property="article:published_time" content="2025-08-28 13:09:43 &#43;0800 &#43;0800" />
+
+
+
+
+
+
+
+
+
+
+
+
+</head>
+<body>
+
+
+<div class="container center">
+
+  <header class="header">
+  <div class="header__inner">
+    <div class="header__logo">
+      <a href="/">
+  <div class="logo">
+    chengzhycn&#39;s blog
+  </div>
+</a>
+
+    </div>
+    
+      <ul class="menu menu--mobile">
+  <li class="menu__trigger">Menu&nbsp;▾</li>
+  <li>
+    <ul class="menu__dropdown">
+      
+        
+          <li><a href="/">Home</a></li>
+        
+      
+        
+          <li><a href="/about">About</a></li>
+        
+      
+        
+          <li><a href="/posts/">Archives</a></li>
+        
+      
+        
+          <li><a href="/categories/">Categories</a></li>
+        
+      
+        
+          <li><a href="/tags/">Tags</a></li>
+        
+      
+      
+    </ul>
+  </li>
+</ul>
+
+    
+    
+  </div>
+  
+    <nav class="navigation-menu">
+  <ul class="navigation-menu__inner menu--desktop">
+    
+      
+        
+          <li><a href="/" >Home</a></li>
+        
+      
+        
+          <li><a href="/about" >About</a></li>
+        
+      
+      
+        <li>
+          <ul class="menu">
+            <li class="menu__trigger">Show more&nbsp;▾</li>
+            <li>
+              <ul class="menu__dropdown">
+                
+                  
+                    <li><a href="/posts/" >Archives</a></li>
+                  
+                
+                  
+                    <li><a href="/categories/" >Categories</a></li>
+                  
+                
+                  
+                    <li><a href="/tags/" >Tags</a></li>
+                  
+                
+              </ul>
+            </li>
+          </ul>
+        </li>
+      
+    
+  </ul>
+</nav>
+
+  
+</header>
+
+
+  <div class="content">
+    
+<article class="post">
+  <h1 class="post-title">
+    <a href="https://chengzhycn.github.io/posts/2025-08/kaist-cs431-safe-memory-reclamation/">KAIST-CS431: Safe Memory Reclamation</a>
+  </h1>
+  <div class="post-meta"><time class="post-date">2025-08-28</time><span class="post-reading-time">1 min read (45 words)</span></div>
+
+  
+    <span class="post-tags">
+      
+      #<a href="https://chengzhycn.github.io/tags/rust/">Rust</a>&nbsp;
+      
+      #<a href="https://chengzhycn.github.io/tags/concurrency/">Concurrency</a>&nbsp;
+      
+      #<a href="https://chengzhycn.github.io/tags/kaist-cs431/">KAIST-CS431</a>&nbsp;
+      
+    </span>
+  
+  
+
+
+  
+    <div class="table-of-contents">
+      <h2>
+        Table of Contents
+      </h2>
+      <nav id="TableOfContents">
+  <ul>
+    <li><a href="#hazard-pointers">Hazard Pointers</a></li>
+    <li><a href="#epoch-based-reclamation">Epoch-Based Reclamation</a></li>
+  </ul>
+</nav>
+    </div>
+  
+
+  <div class="post-content"><div>
+        <p>无锁数据结构和传统的数据结构在内存管理有一点区别是：当数据不用了，需要释放内存时，传统数据结构直接调用<code>free()</code>就可以了，但是无锁数据结构不行。举个例子，如下图所示，T1正在读取b1的时候，T2释放了b1，T1中的指针就变成了野指针，造成不安全的内存访问。</p>
+<p><img src="/images/notes/kaist-cs431-safe-memory-reclamation/image-20220410114205442.png" alt="image-20220410114205442"></p>
+<p>因此，在无锁数据结构中，内存的释放操作一般要延后执行，即保证没有线程能够访问到该片内存后，再执行内存回收。这种方式被称作Safe Memory Reclamation（SMR）。</p>
+<p>从上述例子中，我们可以从两个方面去理解一个SMR算法：</p>
+<ol>
+<li><strong>如何保护正在使用的数据不被释放？</strong></li>
+<li><strong>什么时候能安全地释放已经被标记为需要释放的内存？</strong></li>
+</ol>
+<p>下面介绍两种常用的SMR算法：</p>
+<ol>
+<li>Hazard Pointers（Protected Pointers）</li>
+<li>Epoch-Based Reclamation（基于代际的内存释放）</li>
+</ol>
+<p><img src="/images/notes/kaist-cs431-safe-memory-reclamation/image-20220411074041712.png" alt="image-20220411074041712"></p>
+<h2 id="hazard-pointers">Hazard Pointers<a href="#hazard-pointers" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>Hazard Pointers的基本思想是<strong>线程访问数据块时会将指针记录下来，其它线程尝试释放内存时会感知到数据块引用的存在，从而延迟释放内存，直到所有线程对该数据块的访问结束。</strong></p>
+<p><img src="/images/notes/kaist-cs431-safe-memory-reclamation/image-20220411083606925.png" alt="image-20220411083606925"></p>
+<p>如上图所示，使用hazard pointers有如下几个步骤：</p>
+<ol>
+<li>在线程访问共享数据时，先调用<code>reserve()</code>方法，将指针记录在一个list内；</li>
+<li>T2线程尝试释放释放b1时，调用<code>retire()</code>，因为检测到还有线程访问b1，延迟释放内存；</li>
+<li>因为内存没有真正释放，T1能在b1 retire后继续访问b1。访问结束后，T1调用<code>unreserve()</code>将指针从list中移除；</li>
+<li>T3调用<code>gc()</code>（可以周期性运行，也可以事件触发），遍历所有retired的数据块，如果list内没有指向数据块的指针，即可以真正回收内存。</li>
+</ol>
+<p>Hazard Pointers有些致命的缺点：</p>
+<ol>
+<li>不够快。因为<code>reserve()</code>保护的指针需要立即被<code>gc()</code>感知到，所以，两个函数都需要引入开销非常大的store-load fence。在遍历整个数据结构时，每个数据块都会调用<code>reserve()</code>，导致遍历效率降低；</li>
+<li>并不是所有的数据结构都适用Hazard Pointers。在前文的Lock-free Linked List中，我们也提过Harris-Michael‘s traversing是为了专门支持Hazard Pointers的。Harris&rsquo;s traversing会retire一个连续的数据块，这样，即便T1线程保护了其中一个数据块，<code>gc()</code>仍然可以回收其它的数据块内存，T1线程访问next指针时，仍然会出现问题。</li>
+</ol>
+<h2 id="epoch-based-reclamation">Epoch-Based Reclamation<a href="#epoch-based-reclamation" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>Hazard Pointers只保护无锁数据结构中真正被访问的那部分数据，这也导致了上文中Hazard Pointers的两个缺陷。与Hazard Pointers不同的是，<strong>EBR保护的是数据结构中所有可能潜在的访问</strong>。这样也就不需要频繁地在线程间同步。</p>
+<p><img src="/images/notes/kaist-cs431-safe-memory-reclamation/image-20220413090336739.png" alt="image-20220413090336739"></p>
+<p>每个线程在访问数据结构前都会开启一个代际（epoch）。T1在代际e中retire了b1和b2。那么什么时候能安全地reclaim b1和b2的内存呢？</p>
+<p>如上图，我们在这个EBR算法中规定了一个<strong>代际一致性规则：并发的代际之间最多只能相差1。<strong>也就是说，只要T1还没有调用<code>set_quiescent()</code>结束掉e代，那么其它线程通过<code>set_active()</code>开启的代际号只能是e+1。而所有的e+1代的线程是有可能引用到b1和b2的。当e代结束，T2开启e+2代时，因为e+2代和e代不存在</strong>同时发生</strong>的可能性（通过代际一致性规则保证），所以在e+2代是不可能访问到e代retire的b1和b2的。到了e+3代，表示所有可能访问到b1和b2的e+1代都已经结束，此时即可安全地回收b1和b2内存。</p>
+<p>不同的代际一致性规则，可以安全回收的代际是不一样的。</p>
+
+      </div></div>
+
+  
+    
+<div class="pagination">
+  <div class="pagination__title">
+    <span class="pagination__title-h">Read other posts</span>
+    <hr />
+  </div>
+  <div class="pagination__buttons">
+    
+    
+    
+      <a href="https://chengzhycn.github.io/posts/2025-08/kaist-cs431-concurrent-data-structure/" class="button inline next">
+         [<span class="button__text">KAIST-CS431: Concurrent Data Structure</span>] &gt;
+      </a>
+    
+  </div>
+</div>
+
+
+  
+
+  
+    
+
+  
+</article>
+
+  </div>
+
+  
+    <footer class="footer">
+  <div class="footer__inner">
+    
+      <div class="copyright">
+        <span>© 2025 Powered by <a href="https://gohugo.io">Hugo</a></span>
+    
+      <span>:: <a href="https://github.com/panr/hugo-theme-terminal" target="_blank">Theme</a> made by <a href="https://github.com/panr" target="_blank">panr</a></span>
+      </div>
+  </div>
+</footer>
+
+
+
+
+
+
+<script type="text/javascript" src="/bundle.min.js"></script>
+
+
+
+
+
+  
+</div>
+
+</body>
+</html>

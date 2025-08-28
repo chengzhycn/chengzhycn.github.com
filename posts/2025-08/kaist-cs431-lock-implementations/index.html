@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  
+    <title>KAIST-CS431: Lock Implementations :: chengzhycn&#39;s blog</title>
+  
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Naive Spin Lock Naive Spin Lock的缺陷 无法保证公平性，可能有的倒霉蛋空转了一辈子也无法cas成功，无法做到按竞争线程先来后到的次序占有锁。 扩展性差，大量对同一内存区域的自旋引发性能问题。 对Naive Spin Lock的优化 关键思路：
+通过release/acquire同步机制保证互斥量的排他性 从一个临界区的结束（release）到另一个临界区的开始（acquire） 在ticket lock里面是curr成员，CLH/MCS lock是每个waiter的一个新内存区域 通过排队和等待不同的区域释放保证公平性 通过公平的指令来排队（如swap, fetch-and-add） Ticket lock：通过next来排队，curr来等待锁 CLH/MCS lock：通过tail来排队，等待每个锁调用者申请的不同区域中值的变化来获取锁 Ticket Lock ticket lock在锁的结构体里面新增了一个原子变量next，每次需要竞争锁时，需要先从next中拿到一个ticket，然后再去监听curr，只有curr被更新成当前的ticket值后，才能去占领锁。
+优点 利用公平指令排队解决了公平性问题 缺点 API相对较复杂（调用者感知ticket）（为什么不直接用curr&#43;1？） 没有解决spinlock中所有线程监听同一个原子变量的问题 CLH Lock 为了减少缓存一致性带来的开销，CLH lock被发明了。CLH是三个人首字母的缩写：Craig, Landin, and Hagersten。
+CLH lock给所有等待线程分配了一个Node，每个Node初始为true，在锁内维护一个链表，所有竞争锁的线程都会获取到前一个线程的Node，并将tail指针指向自己的Node。
+不同于spin lock和Ticket lock，CLH lock的临界区是前一个Node中的原子变量。在锁释放时，当前线程会将自己的Node值置为false，而排队的下一个线程监听到这个变化，则可以安全地占有锁了。
+优点 线程监听的不同临界区，减少缓存一致性的开销 链表排队，也能保证公平性 缺点 O(n)的空间复杂度开销，n是临界区数目 每个线程都是在前驱节点的Node上自旋，如果跨NUMA会有性能问题 MCS Lock MCS lock也是以三个人名命名的：John M. Mellor-Crummey and Michael L. Scott。MCS lock和LCH lock最大的不同是：CLH lock是在前驱节点上自旋，MCS则是在自己节点上自旋。
+在CLH的Node结构里面，MCS又添加了一个next字段，新的线程竞争锁时，会将自己的Node添加到前驱节点的next字段中。
+" />
+<meta name="keywords" content="" />
+
+  <meta name="robots" content="noodp" />
+
+<link rel="canonical" href="https://chengzhycn.github.io/posts/2025-08/kaist-cs431-lock-implementations/" />
+
+
+
+
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/buttons.min.86f6b4c106b6c6eb690ae5203d36b442c1f66f718ff4e8164fa86cf6c61ad641.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/code.min.d529ea4b2fb8d34328d7d31afc5466d5f7bc2f0bc9abdd98b69385335d7baee4.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/fonts.min.176c65cdf7082e9866e90b1fa123c60056f6d985b7cd3c4235600dada719e971.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/footer.min.eb8dfc2c6a7eafa36cd3ba92d63e69e849e2200e0002a228d137f236b09ecd75.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/gist.min.a751e8b0abe1ba8bc53ced52a38b19d8950fe78ca29454ea8c2595cf26aad5c0.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/header.min.75c7eb0e2872d95ff48109c6647d0223a38db52e2561dd87966eb5fc7c6bdac6.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/main.min.0909aaaf12e6fc3cdf2758321db2805239dc85602baff9dc07ce57d3d7365095.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/menu.min.310d32205bdedd6f43144e3c3273c9deecd238eba5f9108db5ea96ca0cfbe377.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/pagination.min.bbb986dbce00a5ce5aca0504b7925fc1c581992a4bf57f163e5d69cc1db7d836.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/post.min.ad50c7f4d00e7975918f37fc74c6029e1959a40d66fb5b2c6564a8715e985573.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/syntax.min.e9ab635cf918bc84b901eb65c0b2caa74c9544245e3647c1af5c129896ef276e.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/terminal.min.e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/terms.min.b81791663c3790e738e571cdbf802312390d30e4b1d8dc9d814a5b5454d0ac11.css">
+
+
+
+
+
+
+
+<link rel="shortcut icon" href="https://chengzhycn.github.io/favicon.png">
+<link rel="apple-touch-icon" href="https://chengzhycn.github.io/apple-touch-icon.png">
+
+
+<meta name="twitter:card" content="summary" />
+
+  
+    <meta name="twitter:site" content="" />
+  
+    <meta name="twitter:creator" content="" />
+
+
+
+<meta property="og:locale" content="en" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="KAIST-CS431: Lock Implementations">
+<meta property="og:description" content="Naive Spin Lock Naive Spin Lock的缺陷 无法保证公平性，可能有的倒霉蛋空转了一辈子也无法cas成功，无法做到按竞争线程先来后到的次序占有锁。 扩展性差，大量对同一内存区域的自旋引发性能问题。 对Naive Spin Lock的优化 关键思路：
+通过release/acquire同步机制保证互斥量的排他性 从一个临界区的结束（release）到另一个临界区的开始（acquire） 在ticket lock里面是curr成员，CLH/MCS lock是每个waiter的一个新内存区域 通过排队和等待不同的区域释放保证公平性 通过公平的指令来排队（如swap, fetch-and-add） Ticket lock：通过next来排队，curr来等待锁 CLH/MCS lock：通过tail来排队，等待每个锁调用者申请的不同区域中值的变化来获取锁 Ticket Lock ticket lock在锁的结构体里面新增了一个原子变量next，每次需要竞争锁时，需要先从next中拿到一个ticket，然后再去监听curr，只有curr被更新成当前的ticket值后，才能去占领锁。
+优点 利用公平指令排队解决了公平性问题 缺点 API相对较复杂（调用者感知ticket）（为什么不直接用curr&#43;1？） 没有解决spinlock中所有线程监听同一个原子变量的问题 CLH Lock 为了减少缓存一致性带来的开销，CLH lock被发明了。CLH是三个人首字母的缩写：Craig, Landin, and Hagersten。
+CLH lock给所有等待线程分配了一个Node，每个Node初始为true，在锁内维护一个链表，所有竞争锁的线程都会获取到前一个线程的Node，并将tail指针指向自己的Node。
+不同于spin lock和Ticket lock，CLH lock的临界区是前一个Node中的原子变量。在锁释放时，当前线程会将自己的Node值置为false，而排队的下一个线程监听到这个变化，则可以安全地占有锁了。
+优点 线程监听的不同临界区，减少缓存一致性的开销 链表排队，也能保证公平性 缺点 O(n)的空间复杂度开销，n是临界区数目 每个线程都是在前驱节点的Node上自旋，如果跨NUMA会有性能问题 MCS Lock MCS lock也是以三个人名命名的：John M. Mellor-Crummey and Michael L. Scott。MCS lock和LCH lock最大的不同是：CLH lock是在前驱节点上自旋，MCS则是在自己节点上自旋。
+在CLH的Node结构里面，MCS又添加了一个next字段，新的线程竞争锁时，会将自己的Node添加到前驱节点的next字段中。
+" />
+<meta property="og:url" content="https://chengzhycn.github.io/posts/2025-08/kaist-cs431-lock-implementations/" />
+<meta property="og:site_name" content="chengzhycn&#39;s blog" />
+
+  <meta property="og:image" content="https://chengzhycn.github.io/og-image.png">
+
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="627">
+
+  <meta property="article:section" content="Courses" />
+
+
+  <meta property="article:published_time" content="2025-08-28 12:52:58 &#43;0800 &#43;0800" />
+
+
+
+
+
+
+
+
+
+
+
+
+</head>
+<body>
+
+
+<div class="container center">
+
+  <header class="header">
+  <div class="header__inner">
+    <div class="header__logo">
+      <a href="/">
+  <div class="logo">
+    chengzhycn&#39;s blog
+  </div>
+</a>
+
+    </div>
+    
+      <ul class="menu menu--mobile">
+  <li class="menu__trigger">Menu&nbsp;▾</li>
+  <li>
+    <ul class="menu__dropdown">
+      
+        
+          <li><a href="/">Home</a></li>
+        
+      
+        
+          <li><a href="/about">About</a></li>
+        
+      
+        
+          <li><a href="/posts/">Archives</a></li>
+        
+      
+        
+          <li><a href="/categories/">Categories</a></li>
+        
+      
+        
+          <li><a href="/tags/">Tags</a></li>
+        
+      
+      
+    </ul>
+  </li>
+</ul>
+
+    
+    
+  </div>
+  
+    <nav class="navigation-menu">
+  <ul class="navigation-menu__inner menu--desktop">
+    
+      
+        
+          <li><a href="/" >Home</a></li>
+        
+      
+        
+          <li><a href="/about" >About</a></li>
+        
+      
+      
+        <li>
+          <ul class="menu">
+            <li class="menu__trigger">Show more&nbsp;▾</li>
+            <li>
+              <ul class="menu__dropdown">
+                
+                  
+                    <li><a href="/posts/" >Archives</a></li>
+                  
+                
+                  
+                    <li><a href="/categories/" >Categories</a></li>
+                  
+                
+                  
+                    <li><a href="/tags/" >Tags</a></li>
+                  
+                
+              </ul>
+            </li>
+          </ul>
+        </li>
+      
+    
+  </ul>
+</nav>
+
+  
+</header>
+
+
+  <div class="content">
+    
+<article class="post">
+  <h1 class="post-title">
+    <a href="https://chengzhycn.github.io/posts/2025-08/kaist-cs431-lock-implementations/">KAIST-CS431: Lock Implementations</a>
+  </h1>
+  <div class="post-meta"><time class="post-date">2025-08-28</time><span class="post-reading-time">1 min read (88 words)</span></div>
+
+  
+    <span class="post-tags">
+      
+      #<a href="https://chengzhycn.github.io/tags/rust/">Rust</a>&nbsp;
+      
+      #<a href="https://chengzhycn.github.io/tags/concurrency/">Concurrency</a>&nbsp;
+      
+      #<a href="https://chengzhycn.github.io/tags/kaist-cs431/">KAIST-CS431</a>&nbsp;
+      
+    </span>
+  
+  
+
+
+  
+    <div class="table-of-contents">
+      <h2>
+        Table of Contents
+      </h2>
+      <nav id="TableOfContents">
+  <ul>
+    <li><a href="#naive-spin-lock">Naive Spin Lock</a>
+      <ul>
+        <li><a href="#naive-spin-lock的缺陷">Naive Spin Lock的缺陷</a></li>
+      </ul>
+    </li>
+    <li><a href="#对naive-spin-lock的优化">对Naive Spin Lock的优化</a>
+      <ul>
+        <li><a href="#ticket-lock">Ticket Lock</a></li>
+        <li><a href="#clh-lock">CLH Lock</a></li>
+        <li><a href="#mcs-lock">MCS Lock</a></li>
+        <li><a href="#mcs-parking-lock">MCS Parking Lock</a></li>
+      </ul>
+    </li>
+  </ul>
+</nav>
+    </div>
+  
+
+  <div class="post-content"><div>
+        <h2 id="naive-spin-lock">Naive Spin Lock<a href="#naive-spin-lock" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p><img src="/images/notes/kaist-cs431-lock-implementations/image-20220324081153922.png" alt="image-20220324081153922"></p>
+<h3 id="naive-spin-lock的缺陷">Naive Spin Lock的缺陷<a href="#naive-spin-lock的缺陷" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<ul>
+<li>无法保证公平性，可能有的倒霉蛋空转了一辈子也无法cas成功，无法做到按竞争线程先来后到的次序占有锁。</li>
+<li>扩展性差，大量对同一内存区域的自旋引发性能问题。</li>
+</ul>
+<h2 id="对naive-spin-lock的优化">对Naive Spin Lock的优化<a href="#对naive-spin-lock的优化" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>关键思路：</p>
+<ul>
+<li>通过release/acquire同步机制保证互斥量的排他性
+<ul>
+<li>从一个临界区的结束（release）到另一个临界区的开始（acquire）</li>
+<li>在ticket lock里面是<code>curr</code>成员，CLH/MCS lock是每个waiter的一个新内存区域</li>
+</ul>
+</li>
+<li>通过排队和等待不同的区域释放保证公平性
+<ul>
+<li>通过公平的指令来排队（如swap, fetch-and-add）</li>
+<li>Ticket lock：通过<code>next</code>来排队，<code>curr</code>来等待锁</li>
+<li>CLH/MCS lock：通过<code>tail</code>来排队，等待每个锁调用者申请的不同区域中值的变化来获取锁</li>
+</ul>
+</li>
+</ul>
+<h3 id="ticket-lock">Ticket Lock<a href="#ticket-lock" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p><img src="/images/notes/kaist-cs431-lock-implementations/image-20220323075751550.png" alt="image-20220323075751550"></p>
+<p>ticket lock在锁的结构体里面新增了一个原子变量<code>next</code>，每次需要竞争锁时，需要先从<code>next</code>中拿到一个ticket，然后再去监听<code>curr</code>，只有<code>curr</code>被更新成当前的ticket值后，才能去占领锁。</p>
+<h4 id="优点">优点<a href="#优点" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<ul>
+<li>利用公平指令排队解决了公平性问题</li>
+</ul>
+<h4 id="缺点">缺点<a href="#缺点" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<ul>
+<li>API相对较复杂（调用者感知ticket）（为什么不直接用curr+1？）</li>
+<li>没有解决spinlock中所有线程监听同一个原子变量的问题</li>
+</ul>
+<h3 id="clh-lock">CLH Lock<a href="#clh-lock" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p><img src="/images/notes/kaist-cs431-lock-implementations/image-20220323082114800.png" alt="image-20220323082114800"></p>
+<p>为了减少缓存一致性带来的开销，CLH lock被发明了。CLH是三个人首字母的缩写：Craig, Landin, and Hagersten。</p>
+<p>CLH lock给所有等待线程分配了一个Node，每个Node初始为true，在锁内维护一个链表，所有竞争锁的线程都会获取到前一个线程的Node，并将<code>tail</code>指针指向自己的Node。</p>
+<p>不同于spin lock和Ticket lock，CLH lock的临界区是前一个Node中的原子变量。在锁释放时，当前线程会将自己的Node值置为false，而排队的下一个线程监听到这个变化，则可以安全地占有锁了。</p>
+<h4 id="优点-1">优点<a href="#优点-1" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<ul>
+<li>线程监听的不同临界区，减少缓存一致性的开销</li>
+<li>链表排队，也能保证公平性</li>
+</ul>
+<h4 id="缺点-1">缺点<a href="#缺点-1" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<ul>
+<li>O(n)的空间复杂度开销，n是临界区数目</li>
+<li>每个线程都是在前驱节点的Node上自旋，如果跨NUMA会有性能问题</li>
+</ul>
+<h3 id="mcs-lock">MCS Lock<a href="#mcs-lock" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p><img src="/images/notes/kaist-cs431-lock-implementations/image-20220324080334262.png" alt="image-20220324080334262"></p>
+<p>MCS lock也是以三个人名命名的：John M. Mellor-Crummey and Michael L. Scott。MCS lock和LCH lock最大的不同是：CLH lock是在前驱节点上自旋，MCS则是在自己节点上自旋。</p>
+<p>在CLH的Node结构里面，MCS又添加了一个<code>next</code>字段，新的线程竞争锁时，会将自己的Node添加到前驱节点的<code>next</code>字段中。</p>
+<p>线程持续在自己Node的<code>lock</code>字段上自旋，当为false时，表示可以安全地获取锁。</p>
+<p>在释放锁时，将<code>next</code> Node中的<code>lock</code>置为false，从而通知后驱节点可以获取锁了。</p>
+<p>MCS lock将CLH lock多次对远端内存的监听 + 一次对本地内存的更新，简化成了多次对本地内存的监听 + 一次对远端内存的更新。</p>
+<h4 id="优点-2">优点<a href="#优点-2" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<ul>
+<li>能够保证公平性</li>
+<li>解决CLH锁跨NUMA的性能问题</li>
+</ul>
+<h4 id="缺点-2">缺点<a href="#缺点-2" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<ul>
+<li>unlock可能会存在一次额外的cas开销</li>
+</ul>
+<h3 id="mcs-parking-lock">MCS Parking Lock<a href="#mcs-parking-lock" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>MCS Parking Lock即即将MCS Lock中的自旋改成了parking。牺牲了低竞争环境下的性能，改善大量锁自旋引发的开销。</p>
+
+      </div></div>
+
+  
+    
+<div class="pagination">
+  <div class="pagination__title">
+    <span class="pagination__title-h">Read other posts</span>
+    <hr />
+  </div>
+  <div class="pagination__buttons">
+    
+      <a href="https://chengzhycn.github.io/posts/2025-08/kaist-cs431-concurrent-data-structure/" class="button inline prev">
+        &lt; [<span class="button__text">KAIST-CS431: Concurrent Data Structure</span>]
+      </a>
+    
+    
+      ::
+    
+    
+      <a href="https://chengzhycn.github.io/posts/2025-08/kaist-cs431-promising-semantics/" class="button inline next">
+         [<span class="button__text">KAIST-CS431: Promising Semantics</span>] &gt;
+      </a>
+    
+  </div>
+</div>
+
+
+  
+
+  
+    
+
+  
+</article>
+
+  </div>
+
+  
+    <footer class="footer">
+  <div class="footer__inner">
+    
+      <div class="copyright">
+        <span>© 2025 Powered by <a href="https://gohugo.io">Hugo</a></span>
+    
+      <span>:: <a href="https://github.com/panr/hugo-theme-terminal" target="_blank">Theme</a> made by <a href="https://github.com/panr" target="_blank">panr</a></span>
+      </div>
+  </div>
+</footer>
+
+
+
+
+
+
+<script type="text/javascript" src="/bundle.min.js"></script>
+
+
+
+
+
+  
+</div>
+
+</body>
+</html>

@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  
+    <title>KAIST-CS431: Concurrent Data Structure :: chengzhycn&#39;s blog</title>
+  
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="并发数据结构的关键点 安全性： 安全是并发程序对CDS的最基本的要求 Sequential specification：多线程对数据结构的操作要能像一个队列一样 Synchronization：如在栈操作中，不同的线程进行pushing和popping操作时是要同步的，不能这边线程执行完了，另外一边无法感知到这边的操作。 通过锁或者更加底层的同步原语来保护并发数据结构 可扩展性： 随着CPU核数/并发度的增长，有着良好的性能增长 理想情况下，性能增长应该是线性的，但现实情况往往因为各种限制因素达不到线性增长 通过减少锁保护范围（更细粒度的锁）来减少竞争 hand-over-hand locking, lock coupling, read-write locking 通过避免写操作降低缓存失效 Progress: guaranteeing the completion (or progress) of operations Lock freedom: progress of at least one Wait freedom: progress of everyone 无锁策略 Lock-Free 和 Wait-Free 都旨在解决传统锁（如互斥锁 mutex）带来的性能和活性问题，但采用了不同的策略和提供了不同的保证。
+Lock-Free Lock-Free 是一个相对较弱的保证，但仍然非常强大和有用。它的核心思想是：总会有一个线程能够前进，即使其他线程被任意延迟或阻塞。
+核心特点：
+没有死锁 (Deadlock-Free)： 由于没有线程需要等待其他线程释放锁，所以不会发生死锁。 没有活锁 (Livelock-Free)： 虽然有可能发生活锁（即线程反复尝试但总是失败），但通常通过回退策略（如指数退避）或设计良好的原子操作序列可以避免。然而，严格意义上的 Lock-Free 并不直接保证 Livelock-Free。 进度保证 (Progress Guarantee)： 只要系统不是完全停滞，总有一个或多个线程可以完成操作。这意味着整个系统的吞吐量不会因为某个线程的无限期暂停而归零。 饥饿可能 (Starvation Possible)： 某个特定的线程可能会无限期地重试它的操作，而从未成功（即所谓的“饥饿”）。这是 Lock-Free 与 Wait-Free 的一个主要区别。 实现方式： 主要依赖于原子操作，如CAS (Compare-And-Swap)，FAA (Fetch-And-Add)，LL/SC (Load-Link/Store-Conditional)等。这些操作通常由硬件提供，能够以原子方式读取、修改和写入内存位置，而无需使用操作系统级别的锁。 常见数据结构： 无锁队列 (Lock-Free Queue)，无锁栈 (Lock-Free Stack)，无锁哈希表 (Lock-Free Hash Table) 等。 工作原理示例（CAS）：
+" />
+<meta name="keywords" content="" />
+
+  <meta name="robots" content="noodp" />
+
+<link rel="canonical" href="https://chengzhycn.github.io/posts/2025-08/kaist-cs431-concurrent-data-structure/" />
+
+
+
+
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/buttons.min.86f6b4c106b6c6eb690ae5203d36b442c1f66f718ff4e8164fa86cf6c61ad641.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/code.min.d529ea4b2fb8d34328d7d31afc5466d5f7bc2f0bc9abdd98b69385335d7baee4.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/fonts.min.176c65cdf7082e9866e90b1fa123c60056f6d985b7cd3c4235600dada719e971.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/footer.min.eb8dfc2c6a7eafa36cd3ba92d63e69e849e2200e0002a228d137f236b09ecd75.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/gist.min.a751e8b0abe1ba8bc53ced52a38b19d8950fe78ca29454ea8c2595cf26aad5c0.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/header.min.75c7eb0e2872d95ff48109c6647d0223a38db52e2561dd87966eb5fc7c6bdac6.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/main.min.0909aaaf12e6fc3cdf2758321db2805239dc85602baff9dc07ce57d3d7365095.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/menu.min.310d32205bdedd6f43144e3c3273c9deecd238eba5f9108db5ea96ca0cfbe377.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/pagination.min.bbb986dbce00a5ce5aca0504b7925fc1c581992a4bf57f163e5d69cc1db7d836.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/post.min.ad50c7f4d00e7975918f37fc74c6029e1959a40d66fb5b2c6564a8715e985573.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/syntax.min.e9ab635cf918bc84b901eb65c0b2caa74c9544245e3647c1af5c129896ef276e.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/terminal.min.e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/terms.min.b81791663c3790e738e571cdbf802312390d30e4b1d8dc9d814a5b5454d0ac11.css">
+
+
+
+
+
+
+
+<link rel="shortcut icon" href="https://chengzhycn.github.io/favicon.png">
+<link rel="apple-touch-icon" href="https://chengzhycn.github.io/apple-touch-icon.png">
+
+
+<meta name="twitter:card" content="summary" />
+
+  
+    <meta name="twitter:site" content="" />
+  
+    <meta name="twitter:creator" content="" />
+
+
+
+<meta property="og:locale" content="en" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="KAIST-CS431: Concurrent Data Structure">
+<meta property="og:description" content="并发数据结构的关键点 安全性： 安全是并发程序对CDS的最基本的要求 Sequential specification：多线程对数据结构的操作要能像一个队列一样 Synchronization：如在栈操作中，不同的线程进行pushing和popping操作时是要同步的，不能这边线程执行完了，另外一边无法感知到这边的操作。 通过锁或者更加底层的同步原语来保护并发数据结构 可扩展性： 随着CPU核数/并发度的增长，有着良好的性能增长 理想情况下，性能增长应该是线性的，但现实情况往往因为各种限制因素达不到线性增长 通过减少锁保护范围（更细粒度的锁）来减少竞争 hand-over-hand locking, lock coupling, read-write locking 通过避免写操作降低缓存失效 Progress: guaranteeing the completion (or progress) of operations Lock freedom: progress of at least one Wait freedom: progress of everyone 无锁策略 Lock-Free 和 Wait-Free 都旨在解决传统锁（如互斥锁 mutex）带来的性能和活性问题，但采用了不同的策略和提供了不同的保证。
+Lock-Free Lock-Free 是一个相对较弱的保证，但仍然非常强大和有用。它的核心思想是：总会有一个线程能够前进，即使其他线程被任意延迟或阻塞。
+核心特点：
+没有死锁 (Deadlock-Free)： 由于没有线程需要等待其他线程释放锁，所以不会发生死锁。 没有活锁 (Livelock-Free)： 虽然有可能发生活锁（即线程反复尝试但总是失败），但通常通过回退策略（如指数退避）或设计良好的原子操作序列可以避免。然而，严格意义上的 Lock-Free 并不直接保证 Livelock-Free。 进度保证 (Progress Guarantee)： 只要系统不是完全停滞，总有一个或多个线程可以完成操作。这意味着整个系统的吞吐量不会因为某个线程的无限期暂停而归零。 饥饿可能 (Starvation Possible)： 某个特定的线程可能会无限期地重试它的操作，而从未成功（即所谓的“饥饿”）。这是 Lock-Free 与 Wait-Free 的一个主要区别。 实现方式： 主要依赖于原子操作，如CAS (Compare-And-Swap)，FAA (Fetch-And-Add)，LL/SC (Load-Link/Store-Conditional)等。这些操作通常由硬件提供，能够以原子方式读取、修改和写入内存位置，而无需使用操作系统级别的锁。 常见数据结构： 无锁队列 (Lock-Free Queue)，无锁栈 (Lock-Free Stack)，无锁哈希表 (Lock-Free Hash Table) 等。 工作原理示例（CAS）：
+" />
+<meta property="og:url" content="https://chengzhycn.github.io/posts/2025-08/kaist-cs431-concurrent-data-structure/" />
+<meta property="og:site_name" content="chengzhycn&#39;s blog" />
+
+  <meta property="og:image" content="https://chengzhycn.github.io/og-image.png">
+
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="627">
+
+  <meta property="article:section" content="Courses" />
+
+
+  <meta property="article:published_time" content="2025-08-28 13:09:25 &#43;0800 &#43;0800" />
+
+
+
+
+
+
+
+
+
+
+
+
+</head>
+<body>
+
+
+<div class="container center">
+
+  <header class="header">
+  <div class="header__inner">
+    <div class="header__logo">
+      <a href="/">
+  <div class="logo">
+    chengzhycn&#39;s blog
+  </div>
+</a>
+
+    </div>
+    
+      <ul class="menu menu--mobile">
+  <li class="menu__trigger">Menu&nbsp;▾</li>
+  <li>
+    <ul class="menu__dropdown">
+      
+        
+          <li><a href="/">Home</a></li>
+        
+      
+        
+          <li><a href="/about">About</a></li>
+        
+      
+        
+          <li><a href="/posts/">Archives</a></li>
+        
+      
+        
+          <li><a href="/categories/">Categories</a></li>
+        
+      
+        
+          <li><a href="/tags/">Tags</a></li>
+        
+      
+      
+    </ul>
+  </li>
+</ul>
+
+    
+    
+  </div>
+  
+    <nav class="navigation-menu">
+  <ul class="navigation-menu__inner menu--desktop">
+    
+      
+        
+          <li><a href="/" >Home</a></li>
+        
+      
+        
+          <li><a href="/about" >About</a></li>
+        
+      
+      
+        <li>
+          <ul class="menu">
+            <li class="menu__trigger">Show more&nbsp;▾</li>
+            <li>
+              <ul class="menu__dropdown">
+                
+                  
+                    <li><a href="/posts/" >Archives</a></li>
+                  
+                
+                  
+                    <li><a href="/categories/" >Categories</a></li>
+                  
+                
+                  
+                    <li><a href="/tags/" >Tags</a></li>
+                  
+                
+              </ul>
+            </li>
+          </ul>
+        </li>
+      
+    
+  </ul>
+</nav>
+
+  
+</header>
+
+
+  <div class="content">
+    
+<article class="post">
+  <h1 class="post-title">
+    <a href="https://chengzhycn.github.io/posts/2025-08/kaist-cs431-concurrent-data-structure/">KAIST-CS431: Concurrent Data Structure</a>
+  </h1>
+  <div class="post-meta"><time class="post-date">2025-08-28</time><span class="post-reading-time">2 min read (265 words)</span></div>
+
+  
+    <span class="post-tags">
+      
+      #<a href="https://chengzhycn.github.io/tags/rust/">Rust</a>&nbsp;
+      
+      #<a href="https://chengzhycn.github.io/tags/concurrency/">Concurrency</a>&nbsp;
+      
+      #<a href="https://chengzhycn.github.io/tags/kaist-cs431/">KAIST-CS431</a>&nbsp;
+      
+    </span>
+  
+  
+
+
+  
+    <div class="table-of-contents">
+      <h2>
+        Table of Contents
+      </h2>
+      <nav id="TableOfContents">
+  <ul>
+    <li><a href="#并发数据结构的关键点">并发数据结构的关键点</a></li>
+    <li><a href="#无锁策略">无锁策略</a>
+      <ul>
+        <li><a href="#lock-free">Lock-Free</a></li>
+        <li><a href="#wait-free">Wait-Free</a></li>
+      </ul>
+    </li>
+    <li><a href="#lock-coupling">Lock Coupling</a>
+      <ul>
+        <li><a href="#lock-coupled-linked-list">Lock-coupled linked list</a></li>
+      </ul>
+    </li>
+    <li><a href="#无锁数据结构">无锁数据结构</a>
+      <ul>
+        <li><a href="#treibers-stack">Treiber&rsquo;s Stack</a></li>
+        <li><a href="#michael-scott-queue">Michael-Scott Queue</a></li>
+        <li><a href="#lock-free-linked-list">Lock-Free Linked List</a></li>
+        <li><a href="#其他无锁数据结构">其他无锁数据结构</a></li>
+      </ul>
+    </li>
+  </ul>
+</nav>
+    </div>
+  
+
+  <div class="post-content"><div>
+        <h2 id="并发数据结构的关键点">并发数据结构的关键点<a href="#并发数据结构的关键点" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<ul>
+<li><strong>安全性：</strong> 安全是并发程序对CDS的最基本的要求
+<ul>
+<li>Sequential specification：多线程对数据结构的操作要能像一个队列一样</li>
+<li>Synchronization：如在栈操作中，不同的线程进行pushing和popping操作时是要同步的，不能这边线程执行完了，另外一边无法感知到这边的操作。</li>
+<li><strong>通过锁或者更加底层的同步原语来保护并发数据结构</strong></li>
+</ul>
+</li>
+<li><strong>可扩展性：</strong> 随着CPU核数/并发度的增长，有着良好的性能增长
+<ul>
+<li>理想情况下，性能增长应该是线性的，但现实情况往往因为各种限制因素达不到线性增长</li>
+<li><strong>通过减少锁保护范围（更细粒度的锁）来减少竞争</strong>
+<ul>
+<li>hand-over-hand locking, lock coupling, read-write locking</li>
+</ul>
+</li>
+<li><strong>通过避免写操作降低缓存失效</strong></li>
+</ul>
+</li>
+<li><strong>Progress:</strong> guaranteeing the completion (or progress) of operations
+<ul>
+<li>Lock freedom: progress of at least one</li>
+<li>Wait freedom: progress of everyone</li>
+</ul>
+</li>
+</ul>
+<h2 id="无锁策略">无锁策略<a href="#无锁策略" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>Lock-Free 和 Wait-Free 都旨在解决传统锁（如互斥锁 mutex）带来的性能和活性问题，但采用了不同的策略和提供了不同的保证。</p>
+<h3 id="lock-free">Lock-Free<a href="#lock-free" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>Lock-Free 是一个相对较弱的保证，但仍然非常强大和有用。它的核心思想是：<strong>总会有一个线程能够前进，即使其他线程被任意延迟或阻塞。</strong></p>
+<p><strong>核心特点：</strong></p>
+<ul>
+<li><strong>没有死锁 (Deadlock-Free)：</strong> 由于没有线程需要等待其他线程释放锁，所以不会发生死锁。</li>
+<li><strong>没有活锁 (Livelock-Free)：</strong> 虽然有可能发生活锁（即线程反复尝试但总是失败），但通常通过回退策略（如指数退避）或设计良好的原子操作序列可以避免。然而，严格意义上的 Lock-Free 并不直接保证 Livelock-Free。</li>
+<li><strong>进度保证 (Progress Guarantee)：</strong> 只要系统不是完全停滞，总有一个或多个线程可以完成操作。这意味着整个系统的吞吐量不会因为某个线程的无限期暂停而归零。</li>
+<li><strong>饥饿可能 (Starvation Possible)：</strong> 某个特定的线程可能会无限期地重试它的操作，而从未成功（即所谓的“饥饿”）。这是 Lock-Free 与 Wait-Free 的一个主要区别。</li>
+<li><strong>实现方式：</strong> 主要依赖于原子操作，如<code>CAS (Compare-And-Swap)</code>，<code>FAA (Fetch-And-Add)</code>，<code>LL/SC (Load-Link/Store-Conditional)</code>等。这些操作通常由硬件提供，能够以原子方式读取、修改和写入内存位置，而无需使用操作系统级别的锁。</li>
+<li><strong>常见数据结构：</strong> 无锁队列 (Lock-Free Queue)，无锁栈 (Lock-Free Stack)，无锁哈希表 (Lock-Free Hash Table) 等。</li>
+</ul>
+<p><strong>工作原理示例（CAS）：</strong></p>
+<p>假设线程A想修改一个共享变量<code>value</code>：</p>
+<ol>
+<li>线程A读取<code>value</code>的当前值<code>old_val</code>。</li>
+<li>线程A计算出新的值<code>new_val</code>。</li>
+<li>线程A尝试使用<code>CAS(address, old_val, new_val)</code>来更新<code>value</code>。
+<ul>
+<li>如果<code>value</code>在期间没有被其他线程修改，那么<code>CAS</code>成功，<code>value</code>被更新为<code>new_val</code>。</li>
+<li>如果<code>value</code>在期间被其他线程修改了，那么<code>CAS</code>失败。线程A会重新从第1步开始尝试（循环重试）。</li>
+</ul>
+</li>
+</ol>
+<p>在这个过程中，即使线程A反复失败，其他线程只要能够成功执行它们自己的<code>CAS</code>操作，系统就能继续前进。</p>
+<p><strong>优点：</strong></p>
+<ul>
+<li>消除死锁和活锁的风险（在一定程度上），简化了并发编程模型。</li>
+<li>高并发性：在许多情况下可以提供比锁更高的吞吐量和更低的延迟，尤其是在竞争不激烈时。</li>
+<li>避免了内核态切换：原子操作通常在用户空间完成，避免了锁导致的上下文切换开销。</li>
+</ul>
+<p><strong>缺点：</strong></p>
+<ul>
+<li><strong>设计复杂：</strong> 正确设计和实现无锁数据结构非常困难，需要深入理解内存模型、原子操作和并发语义。</li>
+<li><strong>ABA 问题：</strong> CAS 操作只能检查值是否相同，无法检测到值从A变为B再变回A的情况。需要使用版本号或<code>double-CAS</code>等技术解决。</li>
+<li><strong>内存序问题：</strong> 需要仔细处理编译器和CPU的内存重排，确保内存操作的可见性和顺序，通常通过内存屏障 (Memory Barriers) 来实现。</li>
+<li><strong>不保证公平性/避免饥饿：</strong> 如前所述，某些线程可能一直无法成功。</li>
+</ul>
+<h3 id="wait-free">Wait-Free<a href="#wait-free" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>Wait-Free 是比 Lock-Free 更强的保证，它承诺：<strong>在有限数量的步骤内，每个线程都能完成其操作，无论其他线程的行为如何。</strong></p>
+<p><strong>核心特点：</strong></p>
+<ul>
+<li><strong>包含 Lock-Free 的所有优点：</strong> 无死锁、无活锁。</li>
+<li><strong>无饥饿 (Starvation-Free)：</strong> 这是 Wait-Free 的最重要特性。FSM（Fair Share Model）确保了即使单个线程无限期地暂停或延迟，其他活跃的线程也能在有限的步数内完成它们的操作。每个线程都有一个固定的上限来完成它的操作。</li>
+<li><strong>进度保证更强：</strong> 不仅仅是“总有一个线程前进”，而是“每个线程都能前进”。</li>
+<li><strong>实现难度：</strong> 远超 Lock-Free，是并发编程中最难实现的技术之一。</li>
+<li><strong>实现方式：</strong> 通常涉及到更复杂的算法，可能不仅仅是简单的原子操作，还可能涉及“帮助”其他线程完成它们的操作。</li>
+</ul>
+<p><strong>工作原理示例（通用 Wait-Free 方案）：</strong></p>
+<p>通常 Wait-Free 算法会涉及如下模式：</p>
+<ol>
+<li>每个线程在共享内存中维护一个表示其当前“意图”或“进度”的状态。</li>
+<li>当一个线程尝试执行操作时，它会首先检查是否有其他线程被阻塞，并且需要帮助。</li>
+<li>如果发现需要帮助的线程，当前线程可能会暂时暂停自己的操作，而去执行被阻塞线程的部分任务，帮助其前进。</li>
+<li>一旦被帮助的线程完成了它的操作（或者当前线程帮助它完成了足够的任务），当前线程再继续执行自己的操作。</li>
+<li>这种帮助机制确保了没有线程可以无限期地被阻塞。</li>
+</ol>
+<p><strong>优点：</strong></p>
+<ul>
+<li><strong>最强的活性保证：</strong> 保证所有线程都能在有限时间内完成操作，彻底消除饥饿。</li>
+<li><strong>容错性高：</strong> 即使部分线程崩溃，其他线程也能继续正常工作。</li>
+</ul>
+<p><strong>缺点：</strong></p>
+<ul>
+<li><strong>极致的复杂性：</strong> 设计和实现 Wait-Free 算法的难度非常高，需要高级的数学证明和深刻的并发理论知识。</li>
+<li><strong>性能开销：</strong> 通常为了提供无饥饿的保证，Wait-Free 算法可能需要线程执行额外的工作（例如，帮助其他线程），这可能导致在竞争不激烈或无竞争的情况下，性能低于 Lock-Free 或甚至基于锁的方案。在某些场景下，为了保证无饥饿，操作所需的总步骤数会显著增加。</li>
+<li><strong>不广泛适用：</strong> 只有少数特定场景（例如，需要极高可靠性和确定性实时响应的系统）才值得投入巨大的成本去实现 Wait-Free。</li>
+</ul>
+<table>
+  <thead>
+      <tr>
+          <th style="text-align: left">特性</th>
+          <th style="text-align: left">Lock-Free (无锁)</th>
+          <th style="text-align: left">Wait-Free (无等待)</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td style="text-align: left"><strong>死锁</strong></td>
+          <td style="text-align: left">否（Deadlock-Free）</td>
+          <td style="text-align: left">否（Deadlock-Free）</td>
+      </tr>
+      <tr>
+          <td style="text-align: left"><strong>活锁</strong></td>
+          <td style="text-align: left">否（Livelock-Free，通常通过设计避免，但非严格保证）</td>
+          <td style="text-align: left">否（Livelock-Free）</td>
+      </tr>
+      <tr>
+          <td style="text-align: left"><strong>饥饿</strong></td>
+          <td style="text-align: left">可能（Starvation Possible）</td>
+          <td style="text-align: left">否（Starvation-Free）</td>
+      </tr>
+      <tr>
+          <td style="text-align: left"><strong>进度保证</strong></td>
+          <td style="text-align: left">系统整体有进度，总有一个线程能前进。</td>
+          <td style="text-align: left">每个线程都有进度，每个线程都能在有限步内完成操作。</td>
+      </tr>
+      <tr>
+          <td style="text-align: left"><strong>实现难度</strong></td>
+          <td style="text-align: left">困难，需要深入理解内存模型和原子操作。</td>
+          <td style="text-align: left">极难，需要高级理论知识和复杂算法，通常涉及帮助其他线程。</td>
+      </tr>
+      <tr>
+          <td style="text-align: left"><strong>典型实现</strong></td>
+          <td style="text-align: left">CAS, LL/SC 等原子操作。</td>
+          <td style="text-align: left">更复杂的帮助机制，结合原子操作。</td>
+      </tr>
+      <tr>
+          <td style="text-align: left"><strong>性能</strong></td>
+          <td style="text-align: left">通常高于锁，尤其在竞争不激烈时。可能因重试导致性能波动。</td>
+          <td style="text-align: left">通常比 Lock-Free 更低，因为需要额外工作来保证无饥饿。</td>
+      </tr>
+      <tr>
+          <td style="text-align: left"><strong>适用场景</strong></td>
+          <td style="text-align: left">大多数高性能并发数据结构，对吞吐量要求高，可容忍少量饥饿。</td>
+          <td style="text-align: left">对实时性、可靠性要求极高，任何线程阻塞都不可接受的系统（例如，操作系统内核、高性能交换机等）。</td>
+      </tr>
+  </tbody>
+</table>
+<h2 id="lock-coupling">Lock Coupling<a href="#lock-coupling" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<h3 id="lock-coupled-linked-list">Lock-coupled linked list<a href="#lock-coupled-linked-list" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>最初级的并发链表实现思路是使用一个粗粒度的大锁，在对链表中任意一个成员进行访问时，都需要这把锁的保护。显然，这种方式极大降低了链表的并发性。如果链表很长，即便两个链表成员间毫无关联，也不能进行并发访问。</p>
+<p>一个优化思路是，将大锁拆成每个成员独享的小锁，访问成员需要先申请这把锁。同时，这把锁也还保护着链表成员里面的next指针，在获取了下一个成员的锁后，当前成员的锁才会被释放（hand-over-hand），保证当前成员没有被释放。</p>
+<h4 id="操作">操作<a href="#操作" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<h5 id="insert">Insert<a href="#insert" class="hanchor" ariaLabel="Anchor">#</a> </h5>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="k">struct</span> <span class="n">node</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="kt">pthread_mutex_t</span> <span class="n">mu</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="kt">int</span> <span class="n">data</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">  <span class="k">struct</span> <span class="n">node</span><span class="o">*</span> <span class="n">next</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">};</span>
+</span></span><span class="line"><span class="cl"><span class="k">typedef</span> <span class="k">struct</span> <span class="n">node</span> <span class="kt">node_t</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kt">node_t</span> <span class="o">*</span><span class="nf">llist_insert</span><span class="p">(</span><span class="kt">node_t</span> <span class="o">*</span><span class="n">prev</span><span class="p">,</span> <span class="kt">node_t</span> <span class="o">*</span><span class="n">n</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nf">pthread_mutex_lock</span><span class="p">(</span><span class="o">&amp;</span><span class="p">(</span><span class="n">prev</span><span class="o">-&gt;</span><span class="n">mu</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">  <span class="n">n</span><span class="o">-&gt;</span><span class="n">next</span> <span class="o">=</span> <span class="n">prev</span><span class="o">-&gt;</span><span class="n">next</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">  <span class="n">prev</span><span class="o">-&gt;</span><span class="n">next</span> <span class="o">=</span> <span class="n">n</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">  <span class="nf">pthread_mutex_unlock</span><span class="p">(</span><span class="o">&amp;</span><span class="p">(</span><span class="n">prev</span><span class="o">-&gt;</span><span class="n">mu</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="n">n</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><h5 id="remove">Remove<a href="#remove" class="hanchor" ariaLabel="Anchor">#</a> </h5>
+<h4 id="优缺点">优缺点<a href="#优缺点" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<ul>
+<li>在保证了扩展性的同时实现简单</li>
+<li>因为需要获取锁，即便是读取操作也会导致缓存失效</li>
+<li>在实现时需要小心死锁</li>
+</ul>
+<h2 id="无锁数据结构">无锁数据结构<a href="#无锁数据结构" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<h3 id="treibers-stack">Treiber&rsquo;s Stack<a href="#treibers-stack" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p><strong>思想：利用CAS对栈顶进行入栈和出栈操作</strong></p>
+<h3 id="michael-scott-queue">Michael-Scott Queue<a href="#michael-scott-queue" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<h3 id="lock-free-linked-list">Lock-Free Linked List<a href="#lock-free-linked-list" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<h4 id="操作-1">操作<a href="#操作-1" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<h4 id="遍历策略">遍历策略<a href="#遍历策略" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<h3 id="其他无锁数据结构">其他无锁数据结构<a href="#其他无锁数据结构" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<h4 id="环形队列">环形队列<a href="#环形队列" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<ul>
+<li><a href="https://people.mpi-sws.org/~dreyer/papers/gps/paper.pdf">https://people.mpi-sws.org/~dreyer/papers/gps/paper.pdf</a></li>
+</ul>
+<h4 id="chase-lev-work-stealing-deque">Chase-Lev work-stealing deque<a href="#chase-lev-work-stealing-deque" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<ul>
+<li><a href="https://www.dre.vanderbilt.edu/~schmidt/PDF/work-stealing-dequeue.pdf">https://www.dre.vanderbilt.edu/~schmidt/PDF/work-stealing-dequeue.pdf</a></li>
+<li><a href="https://fzn.fr/readings/ppopp13.pdf">https://fzn.fr/readings/ppopp13.pdf</a></li>
+<li><a href="https://github.com/jeehoonkang/crossbeam-rfcs/blob/deque-proof/text/2018-01-07-deque-proof.md">https://github.com/jeehoonkang/crossbeam-rfcs/blob/deque-proof/text/2018-01-07-deque-proof.md</a></li>
+</ul>
+
+      </div></div>
+
+  
+    
+<div class="pagination">
+  <div class="pagination__title">
+    <span class="pagination__title-h">Read other posts</span>
+    <hr />
+  </div>
+  <div class="pagination__buttons">
+    
+      <a href="https://chengzhycn.github.io/posts/2025-08/kaist-cs431-safe-memory-reclamation/" class="button inline prev">
+        &lt; [<span class="button__text">KAIST-CS431: Safe Memory Reclamation</span>]
+      </a>
+    
+    
+      ::
+    
+    
+      <a href="https://chengzhycn.github.io/posts/2025-08/kaist-cs431-lock-implementations/" class="button inline next">
+         [<span class="button__text">KAIST-CS431: Lock Implementations</span>] &gt;
+      </a>
+    
+  </div>
+</div>
+
+
+  
+
+  
+    
+
+  
+</article>
+
+  </div>
+
+  
+    <footer class="footer">
+  <div class="footer__inner">
+    
+      <div class="copyright">
+        <span>© 2025 Powered by <a href="https://gohugo.io">Hugo</a></span>
+    
+      <span>:: <a href="https://github.com/panr/hugo-theme-terminal" target="_blank">Theme</a> made by <a href="https://github.com/panr" target="_blank">panr</a></span>
+      </div>
+  </div>
+</footer>
+
+
+
+
+
+
+<script type="text/javascript" src="/bundle.min.js"></script>
+
+
+
+
+
+  
+</div>
+
+</body>
+</html>
