@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  
+    <title>Lua：Concurrency :: chengzhycn&#39;s blog</title>
+  
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Lua 的并发（Concurrency）设计核心在于其轻量级、嵌入式的哲学，以及对协作式多任务的首选。它通过强大的协程机制实现并发，但本身不提供多线程/多进程的并行能力。
+多线程/多进程 核心语言无内置支持： Lua 语言本身的核心 VM 被设计为单线程执行。它不提供内置的语法或标准库来直接创建和管理线程（std::thread）或进程（fork）。 独立的 Lua State： 一个 Lua VM 实例被称为一个“Lua State”。每个 Lua State 是完全独立的运行时环境，拥有自己的全局变量、栈、打开的文件、垃圾回收器等。它们之间默认不共享任何数据。 宿主语言的责任： 如果需要在 Lua 中实现真正的并行（多核利用），必须依赖于宿主语言（如 C/C&#43;&#43;）的多线程/多进程机制。 实现方式： 在宿主语言的每个线程或进程中，创建并运行一个独立的 Lua State。 数据交换： 这些独立的 Lua State 之间无法直接共享内存。数据交换必须通过宿主语言提供的进程间通信 (IPC) 或线程间通信 (ITC) 机制（如消息队列、共享内存、管道、套接字等）来完成。 优点： 简单安全，因为 Lua State 之间是隔离的，避免了复杂的并发同步问题。 缺点： 额外的通信开销和复杂性，且无法在单个 Lua State 内部实现并行。 第三方库（封装）： 存在一些第三方库（如 LuaLanes）试图提供在 Lua 中模拟多线程/多进程的 API。这些库通常是在底层创建独立的 Lua State，并封装了 IPC 机制，方便 Lua 开发者使用，但其本质仍然是基于宿主语言的底层能力和独立的 Lua State。 协程 协程的设计与实现 设计理念： Lua 协程是为了提供协作式多任务 (Cooperative Multitasking) 而设计。它们允许在单个线程中实现任务的暂停和恢复，以模拟并发，而无需复杂的锁机制。 “有栈协程” (Stackful Coroutines)： Lua 协程是有栈的。这里的“栈”指的不是操作系统的 C 语言栈，而是 Lua 虚拟机内部维护的Lua VM 栈。 Lua VM 栈： 每个协程在创建时都会分配一个独立的 Lua VM 栈（或在需要时动态扩展）。这个栈存储着协程的局部变量、函数参数、中间表达式结果和函数调用上下文。 实现机制： coroutine.create(function)： 创建一个新的协程（一个thread类型的值），但并不立即执行。它会分配并初始化一个新的 Lua VM 栈。 coroutine.yield(...) (保存栈)： 当一个协程调用 yield 时，Lua VM 会： 保存当前 Lua VM 栈的完整状态（包括所有活跃的栈帧、局部变量值、程序计数器等）。这些信息会被存储在协程对象本身（在堆上分配）中。 暂停当前协程的执行。 将控制权返回给调用 coroutine.resume 的那个协程或主线程。 C 语言栈会正常展开，yield 作为一个 C 函数正常返回。 coroutine.resume(co, ...) (恢复栈)： 当一个协程被 resume 时，Lua VM 会： 从协程对象中加载并恢复其之前保存的 Lua VM 栈状态。 这包括设置栈顶指针、恢复所有栈帧和程序计数器，使得协程能够从上次 yield 的点继续执行。 将控制权转移给被恢复的协程。 C 语言栈上会为 resume 函数创建一个新的栈帧，并在其中运行被恢复的 Lua 协程。 优点： 简单、高效、避免了与 OS 栈相关的复杂性，并且由于是协作式的，没有竞态条件和锁的开销。 缺点： 无法利用多核 CPU。 协程示例：
+" />
+<meta name="keywords" content="" />
+
+  <meta name="robots" content="noodp" />
+
+<link rel="canonical" href="https://chengzhycn.github.io/posts/2025-09/luaconcurrency/" />
+
+
+
+
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/buttons.min.86f6b4c106b6c6eb690ae5203d36b442c1f66f718ff4e8164fa86cf6c61ad641.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/code.min.d529ea4b2fb8d34328d7d31afc5466d5f7bc2f0bc9abdd98b69385335d7baee4.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/fonts.min.176c65cdf7082e9866e90b1fa123c60056f6d985b7cd3c4235600dada719e971.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/footer.min.eb8dfc2c6a7eafa36cd3ba92d63e69e849e2200e0002a228d137f236b09ecd75.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/gist.min.a751e8b0abe1ba8bc53ced52a38b19d8950fe78ca29454ea8c2595cf26aad5c0.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/header.min.75c7eb0e2872d95ff48109c6647d0223a38db52e2561dd87966eb5fc7c6bdac6.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/main.min.0909aaaf12e6fc3cdf2758321db2805239dc85602baff9dc07ce57d3d7365095.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/menu.min.310d32205bdedd6f43144e3c3273c9deecd238eba5f9108db5ea96ca0cfbe377.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/pagination.min.bbb986dbce00a5ce5aca0504b7925fc1c581992a4bf57f163e5d69cc1db7d836.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/post.min.ad50c7f4d00e7975918f37fc74c6029e1959a40d66fb5b2c6564a8715e985573.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/syntax.min.e9ab635cf918bc84b901eb65c0b2caa74c9544245e3647c1af5c129896ef276e.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/terminal.min.e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/terms.min.b81791663c3790e738e571cdbf802312390d30e4b1d8dc9d814a5b5454d0ac11.css">
+
+
+
+
+
+
+
+<link rel="shortcut icon" href="https://chengzhycn.github.io/favicon.png">
+<link rel="apple-touch-icon" href="https://chengzhycn.github.io/apple-touch-icon.png">
+
+
+<meta name="twitter:card" content="summary" />
+
+  
+    <meta name="twitter:site" content="" />
+  
+    <meta name="twitter:creator" content="" />
+
+
+
+<meta property="og:locale" content="en" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="Lua：Concurrency">
+<meta property="og:description" content="Lua 的并发（Concurrency）设计核心在于其轻量级、嵌入式的哲学，以及对协作式多任务的首选。它通过强大的协程机制实现并发，但本身不提供多线程/多进程的并行能力。
+多线程/多进程 核心语言无内置支持： Lua 语言本身的核心 VM 被设计为单线程执行。它不提供内置的语法或标准库来直接创建和管理线程（std::thread）或进程（fork）。 独立的 Lua State： 一个 Lua VM 实例被称为一个“Lua State”。每个 Lua State 是完全独立的运行时环境，拥有自己的全局变量、栈、打开的文件、垃圾回收器等。它们之间默认不共享任何数据。 宿主语言的责任： 如果需要在 Lua 中实现真正的并行（多核利用），必须依赖于宿主语言（如 C/C&#43;&#43;）的多线程/多进程机制。 实现方式： 在宿主语言的每个线程或进程中，创建并运行一个独立的 Lua State。 数据交换： 这些独立的 Lua State 之间无法直接共享内存。数据交换必须通过宿主语言提供的进程间通信 (IPC) 或线程间通信 (ITC) 机制（如消息队列、共享内存、管道、套接字等）来完成。 优点： 简单安全，因为 Lua State 之间是隔离的，避免了复杂的并发同步问题。 缺点： 额外的通信开销和复杂性，且无法在单个 Lua State 内部实现并行。 第三方库（封装）： 存在一些第三方库（如 LuaLanes）试图提供在 Lua 中模拟多线程/多进程的 API。这些库通常是在底层创建独立的 Lua State，并封装了 IPC 机制，方便 Lua 开发者使用，但其本质仍然是基于宿主语言的底层能力和独立的 Lua State。 协程 协程的设计与实现 设计理念： Lua 协程是为了提供协作式多任务 (Cooperative Multitasking) 而设计。它们允许在单个线程中实现任务的暂停和恢复，以模拟并发，而无需复杂的锁机制。 “有栈协程” (Stackful Coroutines)： Lua 协程是有栈的。这里的“栈”指的不是操作系统的 C 语言栈，而是 Lua 虚拟机内部维护的Lua VM 栈。 Lua VM 栈： 每个协程在创建时都会分配一个独立的 Lua VM 栈（或在需要时动态扩展）。这个栈存储着协程的局部变量、函数参数、中间表达式结果和函数调用上下文。 实现机制： coroutine.create(function)： 创建一个新的协程（一个thread类型的值），但并不立即执行。它会分配并初始化一个新的 Lua VM 栈。 coroutine.yield(...) (保存栈)： 当一个协程调用 yield 时，Lua VM 会： 保存当前 Lua VM 栈的完整状态（包括所有活跃的栈帧、局部变量值、程序计数器等）。这些信息会被存储在协程对象本身（在堆上分配）中。 暂停当前协程的执行。 将控制权返回给调用 coroutine.resume 的那个协程或主线程。 C 语言栈会正常展开，yield 作为一个 C 函数正常返回。 coroutine.resume(co, ...) (恢复栈)： 当一个协程被 resume 时，Lua VM 会： 从协程对象中加载并恢复其之前保存的 Lua VM 栈状态。 这包括设置栈顶指针、恢复所有栈帧和程序计数器，使得协程能够从上次 yield 的点继续执行。 将控制权转移给被恢复的协程。 C 语言栈上会为 resume 函数创建一个新的栈帧，并在其中运行被恢复的 Lua 协程。 优点： 简单、高效、避免了与 OS 栈相关的复杂性，并且由于是协作式的，没有竞态条件和锁的开销。 缺点： 无法利用多核 CPU。 协程示例：
+" />
+<meta property="og:url" content="https://chengzhycn.github.io/posts/2025-09/luaconcurrency/" />
+<meta property="og:site_name" content="chengzhycn&#39;s blog" />
+
+  <meta property="og:image" content="https://chengzhycn.github.io/og-image.png">
+
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="627">
+
+  <meta property="article:section" content="Learning" />
+
+
+  <meta property="article:published_time" content="2025-09-01 00:27:09 &#43;0800 &#43;0800" />
+
+
+
+
+
+
+
+
+
+
+
+
+</head>
+<body>
+
+
+<div class="container center">
+
+  <header class="header">
+  <div class="header__inner">
+    <div class="header__logo">
+      <a href="/">
+  <div class="logo">
+    chengzhycn&#39;s blog
+  </div>
+</a>
+
+    </div>
+    
+      <ul class="menu menu--mobile">
+  <li class="menu__trigger">Menu&nbsp;▾</li>
+  <li>
+    <ul class="menu__dropdown">
+      
+        
+          <li><a href="/">Home</a></li>
+        
+      
+        
+          <li><a href="/about">About</a></li>
+        
+      
+        
+          <li><a href="/posts/">Archives</a></li>
+        
+      
+        
+          <li><a href="/categories/">Categories</a></li>
+        
+      
+        
+          <li><a href="/tags/">Tags</a></li>
+        
+      
+      
+    </ul>
+  </li>
+</ul>
+
+    
+    
+  </div>
+  
+    <nav class="navigation-menu">
+  <ul class="navigation-menu__inner menu--desktop">
+    
+      
+        
+          <li><a href="/" >Home</a></li>
+        
+      
+        
+          <li><a href="/about" >About</a></li>
+        
+      
+      
+        <li>
+          <ul class="menu">
+            <li class="menu__trigger">Show more&nbsp;▾</li>
+            <li>
+              <ul class="menu__dropdown">
+                
+                  
+                    <li><a href="/posts/" >Archives</a></li>
+                  
+                
+                  
+                    <li><a href="/categories/" >Categories</a></li>
+                  
+                
+                  
+                    <li><a href="/tags/" >Tags</a></li>
+                  
+                
+              </ul>
+            </li>
+          </ul>
+        </li>
+      
+    
+  </ul>
+</nav>
+
+  
+</header>
+
+
+  <div class="content">
+    
+<article class="post">
+  <h1 class="post-title">
+    <a href="https://chengzhycn.github.io/posts/2025-09/luaconcurrency/">Lua：Concurrency</a>
+  </h1>
+  <div class="post-meta"><time class="post-date">2025-09-01</time><span class="post-reading-time">3 min read (442 words)</span></div>
+
+  
+    <span class="post-tags">
+      
+      #<a href="https://chengzhycn.github.io/tags/lua/">Lua</a>&nbsp;
+      
+    </span>
+  
+  
+
+
+  
+    <div class="table-of-contents">
+      <h2>
+        Table of Contents
+      </h2>
+      <nav id="TableOfContents">
+  <ul>
+    <li><a href="#多线程多进程">多线程/多进程</a></li>
+    <li><a href="#协程">协程</a>
+      <ul>
+        <li><a href="#协程的设计与实现">协程的设计与实现</a></li>
+        <li><a href="#非抢占式调度">非抢占式调度</a></li>
+        <li><a href="#应用场景">应用场景</a></li>
+      </ul>
+    </li>
+  </ul>
+</nav>
+    </div>
+  
+
+  <div class="post-content"><div>
+        <p>Lua 的并发（Concurrency）设计核心在于其轻量级、嵌入式的哲学，以及对协作式多任务的首选。它通过强大的协程机制实现并发，但本身不提供多线程/多进程的并行能力。</p>
+<hr>
+<h2 id="多线程多进程">多线程/多进程<a href="#多线程多进程" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<ul>
+<li><strong>核心语言无内置支持：</strong> Lua 语言本身的核心 VM 被设计为<strong>单线程</strong>执行。它不提供内置的语法或标准库来直接创建和管理线程（<code>std::thread</code>）或进程（<code>fork</code>）。</li>
+<li><strong>独立的 Lua State：</strong> 一个 Lua VM 实例被称为一个“Lua State”。每个 Lua State 是完全独立的运行时环境，拥有自己的全局变量、栈、打开的文件、垃圾回收器等。它们之间默认不共享任何数据。</li>
+<li><strong>宿主语言的责任：</strong> 如果需要在 Lua 中实现真正的并行（多核利用），必须依赖于<strong>宿主语言（如 C/C++）的多线程/多进程机制</strong>。
+<ul>
+<li><strong>实现方式：</strong> 在宿主语言的每个线程或进程中，创建并运行一个<strong>独立的 Lua State</strong>。</li>
+<li><strong>数据交换：</strong> 这些独立的 Lua State 之间无法直接共享内存。数据交换必须通过宿主语言提供的进程间通信 (IPC) 或线程间通信 (ITC) 机制（如消息队列、共享内存、管道、套接字等）来完成。</li>
+<li><strong>优点：</strong> 简单安全，因为 Lua State 之间是隔离的，避免了复杂的并发同步问题。</li>
+<li><strong>缺点：</strong> 额外的通信开销和复杂性，且无法在单个 Lua State 内部实现并行。</li>
+</ul>
+</li>
+<li><strong>第三方库（封装）：</strong> 存在一些第三方库（如 LuaLanes）试图提供在 Lua 中模拟多线程/多进程的 API。这些库通常是在底层创建独立的 Lua State，并封装了 IPC 机制，方便 Lua 开发者使用，但其本质仍然是基于宿主语言的底层能力和独立的 Lua State。</li>
+</ul>
+<h2 id="协程">协程<a href="#协程" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<h3 id="协程的设计与实现">协程的设计与实现<a href="#协程的设计与实现" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<ul>
+<li><strong>设计理念：</strong> Lua 协程是为了提供<strong>协作式多任务 (Cooperative Multitasking)</strong> 而设计。它们允许在单个线程中实现任务的暂停和恢复，以模拟并发，而无需复杂的锁机制。</li>
+<li><strong>“有栈协程” (Stackful Coroutines)：</strong> Lua 协程是<strong>有栈的</strong>。这里的“栈”指的不是操作系统的 C 语言栈，而是 Lua 虚拟机内部维护的<strong>Lua VM 栈</strong>。
+<ul>
+<li><strong>Lua VM 栈：</strong> 每个协程在创建时都会分配一个独立的 Lua VM 栈（或在需要时动态扩展）。这个栈存储着协程的局部变量、函数参数、中间表达式结果和函数调用上下文。</li>
+</ul>
+</li>
+<li><strong>实现机制：</strong>
+<ul>
+<li><strong><code>coroutine.create(function)</code>：</strong> 创建一个新的协程（一个<code>thread</code>类型的值），但并不立即执行。它会分配并初始化一个新的 Lua VM 栈。</li>
+<li><strong><code>coroutine.yield(...)</code> (保存栈)：</strong> 当一个协程调用 <code>yield</code> 时，Lua VM 会：
+<ol>
+<li><strong>保存当前 Lua VM 栈的完整状态</strong>（包括所有活跃的栈帧、局部变量值、程序计数器等）。这些信息会被存储在协程对象本身（在堆上分配）中。</li>
+<li><strong>暂停当前协程的执行。</strong></li>
+<li><strong>将控制权返回给调用 <code>coroutine.resume</code> 的那个协程或主线程。</strong> C 语言栈会正常展开，<code>yield</code> 作为一个 C 函数正常返回。</li>
+</ol>
+</li>
+<li><strong><code>coroutine.resume(co, ...)</code> (恢复栈)：</strong> 当一个协程被 <code>resume</code> 时，Lua VM 会：
+<ol>
+<li><strong>从协程对象中加载并恢复其之前保存的 Lua VM 栈状态。</strong> 这包括设置栈顶指针、恢复所有栈帧和程序计数器，使得协程能够从上次 <code>yield</code> 的点继续执行。</li>
+<li><strong>将控制权转移给被恢复的协程。</strong> C 语言栈上会为 <code>resume</code> 函数创建一个新的栈帧，并在其中运行被恢复的 Lua 协程。</li>
+</ol>
+</li>
+</ul>
+</li>
+<li><strong>优点：</strong> 简单、高效、避免了与 OS 栈相关的复杂性，并且由于是协作式的，没有竞态条件和锁的开销。</li>
+<li><strong>缺点：</strong> 无法利用多核 CPU。</li>
+</ul>
+<p>协程示例：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-lua" data-lang="lua"><span class="line"><span class="cl"><span class="kr">function</span> <span class="nf">long_computation</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="n">print</span><span class="p">(</span><span class="s2">&#34;Start part 1&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="n">coroutine.yield</span><span class="p">(</span><span class="s2">&#34;step1_data&#34;</span><span class="p">)</span> <span class="c1">-- 保存整个栈</span>
+</span></span><span class="line"><span class="cl">    <span class="n">print</span><span class="p">(</span><span class="s2">&#34;Start part 2&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="n">coroutine.yield</span><span class="p">(</span><span class="s2">&#34;step2_data&#34;</span><span class="p">,</span> <span class="s2">&#34;helloworld&#34;</span><span class="p">)</span> <span class="c1">-- 保存整个栈</span>
+</span></span><span class="line"><span class="cl">    <span class="n">print</span><span class="p">(</span><span class="s2">&#34;End computation&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">return</span> <span class="s2">&#34;result&#34;</span>
+</span></span><span class="line"><span class="cl"><span class="kr">end</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">co</span> <span class="o">=</span> <span class="n">coroutine.create</span><span class="p">(</span><span class="n">long_computation</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">_</span><span class="p">,</span> <span class="n">data1</span><span class="p">,</span> <span class="n">d1</span> <span class="o">=</span> <span class="n">coroutine.resume</span><span class="p">(</span><span class="n">co</span><span class="p">)</span> <span class="c1">-- 恢复栈，从 &#39;Start part 1&#39; 继续</span>
+</span></span><span class="line"><span class="cl"><span class="n">print</span><span class="p">(</span><span class="s2">&#34;Received:&#34;</span><span class="p">,</span> <span class="n">data1</span><span class="p">,</span> <span class="n">d1</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">_</span><span class="p">,</span> <span class="n">data2</span><span class="p">,</span> <span class="n">d2</span> <span class="o">=</span> <span class="n">coroutine.resume</span><span class="p">(</span><span class="n">co</span><span class="p">)</span> <span class="c1">-- 恢复栈，从 &#39;Start part 2&#39; 继续</span>
+</span></span><span class="line"><span class="cl"><span class="n">print</span><span class="p">(</span><span class="s2">&#34;Received:&#34;</span><span class="p">,</span> <span class="n">data2</span><span class="p">,</span> <span class="n">d2</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">_</span><span class="p">,</span> <span class="n">result</span> <span class="o">=</span> <span class="n">coroutine.resume</span><span class="p">(</span><span class="n">co</span><span class="p">)</span> <span class="c1">-- 恢复栈，从 &#39;End computation&#39; 继续</span>
+</span></span><span class="line"><span class="cl"><span class="n">print</span><span class="p">(</span><span class="s2">&#34;Result:&#34;</span><span class="p">,</span> <span class="n">result</span><span class="p">)</span>
+</span></span></code></pre></div><p>输出：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">Start part <span class="m">1</span>
+</span></span><span class="line"><span class="cl">Received:	step1_data	nil
+</span></span><span class="line"><span class="cl">Start part <span class="m">2</span>
+</span></span><span class="line"><span class="cl">Received:	step2_data	helloworld
+</span></span><span class="line"><span class="cl">End computation
+</span></span><span class="line"><span class="cl">Result:	result
+</span></span></code></pre></div><p>注意，<strong>这里调用 consume 的接收参数并没有要求和 yield 中的传参数目保持一致。如果接收参数多，会用 nil 填充，如果传参多，多余的参数会被忽略。</strong></p>
+<h3 id="非抢占式调度">非抢占式调度<a href="#非抢占式调度" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<ul>
+<li><strong>非抢占式 (Cooperative Scheduling)：</strong> Lua 协程是<strong>非抢占式调度</strong>的。
+<ul>
+<li>这意味着一个协程一旦开始执行，除非它主动调用 <code>coroutine.yield()</code>、<code>coroutine.resume()</code> 或遇到 <code>error</code>，否则它会一直运行，直到完成或阻塞。</li>
+<li>Lua VM 不会在代码执行的任意点（例如，经过一段时间后）强制暂停一个正在运行的协程。</li>
+<li><strong>优点：</strong> 编程模型相对简单，无需考虑复杂的同步问题和竞态条件，因为在任何给定时刻，只有一个协程的代码正在执行。</li>
+<li><strong>缺点：</strong> 如果一个协程内部有长时间运行的计算循环而没有 <code>yield</code>，它会“霸占”CPU，导致其他协程无法执行，从而可能阻塞整个应用程序，影响响应性。程序员必须确保在适当的时机插入 <code>yield</code> 点。</li>
+</ul>
+</li>
+</ul>
+<h3 id="应用场景">应用场景<a href="#应用场景" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<ul>
+<li><strong>协作式调度：</strong> 协程的使用完全依赖于程序员显式地调用 <code>yield</code> 来交出控制权。这使得协程非常适合需要暂停等待某个事件（如 I/O 操作）的场景。</li>
+<li><strong>生产者/消费者模式：</strong> 协程天然适合实现生产者/消费者模式，一个协程生产数据，另一个协程消费数据。</li>
+<li><strong>迭代器：</strong> 可以用来创建复杂的迭代器，每次迭代都在 <code>yield</code> 处暂停并返回一个值。</li>
+<li><strong>非阻塞 I/O (Pseudo-asynchronous I/O)：</strong> 结合外部事件循环和 I/O 库，协程可以模拟非阻塞 I/O。当一个 I/O 操作启动时，协程 <code>yield</code>，事件循环可以运行其他协程。当 I/O 完成时，事件循环会 <code>resume</code> 相应的协程。</li>
+</ul>
+<hr>
+<p><strong>总结图：</strong></p>
+<pre tabindex="0"><code>                  +------------------------+
+                  |  OS Thread (e.g., Main Thread) |
+                  |  (Uses C-Stack for its own ops) |
+                  +-----------+------------+
+                              |
+                              V
+                  +--------------------------------+
+                  |  Lua Interpreter/VM Global State |
+                  |  (Single-threaded execution)   |
+                  +-----------+------------+
+                              |
+ +--------------------------+ | +--------------------------+
+ | Lua Coroutine Co1        | | | Lua Coroutine Co2        |
+ | (Has its own Lua VM Stack)| | | (Has its own Lua VM Stack)|
+ | +-----------+            | | +-----------+            |
+ | | Lua Stack +-----------&gt;+---&lt;+ Lua Stack |            |
+ | | (on Heap) |            | | | (on Heap) |            |
+ | +-----------+            | | +-----------+            |
+ |   `yield()`: Save Stack, | |   `resume(Co1)`: Restore |
+ |              Return Ctrl+| |                Stack, Run |
+ +--------------------------+ | +--------------------------+
+                              |
+                              V
+                  +--------------------------------+
+                  | Concurrency: Achieved via       |
+                  | Cooperative Multitasking        |
+                  | (No Parallelism built-in)       |
+                  +--------------------------------+
+
+For Parallelism:
+  - Spawn Multiple OS Threads/Processes (via Host Language).
+  - Each OS Thread/Process gets its own independent Lua Interpreter/VM State.
+  - Inter-thread/process communication handled by Host Language IPC.
+</code></pre>
+      </div></div>
+
+  
+    
+<div class="pagination">
+  <div class="pagination__title">
+    <span class="pagination__title-h">Read other posts</span>
+    <hr />
+  </div>
+  <div class="pagination__buttons">
+    
+    
+    
+      <a href="https://chengzhycn.github.io/posts/2025-08/lua-an-overview/" class="button inline next">
+         [<span class="button__text">Lua - An Overview</span>] &gt;
+      </a>
+    
+  </div>
+</div>
+
+
+  
+
+  
+    
+
+  
+</article>
+
+  </div>
+
+  
+    <footer class="footer">
+  <div class="footer__inner">
+    
+      <div class="copyright">
+        <span>© 2025 Powered by <a href="https://gohugo.io">Hugo</a></span>
+    
+      <span>:: <a href="https://github.com/panr/hugo-theme-terminal" target="_blank">Theme</a> made by <a href="https://github.com/panr" target="_blank">panr</a></span>
+      </div>
+  </div>
+</footer>
+
+
+
+
+
+
+<script type="text/javascript" src="/bundle.min.js"></script>
+
+
+
+
+
+  
+</div>
+
+</body>
+</html>
