@@ -3,10 +3,25 @@
   xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url>
     <loc>https://chengzhycn.github.io/categories/</loc>
-    <lastmod>2025-08-28T13:09:43+08:00</lastmod>
+    <lastmod>2025-08-31T13:29:48+08:00</lastmod>
   </url><url>
     <loc>https://chengzhycn.github.io/</loc>
-    <lastmod>2025-08-28T13:09:43+08:00</lastmod>
+    <lastmod>2025-08-31T13:29:48+08:00</lastmod>
+  </url><url>
+    <loc>https://chengzhycn.github.io/categories/learning/</loc>
+    <lastmod>2025-08-31T13:29:48+08:00</lastmod>
+  </url><url>
+    <loc>https://chengzhycn.github.io/tags/lua/</loc>
+    <lastmod>2025-08-31T13:29:48+08:00</lastmod>
+  </url><url>
+    <loc>https://chengzhycn.github.io/posts/2025-08/lua-an-overview/</loc>
+    <lastmod>2025-08-31T13:29:48+08:00</lastmod>
+  </url><url>
+    <loc>https://chengzhycn.github.io/posts/</loc>
+    <lastmod>2025-08-31T13:29:48+08:00</lastmod>
+  </url><url>
+    <loc>https://chengzhycn.github.io/tags/</loc>
+    <lastmod>2025-08-31T13:29:48+08:00</lastmod>
   </url><url>
     <loc>https://chengzhycn.github.io/tags/concurrency/</loc>
     <lastmod>2025-08-28T13:09:43+08:00</lastmod>
@@ -20,13 +35,7 @@
     <loc>https://chengzhycn.github.io/posts/2025-08/kaist-cs431-safe-memory-reclamation/</loc>
     <lastmod>2025-08-28T13:09:43+08:00</lastmod>
   </url><url>
-    <loc>https://chengzhycn.github.io/posts/</loc>
-    <lastmod>2025-08-28T13:09:43+08:00</lastmod>
-  </url><url>
     <loc>https://chengzhycn.github.io/tags/rust/</loc>
-    <lastmod>2025-08-28T13:09:43+08:00</lastmod>
-  </url><url>
-    <loc>https://chengzhycn.github.io/tags/</loc>
     <lastmod>2025-08-28T13:09:43+08:00</lastmod>
   </url><url>
     <loc>https://chengzhycn.github.io/posts/2025-08/kaist-cs431-concurrent-data-structure/</loc>

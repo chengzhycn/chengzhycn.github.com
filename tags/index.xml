@@ -6,8 +6,15 @@
     <description>Recent content in Tags on chengzhycn&#39;s blog</description>
     <generator>Hugo</generator>
     <language>en</language>
-    <lastBuildDate>Thu, 28 Aug 2025 13:09:43 +0800</lastBuildDate>
+    <lastBuildDate>Sun, 31 Aug 2025 13:29:48 +0800</lastBuildDate>
     <atom:link href="https://chengzhycn.github.io/tags/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Lua</title>
+      <link>https://chengzhycn.github.io/tags/lua/</link>
+      <pubDate>Sun, 31 Aug 2025 13:29:48 +0800</pubDate>
+      <guid>https://chengzhycn.github.io/tags/lua/</guid>
+      <description></description>
+    </item>
     <item>
       <title>Concurrency</title>
       <link>https://chengzhycn.github.io/tags/concurrency/</link>

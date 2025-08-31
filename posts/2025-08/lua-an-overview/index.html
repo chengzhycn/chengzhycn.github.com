@@ -1,0 +1,1091 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  
+    <title>Lua - An Overview :: chengzhycn&#39;s blog</title>
+  
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Lua 和 LuaJIT Lua Lua 是一个开源项目，由巴西里约热内卢天主教大学的 Roberto Ierusalimschy、Luiz Henrique de Figueiredo 和 Waldemar Celes 创建。它的版本控制相对简单明了。
+Lua 的版本体系 Lua 的版本号通常是 X.Y 的形式，例如 5.1, 5.2, 5.3, 5.4。
+X (主版本号/Major Version): 表示一个重大更新，通常会引入不兼容的更改（breaking changes），新的核心特性，或者对虚拟机架构的显著改进。从 5.x 到 5.y，y 增加通常意味着语法、API 或语义的更改，可能需要修改现有代码。 例子: Lua 5.0: 引入了协程 (coroutines)。 Lua 5.1: 引入了模块系统 (module system)、vararg 参数的改进。 Lua 5.2: 引入了 goto 语句、环境 (environments) 的重新设计、新的 _ENV 上值。 Lua 5.3: 引入了整数类型、位操作 (bitwise operations)、UTF-8 支持。 Lua 5.4: 引入了新的垃圾回收器、弱表 (weak tables) 的改进。 Y (次版本号/Minor Version) 或补丁版本 (Patch Version): 在主版本中，通常用于表示错误修复、性能优化或次要的功能增强。这些更改通常是向后兼容的（backward compatible），不会破坏现有代码运行。有时候，一个版本号会是 X.Y.Z 的形式，Z 就代表补丁版本。 例子: Lua 5.3.1, Lua 5.3.2, Lua 5.3.3 等等。这些通常是修复 bug。 LuaJIT https://github.com/LuaJIT/LuaJIT
+" />
+<meta name="keywords" content="" />
+
+  <meta name="robots" content="noodp" />
+
+<link rel="canonical" href="https://chengzhycn.github.io/posts/2025-08/lua-an-overview/" />
+
+
+
+
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/buttons.min.86f6b4c106b6c6eb690ae5203d36b442c1f66f718ff4e8164fa86cf6c61ad641.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/code.min.d529ea4b2fb8d34328d7d31afc5466d5f7bc2f0bc9abdd98b69385335d7baee4.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/fonts.min.176c65cdf7082e9866e90b1fa123c60056f6d985b7cd3c4235600dada719e971.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/footer.min.eb8dfc2c6a7eafa36cd3ba92d63e69e849e2200e0002a228d137f236b09ecd75.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/gist.min.a751e8b0abe1ba8bc53ced52a38b19d8950fe78ca29454ea8c2595cf26aad5c0.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/header.min.75c7eb0e2872d95ff48109c6647d0223a38db52e2561dd87966eb5fc7c6bdac6.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/main.min.0909aaaf12e6fc3cdf2758321db2805239dc85602baff9dc07ce57d3d7365095.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/menu.min.310d32205bdedd6f43144e3c3273c9deecd238eba5f9108db5ea96ca0cfbe377.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/pagination.min.bbb986dbce00a5ce5aca0504b7925fc1c581992a4bf57f163e5d69cc1db7d836.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/post.min.ad50c7f4d00e7975918f37fc74c6029e1959a40d66fb5b2c6564a8715e985573.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/syntax.min.e9ab635cf918bc84b901eb65c0b2caa74c9544245e3647c1af5c129896ef276e.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/terminal.min.e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.css">
+
+  
+  <link rel="stylesheet" href="https://chengzhycn.github.io/css/terms.min.b81791663c3790e738e571cdbf802312390d30e4b1d8dc9d814a5b5454d0ac11.css">
+
+
+
+
+
+
+
+<link rel="shortcut icon" href="https://chengzhycn.github.io/favicon.png">
+<link rel="apple-touch-icon" href="https://chengzhycn.github.io/apple-touch-icon.png">
+
+
+<meta name="twitter:card" content="summary" />
+
+  
+    <meta name="twitter:site" content="" />
+  
+    <meta name="twitter:creator" content="" />
+
+
+
+<meta property="og:locale" content="en" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="Lua - An Overview">
+<meta property="og:description" content="Lua 和 LuaJIT Lua Lua 是一个开源项目，由巴西里约热内卢天主教大学的 Roberto Ierusalimschy、Luiz Henrique de Figueiredo 和 Waldemar Celes 创建。它的版本控制相对简单明了。
+Lua 的版本体系 Lua 的版本号通常是 X.Y 的形式，例如 5.1, 5.2, 5.3, 5.4。
+X (主版本号/Major Version): 表示一个重大更新，通常会引入不兼容的更改（breaking changes），新的核心特性，或者对虚拟机架构的显著改进。从 5.x 到 5.y，y 增加通常意味着语法、API 或语义的更改，可能需要修改现有代码。 例子: Lua 5.0: 引入了协程 (coroutines)。 Lua 5.1: 引入了模块系统 (module system)、vararg 参数的改进。 Lua 5.2: 引入了 goto 语句、环境 (environments) 的重新设计、新的 _ENV 上值。 Lua 5.3: 引入了整数类型、位操作 (bitwise operations)、UTF-8 支持。 Lua 5.4: 引入了新的垃圾回收器、弱表 (weak tables) 的改进。 Y (次版本号/Minor Version) 或补丁版本 (Patch Version): 在主版本中，通常用于表示错误修复、性能优化或次要的功能增强。这些更改通常是向后兼容的（backward compatible），不会破坏现有代码运行。有时候，一个版本号会是 X.Y.Z 的形式，Z 就代表补丁版本。 例子: Lua 5.3.1, Lua 5.3.2, Lua 5.3.3 等等。这些通常是修复 bug。 LuaJIT https://github.com/LuaJIT/LuaJIT
+" />
+<meta property="og:url" content="https://chengzhycn.github.io/posts/2025-08/lua-an-overview/" />
+<meta property="og:site_name" content="chengzhycn&#39;s blog" />
+
+  <meta property="og:image" content="https://chengzhycn.github.io/og-image.png">
+
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="627">
+
+  <meta property="article:section" content="Learning" />
+
+
+  <meta property="article:published_time" content="2025-08-31 13:29:48 &#43;0800 &#43;0800" />
+
+
+
+
+
+
+
+
+
+
+
+
+</head>
+<body>
+
+
+<div class="container center">
+
+  <header class="header">
+  <div class="header__inner">
+    <div class="header__logo">
+      <a href="/">
+  <div class="logo">
+    chengzhycn&#39;s blog
+  </div>
+</a>
+
+    </div>
+    
+      <ul class="menu menu--mobile">
+  <li class="menu__trigger">Menu&nbsp;▾</li>
+  <li>
+    <ul class="menu__dropdown">
+      
+        
+          <li><a href="/">Home</a></li>
+        
+      
+        
+          <li><a href="/about">About</a></li>
+        
+      
+        
+          <li><a href="/posts/">Archives</a></li>
+        
+      
+        
+          <li><a href="/categories/">Categories</a></li>
+        
+      
+        
+          <li><a href="/tags/">Tags</a></li>
+        
+      
+      
+    </ul>
+  </li>
+</ul>
+
+    
+    
+  </div>
+  
+    <nav class="navigation-menu">
+  <ul class="navigation-menu__inner menu--desktop">
+    
+      
+        
+          <li><a href="/" >Home</a></li>
+        
+      
+        
+          <li><a href="/about" >About</a></li>
+        
+      
+      
+        <li>
+          <ul class="menu">
+            <li class="menu__trigger">Show more&nbsp;▾</li>
+            <li>
+              <ul class="menu__dropdown">
+                
+                  
+                    <li><a href="/posts/" >Archives</a></li>
+                  
+                
+                  
+                    <li><a href="/categories/" >Categories</a></li>
+                  
+                
+                  
+                    <li><a href="/tags/" >Tags</a></li>
+                  
+                
+              </ul>
+            </li>
+          </ul>
+        </li>
+      
+    
+  </ul>
+</nav>
+
+  
+</header>
+
+
+  <div class="content">
+    
+<article class="post">
+  <h1 class="post-title">
+    <a href="https://chengzhycn.github.io/posts/2025-08/lua-an-overview/">Lua - An Overview</a>
+  </h1>
+  <div class="post-meta"><time class="post-date">2025-08-31</time><span class="post-reading-time">10 min read (2017 words)</span></div>
+
+  
+    <span class="post-tags">
+      
+      #<a href="https://chengzhycn.github.io/tags/lua/">Lua</a>&nbsp;
+      
+    </span>
+  
+  
+
+
+  
+    <div class="table-of-contents">
+      <h2>
+        Table of Contents
+      </h2>
+      <nav id="TableOfContents">
+  <ul>
+    <li><a href="#lua-和-luajit">Lua 和 LuaJIT</a>
+      <ul>
+        <li><a href="#lua">Lua</a></li>
+        <li><a href="#luajit">LuaJIT</a></li>
+        <li><a href="#核心差异">核心差异</a></li>
+        <li><a href="#benchmark">Benchmark</a></li>
+      </ul>
+    </li>
+    <li><a href="#基本语法">基本语法</a>
+      <ul>
+        <li><a href="#命名规范">命名规范</a></li>
+        <li><a href="#类型系统">类型系统</a></li>
+      </ul>
+    </li>
+    <li><a href="#编程范式">编程范式</a>
+      <ul>
+        <li><a href="#functional-programming">Functional Programming</a></li>
+        <li><a href="#everything-is-a-table">Everything is a table</a></li>
+      </ul>
+    </li>
+    <li><a href="#module-system">Module System</a>
+      <ul>
+        <li><a href="#核心概念与工作原理">核心概念与工作原理</a></li>
+        <li><a href="#模块的创建编写一个模块">模块的创建（编写一个模块）</a></li>
+        <li><a href="#模块的使用加载和调用">模块的使用（加载和调用）</a></li>
+        <li><a href="#模块查找路径-packagepath-和-packagecpath">模块查找路径 (<code>package.path</code> 和 <code>package.cpath</code>)</a></li>
+        <li><a href="#兼容性处理-module-函数---lua-51-旧有机制">兼容性处理 (<code>module</code> 函数 - Lua 5.1 旧有机制)</a></li>
+        <li><a href="#最佳实践">最佳实践</a></li>
+      </ul>
+    </li>
+  </ul>
+</nav>
+    </div>
+  
+
+  <div class="post-content"><div>
+        <h2 id="lua-和-luajit">Lua 和 LuaJIT<a href="#lua-和-luajit" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<h3 id="lua">Lua<a href="#lua" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>Lua 是一个开源项目，由巴西里约热内卢天主教大学的 Roberto Ierusalimschy、Luiz Henrique de Figueiredo 和 Waldemar Celes 创建。它的版本控制相对简单明了。</p>
+<h4 id="lua-的版本体系">Lua 的版本体系<a href="#lua-的版本体系" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<p>Lua 的版本号通常是 <code>X.Y</code> 的形式，例如 <code>5.1</code>, <code>5.2</code>, <code>5.3</code>, <code>5.4</code>。</p>
+<ul>
+<li><strong><code>X</code> (主版本号/Major Version):</strong> 表示一个<strong>重大更新</strong>，通常会引入不兼容的更改（breaking changes），新的核心特性，或者对虚拟机架构的显著改进。从 <code>5.x</code> 到 <code>5.y</code>，<code>y</code> 增加通常意味着语法、API 或语义的更改，可能需要修改现有代码。
+<ul>
+<li><strong>例子:</strong>
+<ul>
+<li><strong>Lua 5.0:</strong> 引入了协程 (coroutines)。</li>
+<li><strong>Lua 5.1:</strong> 引入了模块系统 (module system)、<code>vararg</code> 参数的改进。</li>
+<li><strong>Lua 5.2:</strong> 引入了 <code>goto</code> 语句、环境 (environments) 的重新设计、新的 <code>_ENV</code> 上值。</li>
+<li><strong>Lua 5.3:</strong> 引入了整数类型、位操作 (bitwise operations)、UTF-8 支持。</li>
+<li><strong>Lua 5.4:</strong> 引入了新的垃圾回收器、弱表 (weak tables) 的改进。</li>
+</ul>
+</li>
+</ul>
+</li>
+<li><strong><code>Y</code> (次版本号/Minor Version) 或补丁版本 (Patch Version):</strong> 在主版本中，通常用于表示错误修复、性能优化或次要的功能增强。这些更改通常是<strong>向后兼容</strong>的（backward compatible），不会破坏现有代码运行。有时候，一个版本号会是 <code>X.Y.Z</code> 的形式，<code>Z</code> 就代表补丁版本。
+<ul>
+<li><strong>例子:</strong> <code>Lua 5.3.1</code>, <code>Lua 5.3.2</code>, <code>Lua 5.3.3</code> 等等。这些通常是修复 bug。</li>
+</ul>
+</li>
+</ul>
+<hr>
+<h3 id="luajit">LuaJIT<a href="#luajit" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p><a href="https://github.com/LuaJIT/LuaJIT">https://github.com/LuaJIT/LuaJIT</a></p>
+<p>LuaJIT 是 Lua 5.1 的一个高性能 JIT（Just-In-Time）编译器和运行时环境。它由 Mike Pall 开发，目标是提供与 C 语言接近的性能，同时保持 Lua 的简洁和灵活性。LuaJIT 的版本体系和开发模式比 Lua 更复杂一些，主要是因为其内部实现（JIT 编译器）的复杂性。</p>
+<h4 id="luajit-的版本体系">LuaJIT 的版本体系<a href="#luajit-的版本体系" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<p>LuaJIT 的开发由 Mike Pall 驱动，2023年，LuaJIT 切换成 Rolling Releases 模式，因此其权威代码源是其 Git 仓库 <code>git clone https://luajit.org/git/luajit.git</code>。用户应定期从所选的 Git 分支拉取更新，以获取最新的修复和开发成果。</p>
+<p>为了替代每次发布时手动递增版本号的做法，LuaJIT 的构建过程使用最新提交的 POSIX 时间戳（单调递增）作为语义版本中的发布号。完整的版本号格式为 <code>$major.$minor.$timestamp</code>，可以通过运行 <code>luajit -v</code> 命令来查看。</p>
+<pre tabindex="0"><code>luajit -v 
+LuaJIT 2.1.1756211046 -- Copyright (C) 2005-2025 Mike Pall. https://luajit.org/
+</code></pre><p>LuaJIT 不提供发布版压缩包或二进制文件。请勿使用来自旧压缩包或 Zip 文件的过时版本。请删除任何指向这些下载的过期链接，因为它们将很快失效。</p>
+<p>请勿使用第三方创建的伪发布版或压缩包。特别是，GitHub 和其他镜像自动生成的压缩包缺少 <code>.git</code> 目录，将无法再正确构建。</p>
+<p>目前 LuaJIT 有两个主要的版本，各个分支的状态：</p>
+<ol>
+<li>
+<p><strong><code>v2.0</code> 分支 (Legacy):</strong></p>
+<ul>
+<li>2.0.x 系列现在仅推荐在需要保持兼容的场景下使用</li>
+<li>它<strong>基于 Lua 5.1 语言规范</strong>。这意味着它支持 Lua 5.1 的所有特性，但<strong>不支持</strong> Lua 5.2、5.3 或 5.4 中引入的新特性（如整数类型、位操作、新的 <code>_ENV</code> 行为等）。</li>
+<li>尽管它基于 Lua 5.1，但它也引入了一些非标准的扩展（例如 FFI - Foreign Function Interface），这是 Lua 5.1 不具备的。</li>
+</ul>
+</li>
+<li>
+<p><strong><code>v2.1</code> 分支 (Production):</strong></p>
+<ul>
+<li>这是一个<strong>积极开发中</strong>的分支，用于引入<strong>新特性</strong>和<strong>对后续 Lua 版本的支持</strong>。</li>
+<li>它的目标是<strong>支持 Lua 5.2 和 Lua 5.3 的部分或全部新特性</strong>。这意味着它会引入整数类型、位操作等。</li>
+<li><strong>注意:</strong> LuaJIT 2.1 旨在扩展对 Lua 5.2/5.3 特性的支持，但它<strong>不会成为一个完整的 Lua 5.2/5.3 实现</strong>。它将现有 Lua 5.1 的基础上，<strong>逐步添加</strong>这些新特性。例如，它不会复制 <code>_ENV</code> 的所有新行为，或者 5.4 的新 GC。</li>
+<li>最近的更新表明，Mike Pall 正在努力使 <code>2.1</code> 尽可能接近 Lua 5.2/5.3 规范。</li>
+</ul>
+</li>
+</ol>
+<table>
+  <thead>
+      <tr>
+          <th>Branch</th>
+          <th>Maintained</th>
+          <th>Breaking Changes</th>
+          <th>New Features</th>
+          <th>Recommended Use</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>v2.0</td>
+          <td>bugfixes</td>
+          <td>no</td>
+          <td>no</td>
+          <td>Compatibility only</td>
+      </tr>
+      <tr>
+          <td>v2.1</td>
+          <td>yes</td>
+          <td>no</td>
+          <td>limited</td>
+          <td><strong>Production</strong></td>
+      </tr>
+      <tr>
+          <td>(TBA)</td>
+          <td>yes</td>
+          <td>yes</td>
+          <td>yes</td>
+          <td>Development</td>
+      </tr>
+  </tbody>
+</table>
+<h4 id="openresty-luajit">OpenResty LuaJIT<a href="#openresty-luajit" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<p><a href="https://github.com/openresty/luajit2">https://github.com/openresty/luajit2</a></p>
+<p>OpenResty LuaJIT 是 OpenResty 维护的 LuaJIT 的一个下游分支，主要用于 Nginx Lua Module。相比于上游 LuaJIT，OR 的 LuaJIT 主要进行了一些针对性的性能优化和 APIs 的开发。</p>
+<h3 id="核心差异">核心差异<a href="#核心差异" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<table>
+  <thead>
+      <tr>
+          <th style="text-align: left">特征</th>
+          <th style="text-align: left">Lua 5.x</th>
+          <th style="text-align: left">LuaJIT 2.0.x</th>
+          <th style="text-align: left">LuaJIT 2.1.x</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td style="text-align: left"><strong>语言规范</strong></td>
+          <td style="text-align: left">官方最新 Lua 规范 (5.4)</td>
+          <td style="text-align: left"><strong>Lua 5.1</strong> 规范</td>
+          <td style="text-align: left"><strong>目标是支持 Lua 5.2/5.3 部分特性</strong></td>
+      </tr>
+      <tr>
+          <td style="text-align: left"><strong>性能</strong></td>
+          <td style="text-align: left">解释执行 (VM 性能随版本提升)</td>
+          <td style="text-align: left"><strong>JIT 编译，通常比 Lua 快数倍到数十倍</strong></td>
+          <td style="text-align: left">JIT 编译，性能预计与 2.0.x 相当，或略有波动</td>
+      </tr>
+      <tr>
+          <td style="text-align: left"><strong>新特性</strong></td>
+          <td style="text-align: left">整数、位操作、UTF-8 (5.3+) 等</td>
+          <td style="text-align: left">不支持 Lua 5.2+ 的新特性</td>
+          <td style="text-align: left">逐步支持 Lua 5.2/5.3 的新特性</td>
+      </tr>
+      <tr>
+          <td style="text-align: left"><strong>FFI</strong></td>
+          <td style="text-align: left">无内置 FFI</td>
+          <td style="text-align: left"><strong>内置成熟的 FFI (Foreign Function Interface)</strong></td>
+          <td style="text-align: left">内置成熟的 FFI</td>
+      </tr>
+      <tr>
+          <td style="text-align: left"><strong>GC (垃圾回收)</strong></td>
+          <td style="text-align: left">更先进的 GC (5.2+), 5.4 重写</td>
+          <td style="text-align: left">基于 Lua 5.1 的 GC，调优</td>
+          <td style="text-align: left">基于 Lua 5.1 的 GC，调优</td>
+      </tr>
+      <tr>
+          <td style="text-align: left"><strong>生态系统</strong></td>
+          <td style="text-align: left">广泛支持，模块通常兼容最新 Lua 版本</td>
+          <td style="text-align: left">C 模块通常需要绑定到 Lua 5.1 或使用 FFI</td>
+          <td style="text-align: left">旨在更好地兼容 Lua 5.2/5.3 模块</td>
+      </tr>
+      <tr>
+          <td style="text-align: left"><strong>维护者</strong></td>
+          <td style="text-align: left">Lua.org 项目组</td>
+          <td style="text-align: left">Mike Pall (一人维护为主)</td>
+          <td style="text-align: left">Mike Pall (一人维护为主)</td>
+      </tr>
+  </tbody>
+</table>
+<h3 id="benchmark">Benchmark<a href="#benchmark" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p><a href="http://software.rochus-keller.ch/are-we-fast-yet_LuaJIT_2017_vs_2023_results.pdf">http://software.rochus-keller.ch/are-we-fast-yet_LuaJIT_2017_vs_2023_results.pdf</a></p>
+<p><img src="/images/notes/lua-an-overview/651670eb2bf9c6f469b6c03d7664542b_MD5.jpeg" alt="651670eb2bf9c6f469b6c03d7664542b_MD5"></p>
+<h2 id="基本语法">基本语法<a href="#基本语法" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p><a href="https://learnxinyminutes.com/lua/">https://learnxinyminutes.com/lua/</a></p>
+<h3 id="命名规范">命名规范<a href="#命名规范" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>Lua 没有严格的官方规范，但 <code>snake_case</code> 是最主导且推荐的命名风格，尤其适用于局部变量、函数和模块名。对于常量，通常使用 <code>UPPER_SNAKE_CASE</code>。在模拟类时，<code>PascalCase</code> 用于类名或构造函数名。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-lua" data-lang="lua"><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">-- snake_case (推荐)</span>
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">user_name</span> <span class="o">=</span> <span class="s2">&#34;Alice&#34;</span>
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">total_count</span> <span class="o">=</span> <span class="mi">100</span>
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">is_ready</span> <span class="o">=</span> <span class="kc">true</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="kr">function</span> <span class="nf">calculate_sum</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">return</span> <span class="n">a</span> <span class="o">+</span> <span class="n">b</span>
+</span></span><span class="line"><span class="cl"><span class="kr">end</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kr">function</span> <span class="nf">get_user_data</span><span class="p">(</span><span class="n">user_id</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">-- ...</span>
+</span></span><span class="line"><span class="cl"><span class="kr">end</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">-- camelCase (如果项目或框架约定如此，也无妨，但要保持一致)</span>
+</span></span><span class="line"><span class="cl"><span class="c1">-- local function calculateSum(a, b)</span>
+</span></span><span class="line"><span class="cl"><span class="c1">--     return a + b</span>
+</span></span><span class="line"><span class="cl"><span class="c1">-- end</span>
+</span></span><span class="line"><span class="cl"><span class="c1">-- function getUserData(userId)</span>
+</span></span><span class="line"><span class="cl"><span class="c1">--     -- ...</span>
+</span></span><span class="line"><span class="cl"><span class="c1">-- end</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">-- 常量</span>
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">MAX_CONNECTIONS</span> <span class="o">=</span> <span class="mi">100</span>
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">PI</span> <span class="o">=</span> <span class="mf">3.14159</span>
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">DEFAULT_TIMEOUT</span> <span class="o">=</span> <span class="mi">5000</span> <span class="c1">-- milliseconds</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">-- 模拟类</span>
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">Account</span> <span class="o">=</span> <span class="p">{}</span>
+</span></span><span class="line"><span class="cl"><span class="n">Account.__index</span> <span class="o">=</span> <span class="n">Account</span> <span class="c1">-- 用于元表继承</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kr">function</span> <span class="nc">Account</span><span class="p">:</span><span class="nf">new</span><span class="p">(</span><span class="n">initial_balance</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="kd">local</span> <span class="n">o</span> <span class="o">=</span> <span class="p">{</span> <span class="n">balance</span> <span class="o">=</span> <span class="n">initial_balance</span> <span class="ow">or</span> <span class="mi">0</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="n">setmetatable</span><span class="p">(</span><span class="n">o</span><span class="p">,</span> <span class="n">self</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">return</span> <span class="n">o</span>
+</span></span><span class="line"><span class="cl"><span class="kr">end</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kr">function</span> <span class="nc">Account</span><span class="p">:</span><span class="nf">deposit</span><span class="p">(</span><span class="n">amount</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="n">self.balance</span> <span class="o">=</span> <span class="n">self.balance</span> <span class="o">+</span> <span class="n">amount</span>
+</span></span><span class="line"><span class="cl"><span class="kr">end</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">my_account</span> <span class="o">=</span> <span class="n">Account</span><span class="p">:</span><span class="n">new</span><span class="p">(</span><span class="mi">100</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">-- 特殊前缀 is_/has_/can：用于布尔型变量和函数</span>
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">is_active</span> <span class="o">=</span> <span class="kc">true</span>
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">has_permission</span> <span class="o">=</span> <span class="kc">false</span>
+</span></span><span class="line"><span class="cl"><span class="kr">function</span> <span class="nf">can_access</span><span class="p">(</span><span class="n">user_id</span><span class="p">)</span> <span class="p">...</span> <span class="kr">end</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">-- _：用于标记内部或私有的变量或函数，表示不应由外部直接访问。</span>
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">_internal_counter</span> <span class="o">=</span> <span class="mi">0</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="kr">function</span> <span class="nf">_do_private_work</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="n">_internal_counter</span> <span class="o">=</span> <span class="n">_internal_counter</span> <span class="o">+</span> <span class="mi">1</span>
+</span></span><span class="line"><span class="cl">    <span class="n">print</span><span class="p">(</span><span class="s2">&#34;Private work done.&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="kr">end</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kr">function</span> <span class="nf">public_api_call</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="n">_do_private_work</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">-- ...</span>
+</span></span><span class="line"><span class="cl"><span class="kr">end</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">-- M：代表 Module，用于收集并返回模块的公共 API</span>
+</span></span><span class="line"><span class="cl"><span class="c1">-- my_utils.lua</span>
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">M</span> <span class="o">=</span> <span class="p">{}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kr">function</span> <span class="nc">M</span><span class="p">.</span><span class="nf">add</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">return</span> <span class="n">a</span> <span class="o">+</span> <span class="n">b</span>
+</span></span><span class="line"><span class="cl"><span class="kr">end</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kr">function</span> <span class="nc">M</span><span class="p">.</span><span class="nf">subtract</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">return</span> <span class="n">a</span> <span class="o">-</span> <span class="n">b</span>
+</span></span><span class="line"><span class="cl"><span class="kr">end</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kr">return</span> <span class="n">M</span>
+</span></span></code></pre></div><h3 id="类型系统">类型系统<a href="#类型系统" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>Lua 是一种动态类型语言，其类型系统相对简单但功能强大。它不强制变量在编译时声明类型，而是在运行时根据赋值自动确定变量的类型。</p>
+<p>以下是 Lua 中主要的类型：</p>
+<ol>
+<li>
+<p><strong>nil (空)</strong></p>
+<ul>
+<li><code>nil</code> 是 Lua 中无效值或不存在值的唯一类型。</li>
+<li>任何未赋值的全局变量或局部变量在首次使用时都默认为 <code>nil</code>。</li>
+<li>将 <code>nil</code> 赋值给一个变量会使其无效化，类似于删除该变量。</li>
+<li>在条件判断中，只有 <code>false</code> 和 <code>nil</code> 被认为是假 (falsy)，其他所有值都被认为是真 (truthy)。</li>
+</ul>
+</li>
+<li>
+<p><strong>boolean (布尔)</strong></p>
+<ul>
+<li>有两种布尔值：<code>true</code> 和 <code>false</code>。</li>
+<li>主要用于控制流语句（如 <code>if</code>, <code>while</code>）。</li>
+<li>所有关系运算符（例如 <code>\==</code>, <code>~=</code>, <code>&lt;</code>, <code>&gt;</code>) 的结果都是布尔值。</li>
+</ul>
+</li>
+<li>
+<p><strong>number (数字)</strong></p>
+<ul>
+<li>Lua 5.3 引入了整数和浮点数两种子类型，但在更早的版本中，所有数字都是双精度浮点数。</li>
+<li>通常，Lua 使用双精度浮点数表示所有数字，这足以满足大部分需求。</li>
+<li>整数的表示形式：<code>1</code>, <code>100</code>, <code>-5</code></li>
+<li>浮点数的表示形式：<code>3.14</code>, <code>0.5</code>, <code>1e3</code> (1000.0)</li>
+</ul>
+</li>
+<li>
+<p><strong>string (字符串)</strong></p>
+<ul>
+<li>由零个或多个字符组成的序列。</li>
+<li>字符串是不可变的：一旦创建，就不能改变它的内容。字符串操作（如连接）总是创建新的字符串。</li>
+<li>可以用单引号 (<code>'</code>)、双引号 (<code>&quot;</code>) 或双层方括号 (<code>[[</code> <code>]]</code>) 来定义。</li>
+<li>双层方括号可以定义多行字符串，并且不会解释转义序列（除非在开头添加 <code>\=</code>）。</li>
+<li>例如：<code>&quot;hello&quot;</code>, <code>'world'</code>, <code>[[A multi-line. string.]]</code></li>
+</ul>
+</li>
+<li>
+<p><strong>table (表)</strong></p>
+<ul>
+<li>Lua 中最重要也是最强大的数据结构，是一种关联数组。</li>
+<li>可以用来模拟数组、哈希表（字典）、对象、结构体等。</li>
+<li>表是对象，通过引用传递。</li>
+<li>键（key）可以是除了 <code>nil</code> 和 <code>NaN</code> 之外的任何 Lua 值（number, string, boolean, table, function, userdata, thread）。</li>
+<li>值（value）可以是任何 Lua 值（包括 <code>nil</code>，但将 <code>nil</code> 作为值赋值给表键意味着删除该键值对）。</li>
+<li>当用整数作为键时，可以像数组一样使用。数组索引通常从 1 开始（约定俗成，但也可以从其他值开始）。</li>
+<li>创建方式：<code>{}</code>。</li>
+<li>例如：
+<ul>
+<li><code>t = {}</code></li>
+<li><code>t.name = &quot;Lua&quot;</code> (等同于 <code>t[&quot;name&quot;] = &quot;Lua&quot;</code>)</li>
+<li><code>t[1] = 10</code></li>
+<li><code>t[&quot;key&quot;] = &quot;value&quot;</code></li>
+</ul>
+</li>
+</ul>
+</li>
+<li>
+<p><strong>function (函数)</strong></p>
+<ul>
+<li>函数是“第一类公民”，可以像其他值一样被存储在变量中、作为参数传递、作为返回值返回。</li>
+<li>Lua 支持闭包（closures）：函数可以访问并操作其外部作用域中的变量。</li>
+<li>例如：
+<ul>
+<li><code>function greet(name) print(&quot;Hello, &quot; .. name) end</code></li>
+<li><code>my_func = function(x, y) return x + y end</code></li>
+</ul>
+</li>
+</ul>
+</li>
+<li>
+<p><strong>userdata (用户数据)</strong></p>
+<ul>
+<li><code>userdata</code> 允许 Lua 包装任意的 C 数据结构。</li>
+<li>有两种类型：
+<ul>
+<li><strong>Full userdata (完整用户数据)</strong>：是 Lua 管理的内存块，其大小由创建时指定。它可以有关联的元表。</li>
+<li><strong>Light userdata (轻量用户数据)</strong>：只是一个 C 指针（<code>void*</code>）。它没有元表（但可以有相关的元表，通过其指向的 C 数据来间接获取），也不由 Lua 的垃圾回收器管理。</li>
+</ul>
+</li>
+<li>主要用于与 C/C++ 代码交互，扩展 Lua 的功能。</li>
+</ul>
+</li>
+<li>
+<p><strong>thread (线程)</strong></p>
+<ul>
+<li>代表一个独立的执行线程，用于协程（coroutine）。</li>
+<li>协程是非抢占式多任务处理的一种形式，它们允许函数暂停执行并在稍后恢复。</li>
+<li>通过 <code>coroutine.create()</code> 创建。</li>
+</ul>
+</li>
+</ol>
+<p><strong>Lua 类型系统的几个关键点：</strong></p>
+<ul>
+<li><strong>动态类型 (Dynamic Typing):</strong> 变量没有固定的类型。它的类型取决于它当前存储的值。例如：
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-lua" data-lang="lua"><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">x</span> <span class="o">=</span> <span class="mi">10</span>         <span class="c1">-- x 是一个 number</span>
+</span></span><span class="line"><span class="cl"><span class="n">x</span> <span class="o">=</span> <span class="s2">&#34;hello&#34;</span>          <span class="c1">-- 现在 x 是一个 string</span>
+</span></span><span class="line"><span class="cl"><span class="n">x</span> <span class="o">=</span> <span class="p">{</span> <span class="n">a</span> <span class="o">=</span> <span class="mi">1</span> <span class="p">}</span>        <span class="c1">-- 现在 x 是一个 table</span>
+</span></span></code></pre></div></li>
+<li><strong>强类型 (Strong Typing):</strong> Lua 是一种强类型语言，意味着你不能对不同类型的值执行不明确的操作。例如，你不能直接将一个字符串与一个数字相加（除非字符串可以被隐式转换为数字，但这通常不是自动的，或者你需要明确转换）。
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-lua" data-lang="lua"><span class="line"><span class="cl"><span class="n">print</span><span class="p">(</span><span class="s2">&#34;10&#34;</span> <span class="o">+</span> <span class="mi">5</span><span class="p">)</span> <span class="c1">-- 这种操作在 Lua 中是错误的，会导致运行时错误</span>
+</span></span><span class="line"><span class="cl">                 <span class="c1">-- (attempt to perform arithmetic on a string value)</span>
+</span></span></code></pre></div>你需要显式转换：<code>print(tonumber(&quot;10&quot;) + 5)</code></li>
+<li><strong>垃圾回收 (Garbage Collection):</strong> Lua 使用自动垃圾回收机制来管理内存，程序员不需要手动释放内存。<code>nil</code> 值对于垃圾回收来说很重要，将变量设置为 <code>nil</code> 会帮助垃圾回收器确定该值不再被引用。</li>
+<li><strong><code>type()</code> 函数:</strong> Lua 提供了一个内置函数 <code>type()</code> 来检查任何值的类型，它返回一个字符串，例如 <code>&quot;nil&quot;</code>, <code>&quot;number&quot;</code>, <code>&quot;string&quot;</code>, <code>&quot;boolean&quot;</code>, <code>&quot;table&quot;</code>, <code>&quot;function&quot;</code>, <code>&quot;userdata&quot;</code>, <code>&quot;thread&quot;</code>。</li>
+</ul>
+<h2 id="编程范式">编程范式<a href="#编程范式" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<h3 id="functional-programming">Functional Programming<a href="#functional-programming" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>Lua 不是一个纯粹的函数式语言（它也支持面向对象和命令式编程），但是它的一些语言特性可以用来实践函数式编程。</p>
+<h4 id="1-一等公民函数first-class-functions">1. 一等公民函数（First-Class Functions）<a href="#1-一等公民函数first-class-functions" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<p>这是函数式编程最核心的特性之一，Lua 对此有完备的支持：</p>
+<ul>
+<li><strong>函数可以赋值给变量：</strong> 你可以将一个函数视为一个普通的值，将其赋予一个变量。
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-lua" data-lang="lua"><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">add</span> <span class="o">=</span> <span class="kr">function</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">return</span> <span class="n">a</span> <span class="o">+</span> <span class="n">b</span>
+</span></span><span class="line"><span class="cl"><span class="kr">end</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="n">print</span><span class="p">(</span><span class="n">add</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span> <span class="c1">-- 输出 5</span>
+</span></span></code></pre></div></li>
+<li><strong>函数可以作为参数传递给其他函数：</strong> 这使得高阶函数成为可能。
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-lua" data-lang="lua"><span class="line"><span class="cl"><span class="kd">local</span> <span class="kr">function</span> <span class="nf">apply</span><span class="p">(</span><span class="n">func</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">return</span> <span class="n">func</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="kr">end</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="kr">function</span> <span class="nf">multiply</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">return</span> <span class="n">a</span> <span class="o">*</span> <span class="n">b</span>
+</span></span><span class="line"><span class="cl"><span class="kr">end</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="n">print</span><span class="p">(</span><span class="n">apply</span><span class="p">(</span><span class="n">multiply</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">5</span><span class="p">))</span> <span class="c1">-- 输出 20</span>
+</span></span></code></pre></div></li>
+<li><strong>函数可以从其他函数返回：</strong> 这也支持高阶函数和部分应用/柯里化。
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-lua" data-lang="lua"><span class="line"><span class="cl"><span class="kd">local</span> <span class="kr">function</span> <span class="nf">make_adder</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">return</span> <span class="kr">function</span><span class="p">(</span><span class="n">y</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="kr">return</span> <span class="n">x</span> <span class="o">+</span> <span class="n">y</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">end</span>
+</span></span><span class="line"><span class="cl"><span class="kr">end</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">add_five</span> <span class="o">=</span> <span class="n">make_adder</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="n">print</span><span class="p">(</span><span class="n">add_five</span><span class="p">(</span><span class="mi">10</span><span class="p">))</span> <span class="c1">-- 输出 15</span>
+</span></span></code></pre></div></li>
+<li><strong>函数可以存储在数据结构中：</strong> 如表（table）。
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-lua" data-lang="lua"><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">operations</span> <span class="o">=</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">add</span> <span class="o">=</span> <span class="kr">function</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span> <span class="kr">return</span> <span class="n">a</span> <span class="o">+</span> <span class="n">b</span> <span class="kr">end</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="n">sub</span> <span class="o">=</span> <span class="kr">function</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span> <span class="kr">return</span> <span class="n">a</span> <span class="o">-</span> <span class="n">b</span> <span class="kr">end</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="n">print</span><span class="p">(</span><span class="n">operations.add</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span> <span class="c1">-- 输出 12</span>
+</span></span></code></pre></div></li>
+</ul>
+<h4 id="2-匿名函数-anonymous-functions--lambdas">2. 匿名函数 (Anonymous Functions / Lambdas)<a href="#2-匿名函数-anonymous-functions--lambdas" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<p>Lua 使用 <code>function</code> 关键字后不跟函数名来创建匿名函数。这在作为参数传递给高阶函数时非常常见。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-lua" data-lang="lua"><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">numbers</span> <span class="o">=</span> <span class="p">{</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">5</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">-- 使用匿名函数过滤偶数</span>
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">even_numbers</span> <span class="o">=</span> <span class="p">{}</span>
+</span></span><span class="line"><span class="cl"><span class="kr">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">v</span> <span class="kr">in</span> <span class="n">ipairs</span><span class="p">(</span><span class="n">numbers</span><span class="p">)</span> <span class="kr">do</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">if</span> <span class="p">(</span><span class="kr">function</span><span class="p">(</span><span class="n">n</span><span class="p">)</span> <span class="kr">return</span> <span class="n">n</span> <span class="o">%</span> <span class="mi">2</span> <span class="o">==</span> <span class="mi">0</span> <span class="kr">end</span><span class="p">)(</span><span class="n">v</span><span class="p">)</span> <span class="kr">then</span>
+</span></span><span class="line"><span class="cl">        <span class="n">table.insert</span><span class="p">(</span><span class="n">even_numbers</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">end</span>
+</span></span><span class="line"><span class="cl"><span class="kr">end</span>
+</span></span><span class="line"><span class="cl"><span class="n">print</span><span class="p">(</span><span class="n">table.concat</span><span class="p">(</span><span class="n">even_numbers</span><span class="p">,</span> <span class="s2">&#34;, &#34;</span><span class="p">))</span> <span class="c1">-- 输出 2, 4</span>
+</span></span></code></pre></div><h4 id="3-闭包-closures">3. 闭包 (Closures)<a href="#3-闭包-closures" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<p>当一个内部函数引用了其外部函数的局部变量，即使外部函数已经执行完毕，这个内部函数（及其引用的变量）仍然存在，这就是闭包。Lua 对闭包有强大的支持，这是实现高阶函数、状态封装和柯里化的关键。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-lua" data-lang="lua"><span class="line"><span class="cl"><span class="kd">local</span> <span class="kr">function</span> <span class="nf">make_counter</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="kd">local</span> <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span> <span class="c1">-- 外部函数的局部变量</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">return</span> <span class="kr">function</span><span class="p">()</span> <span class="c1">-- 内部函数形成闭包</span>
+</span></span><span class="line"><span class="cl">        <span class="n">count</span> <span class="o">=</span> <span class="n">count</span> <span class="o">+</span> <span class="mi">1</span>
+</span></span><span class="line"><span class="cl">        <span class="kr">return</span> <span class="n">count</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">end</span>
+</span></span><span class="line"><span class="cl"><span class="kr">end</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">counter1</span> <span class="o">=</span> <span class="n">make_counter</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">counter2</span> <span class="o">=</span> <span class="n">make_counter</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="n">print</span><span class="p">(</span><span class="n">counter1</span><span class="p">())</span> <span class="c1">-- 输出 1</span>
+</span></span><span class="line"><span class="cl"><span class="n">print</span><span class="p">(</span><span class="n">counter1</span><span class="p">())</span> <span class="c1">-- 输出 2</span>
+</span></span><span class="line"><span class="cl"><span class="n">print</span><span class="p">(</span><span class="n">counter2</span><span class="p">())</span> <span class="c1">-- 输出 1 (独立的计数器)</span>
+</span></span></code></pre></div><h4 id="4-高阶函数-higher-order-functions">4. 高阶函数 (Higher-Order Functions)<a href="#4-高阶函数-higher-order-functions" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<p>由于函数是第一公民，Lua 可以轻松实现高阶函数，即接受一个或多个函数作为参数，或者返回一个函数的函数。常见的函数式编程模式如 <code>map</code>、<code>filter</code>、<code>reduce</code>（或 <code>fold</code>）都可以很容易地在 Lua 中实现。</p>
+<p><strong>示例：<code>map</code></strong></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-lua" data-lang="lua"><span class="line"><span class="cl"><span class="kd">local</span> <span class="kr">function</span> <span class="nf">map</span><span class="p">(</span><span class="n">func</span><span class="p">,</span> <span class="n">list</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="kd">local</span> <span class="n">result</span> <span class="o">=</span> <span class="p">{}</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">v</span> <span class="kr">in</span> <span class="n">ipairs</span><span class="p">(</span><span class="n">list</span><span class="p">)</span> <span class="kr">do</span>
+</span></span><span class="line"><span class="cl">        <span class="n">result</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">func</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">end</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">return</span> <span class="n">result</span>
+</span></span><span class="line"><span class="cl"><span class="kr">end</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">numbers</span> <span class="o">=</span> <span class="p">{</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">5</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">squared_numbers</span> <span class="o">=</span> <span class="n">map</span><span class="p">(</span><span class="kr">function</span><span class="p">(</span><span class="n">n</span><span class="p">)</span> <span class="kr">return</span> <span class="n">n</span> <span class="o">*</span> <span class="n">n</span> <span class="kr">end</span><span class="p">,</span> <span class="n">numbers</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="n">print</span><span class="p">(</span><span class="n">table.concat</span><span class="p">(</span><span class="n">squared_numbers</span><span class="p">,</span> <span class="s2">&#34;, &#34;</span><span class="p">))</span> <span class="c1">-- 输出 1, 4, 9, 16, 25</span>
+</span></span></code></pre></div><p><strong>示例：<code>filter</code></strong></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-lua" data-lang="lua"><span class="line"><span class="cl"><span class="kd">local</span> <span class="kr">function</span> <span class="nf">filter</span><span class="p">(</span><span class="n">predicate</span><span class="p">,</span> <span class="n">list</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="kd">local</span> <span class="n">result</span> <span class="o">=</span> <span class="p">{}</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">v</span> <span class="kr">in</span> <span class="n">ipairs</span><span class="p">(</span><span class="n">list</span><span class="p">)</span> <span class="kr">do</span>
+</span></span><span class="line"><span class="cl">        <span class="kr">if</span> <span class="n">predicate</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="kr">then</span>
+</span></span><span class="line"><span class="cl">            <span class="n">table.insert</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="kr">end</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">end</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">return</span> <span class="n">result</span>
+</span></span><span class="line"><span class="cl"><span class="kr">end</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">numbers</span> <span class="o">=</span> <span class="p">{</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">6</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">evens</span> <span class="o">=</span> <span class="n">filter</span><span class="p">(</span><span class="kr">function</span><span class="p">(</span><span class="n">n</span><span class="p">)</span> <span class="kr">return</span> <span class="n">n</span> <span class="o">%</span> <span class="mi">2</span> <span class="o">==</span> <span class="mi">0</span> <span class="kr">end</span><span class="p">,</span> <span class="n">numbers</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="n">print</span><span class="p">(</span><span class="n">table.concat</span><span class="p">(</span><span class="n">evens</span><span class="p">,</span> <span class="s2">&#34;, &#34;</span><span class="p">))</span> <span class="c1">-- 输出 2, 4, 6</span>
+</span></span></code></pre></div><h4 id="5-表作为数据结构-tables-as-data-structures">5. 表作为数据结构 (Tables as Data Structures)<a href="#5-表作为数据结构-tables-as-data-structures" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<p>Lua 的表是其唯一且极其灵活的数据结构。它们可以用于模拟列表、字典、集合，甚至对象。在函数式编程中，数据通常是不可变的，并且通过函数操作来转换数据。虽然 Lua 的表本身是可变的，但你可以通过约定或编写辅助函数来模拟不可变性（例如，每次操作都返回一个新表）。</p>
+<h4 id="6-多返回值-multiple-return-values">6. 多返回值 (Multiple Return Values)<a href="#6-多返回值-multiple-return-values" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<p>Lua 函数可以返回多个值，这在某些场景下可以使代码更简洁，例如返回操作结果和状态。虽然不是直接的函数式编程特性，但它有助于更灵活的数据流处理。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-lua" data-lang="lua"><span class="line"><span class="cl"><span class="kd">local</span> <span class="kr">function</span> <span class="nf">divide</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">if</span> <span class="n">b</span> <span class="o">==</span> <span class="mi">0</span> <span class="kr">then</span>
+</span></span><span class="line"><span class="cl">        <span class="kr">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="s2">&#34;division by zero&#34;</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">else</span>
+</span></span><span class="line"><span class="cl">        <span class="kr">return</span> <span class="n">a</span> <span class="o">/</span> <span class="n">b</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">end</span>
+</span></span><span class="line"><span class="cl"><span class="kr">end</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">result</span><span class="p">,</span> <span class="n">err</span> <span class="o">=</span> <span class="n">divide</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="kr">if</span> <span class="n">err</span> <span class="kr">then</span>
+</span></span><span class="line"><span class="cl">    <span class="n">print</span><span class="p">(</span><span class="s2">&#34;Error:&#34;</span><span class="p">,</span> <span class="n">err</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="kr">else</span>
+</span></span><span class="line"><span class="cl">    <span class="n">print</span><span class="p">(</span><span class="s2">&#34;Result:&#34;</span><span class="p">,</span> <span class="n">result</span><span class="p">)</span> <span class="c1">-- 输出 Result: 5</span>
+</span></span><span class="line"><span class="cl"><span class="kr">end</span>
+</span></span></code></pre></div><h4 id="7-对尾调用优化的支持-tail-call-optimization---tco">7. 对尾调用优化的支持 (Tail Call Optimization - TCO)<a href="#7-对尾调用优化的支持-tail-call-optimization---tco" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<p>Lua 完整地支持尾调用优化。这意味着一个函数在尾部调用另一个函数时，当前的栈帧会被重用而不是创建新的栈帧，从而避免栈溢出。这使得在函数式编程中常见的递归算法（尤其是尾递归）可以安全高效地使用，而无需担心性能或栈深度限制。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-lua" data-lang="lua"><span class="line"><span class="cl"><span class="c1">-- 尾递归实现阶乘</span>
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="kr">function</span> <span class="nf">factorial_tail</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">acc</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="n">acc</span> <span class="o">=</span> <span class="n">acc</span> <span class="ow">or</span> <span class="mi">1</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">if</span> <span class="n">n</span> <span class="o">==</span> <span class="mi">0</span> <span class="kr">then</span>
+</span></span><span class="line"><span class="cl">        <span class="kr">return</span> <span class="n">acc</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">else</span>
+</span></span><span class="line"><span class="cl">        <span class="kr">return</span> <span class="n">factorial_tail</span><span class="p">(</span><span class="n">n</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">acc</span> <span class="o">*</span> <span class="n">n</span><span class="p">)</span> <span class="c1">-- 尾调用</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">end</span>
+</span></span><span class="line"><span class="cl"><span class="kr">end</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="n">print</span><span class="p">(</span><span class="n">factorial_tail</span><span class="p">(</span><span class="mi">5</span><span class="p">))</span> <span class="c1">-- 输出 120</span>
+</span></span><span class="line"><span class="cl"><span class="c1">-- print(factorial_tail(100000)) -- 大数也可以计算，不会栈溢出</span>
+</span></span></code></pre></div><h3 id="everything-is-a-table">Everything is a table<a href="#everything-is-a-table" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p><code>Everything is a table</code> 这句话之所以成为 Lua 的标志，是因为<strong>在绝大多数情况下，我们在 Lua 中所使用的、抽象的、复合的、需要组织的数据结构，都是通过表来实现的。</strong></p>
+<h4 id="1-数据结构">1. 数据结构<a href="#1-数据结构" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<ul>
+<li><strong>数组 (Array):</strong> Lua 没有原生数组类型。数字索引的表完美地充当了数组的角色。
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-lua" data-lang="lua"><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">myArray</span> <span class="o">=</span> <span class="p">{</span><span class="mi">10</span><span class="p">,</span> <span class="mi">20</span><span class="p">,</span> <span class="mi">30</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="n">print</span><span class="p">(</span><span class="n">myArray</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="c1">-- 10</span>
+</span></span></code></pre></div></li>
+<li><strong>哈希表/字典/关联数组 (Hash Table/Dictionary/Associative Array):</strong> 表的核心功能。
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-lua" data-lang="lua"><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">myDictionary</span> <span class="o">=</span> <span class="p">{</span><span class="n">name</span> <span class="o">=</span> <span class="s2">&#34;Alice&#34;</span><span class="p">,</span> <span class="n">age</span> <span class="o">=</span> <span class="mi">30</span><span class="p">,</span> <span class="n">city</span> <span class="o">=</span> <span class="s2">&#34;New York&#34;</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="n">print</span><span class="p">(</span><span class="n">myDictionary.name</span><span class="p">)</span> <span class="c1">-- Alice</span>
+</span></span><span class="line"><span class="cl"><span class="n">print</span><span class="p">(</span><span class="n">myDictionary</span><span class="p">[</span><span class="s2">&#34;age&#34;</span><span class="p">])</span> <span class="c1">-- 30</span>
+</span></span></code></pre></div></li>
+<li><strong>记录/结构 (Record/Struct):</strong> 同样是键值对的表。
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-lua" data-lang="lua"><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">user</span> <span class="o">=</span> <span class="p">{</span><span class="n">id</span> <span class="o">=</span> <span class="mi">123</span><span class="p">,</span> <span class="n">username</span> <span class="o">=</span> <span class="s2">&#34;john_doe&#34;</span><span class="p">,</span> <span class="n">email</span> <span class="o">=</span> <span class="s2">&#34;john@example.com&#34;</span><span class="p">}</span>
+</span></span></code></pre></div></li>
+<li><strong>堆栈/队列/链表 (Stack/Queue/Linked List):</strong> 可以通过表的<code>insert</code>、<code>remove</code>等方法或手动实现。
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-lua" data-lang="lua"><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">stack</span> <span class="o">=</span> <span class="p">{}</span>
+</span></span><span class="line"><span class="cl"><span class="n">table.insert</span><span class="p">(</span><span class="n">stack</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span> <span class="c1">-- push</span>
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">item</span> <span class="o">=</span> <span class="n">table.remove</span><span class="p">(</span><span class="n">stack</span><span class="p">)</span> <span class="c1">-- pop</span>
+</span></span></code></pre></div></li>
+<li><strong>集合 (Set):</strong> 可以通过表将元素作为键，值设为<code>true</code>来实现。
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-lua" data-lang="lua"><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">mySet</span> <span class="o">=</span> <span class="p">{</span><span class="n">apple</span> <span class="o">=</span> <span class="kc">true</span><span class="p">,</span> <span class="n">banana</span> <span class="o">=</span> <span class="kc">true</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="kr">if</span> <span class="n">mySet.apple</span> <span class="kr">then</span> <span class="n">print</span><span class="p">(</span><span class="s2">&#34;apple is in set&#34;</span><span class="p">)</span> <span class="kr">end</span>
+</span></span></code></pre></div></li>
+</ul>
+<h4 id="2-对象系统和面向对象编程-oop">2. 对象系统和面向对象编程 (OOP)<a href="#2-对象系统和面向对象编程-oop" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<p>Lua 是一种多范式语言，但它没有原生类（Class）的概念。OOP 在 Lua 中完全通过表和元表（Metatable）实现：</p>
+<ul>
+<li><strong>对象 (Object):</strong> 每个对象都是一个表，存储其状态（属性）。
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-lua" data-lang="lua"><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">myObject</span> <span class="o">=</span> <span class="p">{</span><span class="n">x</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="mi">20</span><span class="p">}</span>
+</span></span></code></pre></div></li>
+<li><strong>类 (Class) / 原型 (Prototype):</strong> 通常也是一个表，包含共享的方法和初始化逻辑。
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-lua" data-lang="lua"><span class="line"><span class="cl"><span class="c1">-- 这是一个简单的“类”表，作为原型</span>
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">Class</span> <span class="o">=</span> <span class="p">{}</span>
+</span></span><span class="line"><span class="cl"><span class="n">Class.__index</span> <span class="o">=</span> <span class="n">Class</span> <span class="c1">-- 用于实现继承查找方法</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kr">function</span> <span class="nc">Class</span><span class="p">:</span><span class="nf">new</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="kd">local</span> <span class="n">obj</span> <span class="o">=</span> <span class="n">setmetatable</span><span class="p">({},</span> <span class="n">self</span><span class="p">)</span> <span class="c1">-- 创建新表，设置元表</span>
+</span></span><span class="line"><span class="cl">    <span class="n">obj.x</span> <span class="o">=</span> <span class="n">x</span>
+</span></span><span class="line"><span class="cl">    <span class="n">obj.y</span> <span class="o">=</span> <span class="n">y</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">return</span> <span class="n">obj</span>
+</span></span><span class="line"><span class="cl"><span class="kr">end</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kr">function</span> <span class="nc">Class</span><span class="p">:</span><span class="nf">move</span><span class="p">(</span><span class="n">dx</span><span class="p">,</span> <span class="n">dy</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="n">self.x</span> <span class="o">=</span> <span class="n">self.x</span> <span class="o">+</span> <span class="n">dx</span>
+</span></span><span class="line"><span class="cl">    <span class="n">self.y</span> <span class="o">=</span> <span class="n">self.y</span> <span class="o">+</span> <span class="n">dy</span>
+</span></span><span class="line"><span class="cl"><span class="kr">end</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">p1</span> <span class="o">=</span> <span class="n">Class</span><span class="p">:</span><span class="n">new</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">20</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="n">p1</span><span class="p">:</span><span class="n">move</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="n">print</span><span class="p">(</span><span class="n">p1.x</span><span class="p">,</span> <span class="n">p1.y</span><span class="p">)</span> <span class="c1">-- 11, 21</span>
+</span></span></code></pre></div></li>
+</ul>
+<p>在这个例子中，<code>Class</code>本身是一个表，<code>p1</code>也是一个表。元表<code>__index</code>也指向一个表。</p>
+<h4 id="3-模块-module">3. 模块 (Module)<a href="#3-模块-module" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<p>Lua 模块通常也是一个表，将所有需要导出的函数和变量存储在其中，并通过<code>return</code>返回。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-lua" data-lang="lua"><span class="line"><span class="cl"><span class="c1">-- mymodule.lua</span>
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">M</span> <span class="o">=</span> <span class="p">{}</span> <span class="c1">-- M 就是一个表</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kr">function</span> <span class="nc">M</span><span class="p">.</span><span class="nf">sayHello</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="n">print</span><span class="p">(</span><span class="s2">&#34;Hello, &#34;</span> <span class="o">..</span> <span class="n">name</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="kr">end</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kr">function</span> <span class="nc">M</span><span class="p">.</span><span class="nf">add</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">return</span> <span class="n">a</span> <span class="o">+</span> <span class="n">b</span>
+</span></span><span class="line"><span class="cl"><span class="kr">end</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kr">return</span> <span class="n">M</span> <span class="c1">-- 返回这个表</span>
+</span></span></code></pre></div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-lua" data-lang="lua"><span class="line"><span class="cl"><span class="c1">-- main.lua</span>
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">myModule</span> <span class="o">=</span> <span class="n">require</span><span class="p">(</span><span class="s2">&#34;mymodule&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="n">myModule.sayHello</span><span class="p">(</span><span class="s2">&#34;World&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="n">print</span><span class="p">(</span><span class="n">myModule.add</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>
+</span></span></code></pre></div><h4 id="4-环境-environment">4. 环境 (Environment)<a href="#4-环境-environment" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<ul>
+<li><strong>全局环境 (<code>_G</code>):</strong> 这是一个表，包含了所有全局变量、函数和标准库。
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-lua" data-lang="lua"><span class="line"><span class="cl"><span class="n">print</span><span class="p">(</span><span class="n">_G.print</span><span class="p">)</span> <span class="c1">-- function: ...</span>
+</span></span><span class="line"><span class="cl"><span class="n">print</span><span class="p">(</span><span class="n">_G.string</span><span class="p">)</span> <span class="c1">-- table: ... (string库本身也是一个表)</span>
+</span></span></code></pre></div></li>
+<li><strong>自定义环境:</strong> 可以通过<code>setfenv</code>（旧版）或 <code>_ENV</code>（新版）为函数或线程设置独立的表作为其环境，从而实现沙箱隔离或模块化。</li>
+</ul>
+<h4 id="5-元表-metatables">5. 元表 (Metatables)<a href="#5-元表-metatables" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<p>元表本身就是表。它定义了宿主表的行为。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-lua" data-lang="lua"><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">myTable</span> <span class="o">=</span> <span class="p">{}</span>
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">myMetatable</span> <span class="o">=</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">__add</span> <span class="o">=</span> <span class="kr">function</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span> <span class="kr">return</span> <span class="n">a.value</span> <span class="o">+</span> <span class="n">b.value</span> <span class="kr">end</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="n">setmetatable</span><span class="p">(</span><span class="n">myTable</span><span class="p">,</span> <span class="n">myMetatable</span><span class="p">)</span>
+</span></span></code></pre></div><p>这里，<code>myMetatable</code>就是一个表。</p>
+<hr>
+<p>除了上述基于表的数据结构，Lua 本身的<strong>基本（原子）数据类型和函数</strong>。它们不是表，但它们可以作为表的<strong>值</strong>和<strong>键</strong>。</p>
+<ul>
+<li><strong><code>nil</code>:</strong> 既不是表，也不能作为表的键（但可以作为表的值，来“删除”一个键）。</li>
+<li><strong><code>boolean</code>:</strong> <code>true</code> 或 <code>false</code>，不是表。</li>
+<li><strong><code>number</code>:</strong> 不是表。</li>
+<li><strong><code>string</code>:</strong> 不是表。</li>
+<li><strong><code>function</code>:</strong> 函数是 Lua 中的一等公民，它们本身有自己的类型 (<code>function</code>)，而不是表。虽然函数可以存储在表中，作为表的值，但函数本身不是表。
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-lua" data-lang="lua"><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">func</span> <span class="o">=</span> <span class="kr">function</span><span class="p">()</span> <span class="n">print</span><span class="p">(</span><span class="s2">&#34;hello&#34;</span><span class="p">)</span> <span class="kr">end</span>
+</span></span><span class="line"><span class="cl"><span class="n">print</span><span class="p">(</span><span class="n">type</span><span class="p">(</span><span class="n">func</span><span class="p">))</span> <span class="c1">-- function</span>
+</span></span></code></pre></div></li>
+<li><strong><code>userdata</code>:</strong> 通常是 C 语言层面的原始内存块或对象指针的封装，提供给 Lua 使用。它们不是表。</li>
+<li><strong><code>thread</code>:</strong> Lua 协程对象也不是表。</li>
+</ul>
+<p>而这些基本数据类型不是表的主要原因也是为了<strong>效率和内存优化</strong>。</p>
+<ul>
+<li><strong>原始值的存储：</strong> 数字、布尔值、nil 都可以直接以字面值的形式存储，或者在堆栈上直接操作。如果它们都是表，就意味着每次使用这些基本值时，都需要分配一个表结构（即使是空表），这会带来巨大的内存开销和性能损失。</li>
+<li><strong>不变性：</strong> 数字、字符串等是不可变的。表是可变的。将不可变的数据封装在可变的数据结构中，会增加不必要的复杂性。</li>
+<li><strong>唯一性：</strong> <code>nil</code>、<code>true</code>、<code>false</code>在 Lua 中是单例的。如果它们是表，每次引用都需要确保引用的是同一个表实例，这又是额外的开销。</li>
+<li><strong>C 语言的桥接：</strong> <code>userdata</code>和<code>function</code>（C closure）是为了与 C 语言进行高效互操作而设计的。它们直接对应 C 语言的指针或函数指针，如果强行包装成表，会打破这种直接映射，增加不必要的中间层。</li>
+</ul>
+<p>虽然这些类型本身不是表，但它们与表有着紧密的联系：</p>
+<ul>
+<li><strong>作为表的键：</strong> 除了 <code>nil</code>，所有其他基本类型（包括 <code>boolean</code>，虽然不常见，但合法）都可以作为表的键。
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-lua" data-lang="lua"><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">t</span> <span class="o">=</span> <span class="p">{}</span>
+</span></span><span class="line"><span class="cl"><span class="n">t</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&#34;number key&#34;</span>
+</span></span><span class="line"><span class="cl"><span class="n">t</span><span class="p">[</span><span class="s2">&#34;hello&#34;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&#34;string key&#34;</span>
+</span></span><span class="line"><span class="cl"><span class="n">t</span><span class="p">[</span><span class="kc">true</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&#34;boolean key&#34;</span>
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">myFunc</span> <span class="o">=</span> <span class="kr">function</span><span class="p">()</span> <span class="kr">end</span>
+</span></span><span class="line"><span class="cl"><span class="n">t</span><span class="p">[</span><span class="n">myFunc</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&#34;function key&#34;</span>
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">co</span> <span class="o">=</span> <span class="n">coroutine.create</span><span class="p">(</span><span class="kr">function</span><span class="p">()</span> <span class="kr">end</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="n">t</span><span class="p">[</span><span class="n">co</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&#34;thread key&#34;</span>
+</span></span></code></pre></div></li>
+<li><strong>作为表的值：</strong> 所有基本类型都可以作为表的值。这是最常见的用法。
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-lua" data-lang="lua"><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">data</span> <span class="o">=</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">name</span> <span class="o">=</span> <span class="s2">&#34;Lua&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="n">version</span> <span class="o">=</span> <span class="mf">5.4</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="n">isActive</span> <span class="o">=</span> <span class="kc">true</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="n">greet</span> <span class="o">=</span> <span class="kr">function</span><span class="p">()</span> <span class="n">print</span><span class="p">(</span><span class="s2">&#34;Hi!&#34;</span><span class="p">)</span> <span class="kr">end</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="n">config</span> <span class="o">=</span> <span class="kc">nil</span> <span class="c1">-- 表示配置项缺失或已删除</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div></li>
+</ul>
+<h2 id="module-system">Module System<a href="#module-system" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>Lua 的模块系统是其语言设计中非常优雅和实用的一个部分。它没有像 Python 或 Java 那样复杂的关键字或机制，而是<strong>高度依赖于表的概念和 <code>require</code> 函数</strong>。这种设计哲学使得 Lua 的模块系统既简单又强大。</p>
+<h3 id="核心概念与工作原理">核心概念与工作原理<a href="#核心概念与工作原理" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<ol>
+<li>
+<p><strong>模块即表（Table is Module）</strong>：
+上面介绍表时也提到过，Table 是 Lua 模块系统的基石。一个 Lua 模块实际上就是一个普通的 Lua <code>table</code>。这个 <code>table</code> 包含了模块对外暴露的所有函数、变量（或称为“成员”）。</p>
+</li>
+<li>
+<p><strong><code>require</code> 函数：加载与缓存</strong>：
+这是加载和使用模块的核心函数。</p>
+<ul>
+<li><strong>查找路径</strong>：当你调用 <code>require(&quot;mymodule&quot;)</code> 时，Lua 会按照一个预定义的路径（<code>package.path</code> 字符串）去查找名为 <code>mymodule</code> 的文件。
+<ul>
+<li>它会尝试在 <code>package.path</code> 中的每一个路径模式中替换 <code>?</code> 为 <code>mymodule</code>，并尝试加载这个文件。</li>
+<li>通常，它会先找 <code>mymodule.lua</code>，然后是编译过的 C 模块 (<code>.so</code> 或 <code>.dll</code>)。</li>
+</ul>
+</li>
+<li><strong>加载</strong>：
+<ul>
+<li>如果找到一个 Lua 文件，<code>require</code> 会加载并执行这个文件。</li>
+<li>模块文件通常会返回一个 <code>table</code>，这个 <code>table</code> 就是模块本身。</li>
+</ul>
+</li>
+<li><strong>缓存</strong>：<code>require</code> 函数有一个非常重要的特性：<strong>它会缓存已加载的模块</strong>。一旦一个模块被 <code>require</code> 加载过，它就会被存储在 <code>package.loaded</code> 表中。下次再调用 <code>require</code> 加载同一个模块时，<code>require</code> 不会重新执行模块文件，而是直接从 <code>package.loaded</code> 表中返回缓存的版本。
+<ul>
+<li>这确保了模块初始化只发生一次，并避免了重复加载的开销。</li>
+<li>这意味着模块文件中的顶层代码（不属于任何函数）只会在第一次 <code>require</code> 时执行。</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>
+<p><strong>返回模块表</strong>：
+一个标准的 Lua 模块文件（例如 <code>mymodule.lua</code>）的最后一行通常会 <code>return</code> 一个 <code>table</code>。这个 <code>table</code> 就是该模块对外提供的接口。</p>
+</li>
+</ol>
+<h3 id="模块的创建编写一个模块">模块的创建（编写一个模块）<a href="#模块的创建编写一个模块" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>假设我们要创建一个名为 <code>math_utils.lua</code> 的模块，它提供一些额外的数学函数。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-lua" data-lang="lua"><span class="line"><span class="cl"><span class="c1">-- math_utils.lua</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">-- 1. 创建一个局部表来表示模块</span>
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">M</span> <span class="o">=</span> <span class="p">{}</span> <span class="c1">-- M 是 Module 的缩写，这是Lua社区的常见约定</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">-- 2. 在这个表中定义模块的函数和变量</span>
+</span></span><span class="line"><span class="cl"><span class="kr">function</span> <span class="nc">M</span><span class="p">.</span><span class="nf">add</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">return</span> <span class="n">a</span> <span class="o">+</span> <span class="n">b</span>
+</span></span><span class="line"><span class="cl"><span class="kr">end</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kr">function</span> <span class="nc">M</span><span class="p">.</span><span class="nf">subtract</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">return</span> <span class="n">a</span> <span class="o">-</span> <span class="n">b</span>
+</span></span><span class="line"><span class="cl"><span class="kr">end</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">-- 可以定义私有函数和变量（不放入 M 表中）</span>
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="kr">function</span> <span class="nf">multiply_internal</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">return</span> <span class="n">a</span> <span class="o">*</span> <span class="n">b</span>
+</span></span><span class="line"><span class="cl"><span class="kr">end</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kr">function</span> <span class="nc">M</span><span class="p">.</span><span class="nf">multiply</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">-- 模块对外暴露的函数可以调用私有函数</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">return</span> <span class="n">multiply_internal</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="kr">end</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="n">M.PI</span> <span class="o">=</span> <span class="mf">3.14159</span> <span class="c1">-- 暴露一个常量</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">-- 模块的顶层代码，只在第一次require时执行</span>
+</span></span><span class="line"><span class="cl"><span class="n">print</span><span class="p">(</span><span class="s2">&#34;math_utils module loaded!&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">-- 3. 返回这个模块表</span>
+</span></span><span class="line"><span class="cl"><span class="kr">return</span> <span class="n">M</span>
+</span></span></code></pre></div><p><strong>关键点：</strong></p>
+<ul>
+<li>使用 <code>local M = {}</code>：创建一个局部表，避免全局污染。这也是 Lua 模块的最佳实践。</li>
+<li>将函数和变量作为 <code>M</code> 的字段：<code>M.add = function(...)</code> 或 <code>function M.add(...)</code>。</li>
+<li>使用 <code>local function</code> 定义私有函数：这些函数不会被 <code>return M</code> 导出，只能在模块内部使用。</li>
+</ul>
+<h3 id="模块的使用加载和调用">模块的使用（加载和调用）<a href="#模块的使用加载和调用" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>现在，我们可以在另一个 Lua 脚本中使用 <code>math_utils</code> 模块了。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-lua" data-lang="lua"><span class="line"><span class="cl"><span class="c1">-- main.lua</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">-- 1. 加载模块</span>
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">math_utils</span> <span class="o">=</span> <span class="n">require</span><span class="p">(</span><span class="s2">&#34;math_utils&#34;</span><span class="p">)</span> <span class="c1">-- require 返回模块表</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">-- 2. 调用模块的函数和访问模块的变量</span>
+</span></span><span class="line"><span class="cl"><span class="n">print</span><span class="p">(</span><span class="n">math_utils.add</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">5</span><span class="p">))</span>          <span class="c1">-- 输出: 15</span>
+</span></span><span class="line"><span class="cl"><span class="n">print</span><span class="p">(</span><span class="n">math_utils.subtract</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">5</span><span class="p">))</span>     <span class="c1">-- 输出: 5</span>
+</span></span><span class="line"><span class="cl"><span class="n">print</span><span class="p">(</span><span class="n">math_utils.multiply</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">))</span>      <span class="c1">-- 输出: 12</span>
+</span></span><span class="line"><span class="cl"><span class="n">print</span><span class="p">(</span><span class="n">math_utils.PI</span><span class="p">)</span>                  <span class="c1">-- 输出: 3.14159</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">-- 第一次 require 会打印 &#34;math_utils module loaded!&#34;</span>
+</span></span><span class="line"><span class="cl"><span class="c1">-- 第二次 require 不会再次打印，因为模块已被缓存</span>
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">another_ref</span> <span class="o">=</span> <span class="n">require</span><span class="p">(</span><span class="s2">&#34;math_utils&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="n">print</span><span class="p">(</span><span class="n">another_ref.add</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>           <span class="c1">-- 输出: 2</span>
+</span></span><span class="line"><span class="cl"><span class="n">print</span><span class="p">(</span><span class="n">another_ref</span> <span class="o">==</span> <span class="n">math_utils</span><span class="p">)</span>       <span class="c1">-- 输出: true (指向同一个表)</span>
+</span></span></code></pre></div><p>当运行 <code>main.lua</code> 时：</p>
+<ol>
+<li><code>require(&quot;math_utils&quot;)</code> 会查找 <code>math_utils.lua</code>。</li>
+<li>执行 <code>math_utils.lua</code> 文件。</li>
+<li>打印 &ldquo;math_utils module loaded!&quot;。</li>
+<li><code>math_utils.lua</code> 返回 <code>M</code> 表。</li>
+<li><code>math_utils</code> 变量在 <code>main.lua</code> 中现在引用了这个模块表。</li>
+<li>后续对 <code>require(&quot;math_utils&quot;)</code> 的调用将直接从 <code>package.loaded</code> 中获取缓存的表，不会重新执行 <code>math_utils.lua</code>。</li>
+</ol>
+<h3 id="模块查找路径-packagepath-和-packagecpath">模块查找路径 (<code>package.path</code> 和 <code>package.cpath</code>)<a href="#模块查找路径-packagepath-和-packagecpath" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p><code>require</code> 函数查找模块的路径由 <code>package.path</code> 和 <code>package.cpath</code> 两个全局变量决定：</p>
+<ul>
+<li><code>package.path</code>：用于查找 Lua 模块文件 (<code>.lua</code>)。它是一个由分号分隔的路径模式字符串。
+<ul>
+<li>例如：<code>./?.lua;./sublibs/?.lua;/usr/local/lua/?.lua</code></li>
+<li><code>?</code> 是一个占位符，<code>require</code> 函数会用模块名替换它。</li>
+</ul>
+</li>
+<li><code>package.cpath</code>：用于查找 C 语言编译的模块文件 (<code>.so</code> 或 <code>.dll</code>)。它也有类似的路径模式。</li>
+</ul>
+<p>你可以通过修改这些变量来添加自定义的模块查找路径：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-lua" data-lang="lua"><span class="line"><span class="cl"><span class="c1">-- 在你的入口文件（main.lua）的开头</span>
+</span></span><span class="line"><span class="cl"><span class="n">package.path</span> <span class="o">=</span> <span class="n">package.path</span> <span class="o">..</span> <span class="s2">&#34;;./my_custom_modules/?.lua&#34;</span>
+</span></span><span class="line"><span class="cl"><span class="c1">-- 或</span>
+</span></span><span class="line"><span class="cl"><span class="n">package.path</span> <span class="o">=</span> <span class="s2">&#34;./my_custom_modules/?.lua;&#34;</span> <span class="o">..</span> <span class="n">package.path</span>
+</span></span></code></pre></div><h3 id="兼容性处理-module-函数---lua-51-旧有机制">兼容性处理 (<code>module</code> 函数 - Lua 5.1 旧有机制)<a href="#兼容性处理-module-函数---lua-51-旧有机制" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>在 Lua 5.1 中，有一个内置的 <code>module</code> 函数被用来简化模块创建。它的用法如下：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-lua" data-lang="lua"><span class="line"><span class="cl"><span class="c1">-- mymodule_51.lua (Lua 5.1)</span>
+</span></span><span class="line"><span class="cl"><span class="n">module</span><span class="p">(...,</span> <span class="n">package.seeall</span><span class="p">)</span> <span class="c1">-- ... 是当前模块名</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">-- 所有后续的全局函数和变量都会被自动放入模块表中</span>
+</span></span><span class="line"><span class="cl"><span class="kr">function</span> <span class="nf">add</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">return</span> <span class="n">a</span> <span class="o">+</span> <span class="n">b</span>
+</span></span><span class="line"><span class="cl"><span class="kr">end</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="n">PI</span> <span class="o">=</span> <span class="mf">3.14</span>
+</span></span></code></pre></div><p>然而，<code>module</code> 函数：</p>
+<ol>
+<li><strong>会污染全局环境</strong>：它会修改当前的全局环境，不是一个好的实践。</li>
+<li><strong>已被废弃</strong>：在 Lua 5.2 及更高版本中，<code>module</code> 函数已被移除。</li>
+</ol>
+<p>因此，<strong>强烈建议使用 <code>local M = {}</code> 然后 <code>return M</code> 的标准模式</strong>来创建模块。</p>
+<h3 id="最佳实践">最佳实践<a href="#最佳实践" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<ol>
+<li>
+<p><strong>使用 <code>local M = {}</code> 并 <code>return M</code></strong>：这是现代 Lua 开发的标准和推荐方式。它避免了全局污染，清晰地定义了模块的接口。</p>
+</li>
+<li>
+<p><strong>将模块文件放在 <code>package.path</code> 或其子路径中</strong>：方便 <code>require</code> 自动找到。</p>
+</li>
+<li>
+<p><strong>使用 <code>local</code> 定义模块内部私有函数和变量</strong>：保持模块的封装性，避免不必要的暴露。</p>
+</li>
+<li>
+<p><strong>模块文件末尾 <code>return</code> 语句必不可少</strong>：这是 <code>require</code> 函数获取模块表的机制。</p>
+</li>
+<li>
+<p><strong>避免在模块中产生不必要的全局变量</strong>：除了 <code>return</code> 的模块表，模块内部的代码应该尽可能地使用 <code>local</code> 变量。</p>
+</li>
+<li>
+<p><strong>善用 <code>package.loaded</code></strong>：如果你需要强制重新加载一个模块（通常不推荐，只在特殊调试场景下），可以删除 <code>package.loaded[&quot;mymodule&quot;]</code>。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-lua" data-lang="lua"><span class="line"><span class="cl"><span class="c1">-- 强制重新加载模块（不推荐，除非你知道你在做什么）</span>
+</span></span><span class="line"><span class="cl"><span class="n">package.loaded</span><span class="p">[</span><span class="s2">&#34;math_utils&#34;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">nil</span>
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">fresh_math_utils</span> <span class="o">=</span> <span class="n">require</span><span class="p">(</span><span class="s2">&#34;math_utils&#34;</span><span class="p">)</span>
+</span></span></code></pre></div></li>
+</ol>
+
+      </div></div>
+
+  
+    
+<div class="pagination">
+  <div class="pagination__title">
+    <span class="pagination__title-h">Read other posts</span>
+    <hr />
+  </div>
+  <div class="pagination__buttons">
+    
+    
+    
+      <a href="https://chengzhycn.github.io/posts/2025-08/kaist-cs431-safe-memory-reclamation/" class="button inline next">
+         [<span class="button__text">KAIST-CS431: Safe Memory Reclamation</span>] &gt;
+      </a>
+    
+  </div>
+</div>
+
+
+  
+
+  
+    
+
+  
+</article>
+
+  </div>
+
+  
+    <footer class="footer">
+  <div class="footer__inner">
+    
+      <div class="copyright">
+        <span>© 2025 Powered by <a href="https://gohugo.io">Hugo</a></span>
+    
+      <span>:: <a href="https://github.com/panr/hugo-theme-terminal" target="_blank">Theme</a> made by <a href="https://github.com/panr" target="_blank">panr</a></span>
+      </div>
+  </div>
+</footer>
+
+
+
+
+
+
+<script type="text/javascript" src="/bundle.min.js"></script>
+
+
+
+
+
+  
+</div>
+
+</body>
+</html>

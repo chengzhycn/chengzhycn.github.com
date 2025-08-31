@@ -6,8 +6,15 @@
     <description>Recent content on chengzhycn&#39;s blog</description>
     <generator>Hugo</generator>
     <language>en</language>
-    <lastBuildDate>Thu, 28 Aug 2025 13:09:43 +0800</lastBuildDate>
+    <lastBuildDate>Sun, 31 Aug 2025 13:29:48 +0800</lastBuildDate>
     <atom:link href="https://chengzhycn.github.io/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Lua - An Overview</title>
+      <link>https://chengzhycn.github.io/posts/2025-08/lua-an-overview/</link>
+      <pubDate>Sun, 31 Aug 2025 13:29:48 +0800</pubDate>
+      <guid>https://chengzhycn.github.io/posts/2025-08/lua-an-overview/</guid>
+      <description>&lt;h2 id=&#34;lua-和-luajit&#34;&gt;Lua 和 LuaJIT&lt;/h2&gt;&#xA;&lt;h3 id=&#34;lua&#34;&gt;Lua&lt;/h3&gt;&#xA;&lt;p&gt;Lua 是一个开源项目，由巴西里约热内卢天主教大学的 Roberto Ierusalimschy、Luiz Henrique de Figueiredo 和 Waldemar Celes 创建。它的版本控制相对简单明了。&lt;/p&gt;&#xA;&lt;h4 id=&#34;lua-的版本体系&#34;&gt;Lua 的版本体系&lt;/h4&gt;&#xA;&lt;p&gt;Lua 的版本号通常是 &lt;code&gt;X.Y&lt;/code&gt; 的形式，例如 &lt;code&gt;5.1&lt;/code&gt;, &lt;code&gt;5.2&lt;/code&gt;, &lt;code&gt;5.3&lt;/code&gt;, &lt;code&gt;5.4&lt;/code&gt;。&lt;/p&gt;&#xA;&lt;ul&gt;&#xA;&lt;li&gt;&lt;strong&gt;&lt;code&gt;X&lt;/code&gt; (主版本号/Major Version):&lt;/strong&gt; 表示一个&lt;strong&gt;重大更新&lt;/strong&gt;，通常会引入不兼容的更改（breaking changes），新的核心特性，或者对虚拟机架构的显著改进。从 &lt;code&gt;5.x&lt;/code&gt; 到 &lt;code&gt;5.y&lt;/code&gt;，&lt;code&gt;y&lt;/code&gt; 增加通常意味着语法、API 或语义的更改，可能需要修改现有代码。&#xA;&lt;ul&gt;&#xA;&lt;li&gt;&lt;strong&gt;例子:&lt;/strong&gt;&#xA;&lt;ul&gt;&#xA;&lt;li&gt;&lt;strong&gt;Lua 5.0:&lt;/strong&gt; 引入了协程 (coroutines)。&lt;/li&gt;&#xA;&lt;li&gt;&lt;strong&gt;Lua 5.1:&lt;/strong&gt; 引入了模块系统 (module system)、&lt;code&gt;vararg&lt;/code&gt; 参数的改进。&lt;/li&gt;&#xA;&lt;li&gt;&lt;strong&gt;Lua 5.2:&lt;/strong&gt; 引入了 &lt;code&gt;goto&lt;/code&gt; 语句、环境 (environments) 的重新设计、新的 &lt;code&gt;_ENV&lt;/code&gt; 上值。&lt;/li&gt;&#xA;&lt;li&gt;&lt;strong&gt;Lua 5.3:&lt;/strong&gt; 引入了整数类型、位操作 (bitwise operations)、UTF-8 支持。&lt;/li&gt;&#xA;&lt;li&gt;&lt;strong&gt;Lua 5.4:&lt;/strong&gt; 引入了新的垃圾回收器、弱表 (weak tables) 的改进。&lt;/li&gt;&#xA;&lt;/ul&gt;&#xA;&lt;/li&gt;&#xA;&lt;/ul&gt;&#xA;&lt;/li&gt;&#xA;&lt;li&gt;&lt;strong&gt;&lt;code&gt;Y&lt;/code&gt; (次版本号/Minor Version) 或补丁版本 (Patch Version):&lt;/strong&gt; 在主版本中，通常用于表示错误修复、性能优化或次要的功能增强。这些更改通常是&lt;strong&gt;向后兼容&lt;/strong&gt;的（backward compatible），不会破坏现有代码运行。有时候，一个版本号会是 &lt;code&gt;X.Y.Z&lt;/code&gt; 的形式，&lt;code&gt;Z&lt;/code&gt; 就代表补丁版本。&#xA;&lt;ul&gt;&#xA;&lt;li&gt;&lt;strong&gt;例子:&lt;/strong&gt; &lt;code&gt;Lua 5.3.1&lt;/code&gt;, &lt;code&gt;Lua 5.3.2&lt;/code&gt;, &lt;code&gt;Lua 5.3.3&lt;/code&gt; 等等。这些通常是修复 bug。&lt;/li&gt;&#xA;&lt;/ul&gt;&#xA;&lt;/li&gt;&#xA;&lt;/ul&gt;&#xA;&lt;hr&gt;&#xA;&lt;h3 id=&#34;luajit&#34;&gt;LuaJIT&lt;/h3&gt;&#xA;&lt;p&gt;&lt;a href=&#34;https://github.com/LuaJIT/LuaJIT&#34;&gt;https://github.com/LuaJIT/LuaJIT&lt;/a&gt;&lt;/p&gt;</description>
+    </item>
     <item>
       <title>KAIST-CS431: Safe Memory Reclamation</title>
       <link>https://chengzhycn.github.io/posts/2025-08/kaist-cs431-safe-memory-reclamation/</link>

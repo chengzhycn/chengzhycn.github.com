@@ -213,6 +213,64 @@
     
       <article class="post on-list">
         <h2 class="post-title">
+          <a href="https://chengzhycn.github.io/posts/2025-08/lua-an-overview/">Lua - An Overview</a>
+        </h2>
+
+        <div class="post-meta"><time class="post-date">2025-08-31</time></div>
+
+        
+          <span class="post-tags">
+            
+            #<a href="https://chengzhycn.github.io/tags/lua/">Lua</a>&nbsp;
+            
+          </span>
+        
+
+        
+
+
+        <div class="post-content">
+          
+            <h2 id="lua-和-luajit">Lua 和 LuaJIT</h2>
+<h3 id="lua">Lua</h3>
+<p>Lua 是一个开源项目，由巴西里约热内卢天主教大学的 Roberto Ierusalimschy、Luiz Henrique de Figueiredo 和 Waldemar Celes 创建。它的版本控制相对简单明了。</p>
+<h4 id="lua-的版本体系">Lua 的版本体系</h4>
+<p>Lua 的版本号通常是 <code>X.Y</code> 的形式，例如 <code>5.1</code>, <code>5.2</code>, <code>5.3</code>, <code>5.4</code>。</p>
+<ul>
+<li><strong><code>X</code> (主版本号/Major Version):</strong> 表示一个<strong>重大更新</strong>，通常会引入不兼容的更改（breaking changes），新的核心特性，或者对虚拟机架构的显著改进。从 <code>5.x</code> 到 <code>5.y</code>，<code>y</code> 增加通常意味着语法、API 或语义的更改，可能需要修改现有代码。
+<ul>
+<li><strong>例子:</strong>
+<ul>
+<li><strong>Lua 5.0:</strong> 引入了协程 (coroutines)。</li>
+<li><strong>Lua 5.1:</strong> 引入了模块系统 (module system)、<code>vararg</code> 参数的改进。</li>
+<li><strong>Lua 5.2:</strong> 引入了 <code>goto</code> 语句、环境 (environments) 的重新设计、新的 <code>_ENV</code> 上值。</li>
+<li><strong>Lua 5.3:</strong> 引入了整数类型、位操作 (bitwise operations)、UTF-8 支持。</li>
+<li><strong>Lua 5.4:</strong> 引入了新的垃圾回收器、弱表 (weak tables) 的改进。</li>
+</ul>
+</li>
+</ul>
+</li>
+<li><strong><code>Y</code> (次版本号/Minor Version) 或补丁版本 (Patch Version):</strong> 在主版本中，通常用于表示错误修复、性能优化或次要的功能增强。这些更改通常是<strong>向后兼容</strong>的（backward compatible），不会破坏现有代码运行。有时候，一个版本号会是 <code>X.Y.Z</code> 的形式，<code>Z</code> 就代表补丁版本。
+<ul>
+<li><strong>例子:</strong> <code>Lua 5.3.1</code>, <code>Lua 5.3.2</code>, <code>Lua 5.3.3</code> 等等。这些通常是修复 bug。</li>
+</ul>
+</li>
+</ul>
+<hr>
+<h3 id="luajit">LuaJIT</h3>
+<p><a href="https://github.com/LuaJIT/LuaJIT">https://github.com/LuaJIT/LuaJIT</a></p>
+          
+        </div>
+
+        
+          <div>
+            <a class="read-more button inline" href="/posts/2025-08/lua-an-overview/">[Read more]</a>
+          </div>
+        
+      </article>
+    
+      <article class="post on-list">
+        <h2 class="post-title">
           <a href="https://chengzhycn.github.io/posts/2025-08/kaist-cs431-safe-memory-reclamation/">KAIST-CS431: Safe Memory Reclamation</a>
         </h2>
 
@@ -520,64 +578,6 @@
         
           <div>
             <a class="read-more button inline" href="/posts/2025-08/kaist-cs431-promising-semantics/">[Read more]</a>
-          </div>
-        
-      </article>
-    
-      <article class="post on-list">
-        <h2 class="post-title">
-          <a href="https://chengzhycn.github.io/posts/2025-08/kaist-cs431-nondeterminisms-of-shared-memory-concurrency/">KAIST-CS431: Nondeterminisms of Shared-memory Concurrency</a>
-        </h2>
-
-        <div class="post-meta"><time class="post-date">2025-08-27</time></div>
-
-        
-          <span class="post-tags">
-            
-            #<a href="https://chengzhycn.github.io/tags/rust/">Rust</a>&nbsp;
-            
-            #<a href="https://chengzhycn.github.io/tags/concurrency/">Concurrency</a>&nbsp;
-            
-            #<a href="https://chengzhycn.github.io/tags/kaist-cs431/">KAIST-CS431</a>&nbsp;
-            
-          </span>
-        
-
-        
-
-
-        <div class="post-content">
-          
-            <h2 id="nondeterminism">Nondeterminism</h2>
-<h3 id="thread-interleaving">thread interleaving</h3>
-<p><strong>interleaving semantics：</strong> 将多线程的指令交替组合成好像是单线程执行一样。</p>
-<p>不同线程间的Load/store指令是穿插执行的，导致最终的行为有多种多样的可能。</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-rust" data-lang="rust"><span class="line"><span class="cl"><span class="k">static</span><span class="w"> </span><span class="no">COUNTER</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">AtomicUsize</span>::<span class="n">new</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="c1">// thread A &amp; B
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">let</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="no">COUNTER</span><span class="p">.</span><span class="n">load</span><span class="p">();</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="no">COUNTER</span><span class="p">.</span><span class="n">store</span><span class="p">(</span><span class="n">c</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span><span class="w">
-</span></span></span></code></pre></div><p>如上示例，两个线程A和B同时对COUNTER进行+1操作，预期结果当然是2。但是<strong>由于线程调度的不确定性</strong>可能出现如下的执行顺序：</p>
-<pre tabindex="0"><code>[COUNTER=0] A load, B load, A store, B store [COUNTER=1]
-</code></pre><p>导致结果不符合预期。</p>
-<h4 id="解决方案">解决方案</h4>
-<p>使用原子的reading &amp; writing，禁止掉这种不符预期的执行顺序。</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-rust" data-lang="rust"><span class="line"><span class="cl"><span class="c1">// thread A &amp; B
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">let</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="no">COUNTER</span><span class="p">.</span><span class="n">fetch_and_add</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span><span class="w">
-</span></span></span></code></pre></div><ul>
-<li><strong>“Read-modify-write”</strong>, e.g. swap, compare-and-swap, fetch-and-add</li>
-</ul>
-<h3 id="reordering">reordering</h3>
-<p><strong>同一个线程中的指令会因为硬件和编译器的优化发生指令重排。</strong></p>
-<pre tabindex="0"><code>DATA = 42;       ||   if FLAG.load() {
-FLAG.store(1);   ||       assert(DATA == 42);
-                 ||   }
-</code></pre><p>如上图示例，预期是当<code>FLAG.load()</code>为1时，<code>DATA == 42</code>。但是因为指令重排，左边线程中，<code>FLAG.store(1)</code>可能发生在赋值语句前面；右边线程中assert语句也可能发生在if语句前面。</p>
-          
-        </div>
-
-        
-          <div>
-            <a class="read-more button inline" href="/posts/2025-08/kaist-cs431-nondeterminisms-of-shared-memory-concurrency/">[Read more]</a>
           </div>
         
       </article>
