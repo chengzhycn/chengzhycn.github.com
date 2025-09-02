@@ -203,6 +203,72 @@
     
       <article class="post on-list">
         <h2 class="post-title">
+          <a href="https://chengzhycn.github.io/posts/2025-09/rustownership/">Rust：Ownership</a>
+        </h2>
+        <div class="post-meta"><time class="post-date">2025-09-02</time></div>
+
+        
+          <span class="post-tags">
+            
+            #<a href="https://chengzhycn.github.io/tags/rust/">Rust</a>&nbsp;
+            
+          </span>
+        
+
+        
+
+
+        <div class="post-content">
+          
+            <h2 id="ownership">Ownership</h2>
+<p>所有权（Ownership）是Rust中最独特的特性之一。正是因为所有权，Rust才能够在不需要GC的情况下保证内存安全。</p>
+<p>我们常用的语言中，内存管理一般分为两种：</p>
+<ul>
+<li>自管理，谁分配的谁负责回收，如果没有回收，就会导致内存泄漏。如C、C++。</li>
+<li>由统一的垃圾回收器管理，GC负责追踪和管理已分配内存，如果内存不再被使用，则由GC进行回收。</li>
+</ul>
+<p>Rust选择了第三种，内存会在拥有它的变量离开作用域时回收。因此，理解Rust的内存管理，就需要理解Rust中的所有权、借用规则、生命周期等概念。Rust会在编译过程中校验变量是否符合借用规则，从而保证运行时的内存安全，而且没有GC的额外开销。</p>
+<p>在C++中，这种模式也被称作<strong>Resource Acquisition Is Initialization (RAII)</strong>。</p>
+<h3 id="所有权基本规则">所有权基本规则</h3>
+<p>所有权有三条基本规则：</p>
+<ul>
+<li>Rust中每个值都有一个对应的变量称之为所有者（owner）；</li>
+<li>同一时刻，一个值只能存在一个所有者；</li>
+<li>当所有者离开作用域时，其拥有的值会被丢弃。</li>
+</ul>
+<h3 id="copy和move">copy和move</h3>
+<p>因为同一时刻，一个值只能存在一个所有者，对于所有权的转让，Rust根据对象类型分为两种。</p>
+<p>一种是Copy。即将值做拷贝，拷贝后，原变量拥有原值的所有权，新变量拥有新值的所有权，没有所有权的转移，两者可以同时使用。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-rust" data-lang="rust"><span class="line"><span class="cl"><span class="kd">let</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">5</span><span class="p">;</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="kd">let</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">x</span><span class="p">;</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="fm">println!</span><span class="p">(</span><span class="s">&#34;x is </span><span class="si">{}</span><span class="s">, y is </span><span class="si">{}</span><span class="s">&#34;</span><span class="p">,</span><span class="w"> </span><span class="n">x</span><span class="p">,</span><span class="w"> </span><span class="n">y</span><span class="p">);</span><span class="w"> </span><span class="c1">// valid
+</span></span></span></code></pre></div><p>支持Copy操作常见的类型通常是只存储在栈上的数据类型，如：</p>
+<ul>
+<li>所有的integer类型，如u32；</li>
+<li>bool值；</li>
+<li>char值；</li>
+<li>所有的float类型，如f64；</li>
+<li>元组，如果其包含的类型也都是支持Copy的。</li>
+</ul>
+<p>这些类型都实现了Copy特型。如果一种类型实现了Copy特型，在分配新变量后，原变量仍是可用的。</p>
+<p>另外一种是Move。对于类似String这种在栈上存储了元数据，实际数据存储在堆上的数据类型来说，将原变量赋给新变量实际上是将堆上数据的所有权转移给新变量，原变量在赋值后不再使用。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-rust" data-lang="rust"><span class="line"><span class="cl"><span class="kd">let</span><span class="w"> </span><span class="n">s1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">String</span>::<span class="n">from</span><span class="p">(</span><span class="s">&#34;hello!!!&#34;</span><span class="p">);</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="kd">let</span><span class="w"> </span><span class="n">s2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s1</span><span class="p">;</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="fm">println!</span><span class="p">(</span><span class="s">&#34;s2 is </span><span class="si">{}</span><span class="s">, s1 is </span><span class="si">{}</span><span class="s">&#34;</span><span class="p">,</span><span class="w"> </span><span class="n">s2</span><span class="p">,</span><span class="w"> </span><span class="n">s1</span><span class="p">);</span><span class="w"> </span><span class="c1">// invalid, s1 is no longer valid any more.
+</span></span></span></code></pre></div><!-- raw HTML omitted -->
+<p>代码中String类型实际转移过程如上图所示。<code>&quot;hello!!!&quot;</code>分配在堆上，在第2行后其所有权被转移给了s2，我们无法再通过s1访问<code>&quot;hello!!!&quot;</code>。</p>
+          
+        </div>
+
+        
+           <div>
+            <a class="read-more button inline" href="/posts/2025-09/rustownership/">[Read more]</a>
+          </div>
+        
+      </article>
+    
+      <article class="post on-list">
+        <h2 class="post-title">
           <a href="https://chengzhycn.github.io/posts/2025-09/luaconcurrency/">Lua：Concurrency</a>
         </h2>
         <div class="post-meta"><time class="post-date">2025-09-01</time></div>
@@ -472,94 +538,6 @@
         
            <div>
             <a class="read-more button inline" href="/posts/2025-08/kaist-cs431-concurrent-data-structure/">[Read more]</a>
-          </div>
-        
-      </article>
-    
-      <article class="post on-list">
-        <h2 class="post-title">
-          <a href="https://chengzhycn.github.io/posts/2025-08/kaist-cs431-lock-implementations/">KAIST-CS431: Lock Implementations</a>
-        </h2>
-        <div class="post-meta"><time class="post-date">2025-08-28</time></div>
-
-        
-          <span class="post-tags">
-            
-            #<a href="https://chengzhycn.github.io/tags/rust/">Rust</a>&nbsp;
-            
-            #<a href="https://chengzhycn.github.io/tags/concurrency/">Concurrency</a>&nbsp;
-            
-            #<a href="https://chengzhycn.github.io/tags/kaist-cs431/">KAIST-CS431</a>&nbsp;
-            
-          </span>
-        
-
-        
-
-
-        <div class="post-content">
-          
-            <h2 id="naive-spin-lock">Naive Spin Lock</h2>
-<p><img src="/images/notes/kaist-cs431-lock-implementations/image-20220324081153922.png" alt="image-20220324081153922"></p>
-<h3 id="naive-spin-lock的缺陷">Naive Spin Lock的缺陷</h3>
-<ul>
-<li>无法保证公平性，可能有的倒霉蛋空转了一辈子也无法cas成功，无法做到按竞争线程先来后到的次序占有锁。</li>
-<li>扩展性差，大量对同一内存区域的自旋引发性能问题。</li>
-</ul>
-<h2 id="对naive-spin-lock的优化">对Naive Spin Lock的优化</h2>
-<p>关键思路：</p>
-<ul>
-<li>通过release/acquire同步机制保证互斥量的排他性
-<ul>
-<li>从一个临界区的结束（release）到另一个临界区的开始（acquire）</li>
-<li>在ticket lock里面是<code>curr</code>成员，CLH/MCS lock是每个waiter的一个新内存区域</li>
-</ul>
-</li>
-<li>通过排队和等待不同的区域释放保证公平性
-<ul>
-<li>通过公平的指令来排队（如swap, fetch-and-add）</li>
-<li>Ticket lock：通过<code>next</code>来排队，<code>curr</code>来等待锁</li>
-<li>CLH/MCS lock：通过<code>tail</code>来排队，等待每个锁调用者申请的不同区域中值的变化来获取锁</li>
-</ul>
-</li>
-</ul>
-<h3 id="ticket-lock">Ticket Lock</h3>
-<p><img src="/images/notes/kaist-cs431-lock-implementations/image-20220323075751550.png" alt="image-20220323075751550"></p>
-<p>ticket lock在锁的结构体里面新增了一个原子变量<code>next</code>，每次需要竞争锁时，需要先从<code>next</code>中拿到一个ticket，然后再去监听<code>curr</code>，只有<code>curr</code>被更新成当前的ticket值后，才能去占领锁。</p>
-<h4 id="优点">优点</h4>
-<ul>
-<li>利用公平指令排队解决了公平性问题</li>
-</ul>
-<h4 id="缺点">缺点</h4>
-<ul>
-<li>API相对较复杂（调用者感知ticket）（为什么不直接用curr+1？）</li>
-<li>没有解决spinlock中所有线程监听同一个原子变量的问题</li>
-</ul>
-<h3 id="clh-lock">CLH Lock</h3>
-<p><img src="/images/notes/kaist-cs431-lock-implementations/image-20220323082114800.png" alt="image-20220323082114800"></p>
-<p>为了减少缓存一致性带来的开销，CLH lock被发明了。CLH是三个人首字母的缩写：Craig, Landin, and Hagersten。</p>
-<p>CLH lock给所有等待线程分配了一个Node，每个Node初始为true，在锁内维护一个链表，所有竞争锁的线程都会获取到前一个线程的Node，并将<code>tail</code>指针指向自己的Node。</p>
-<p>不同于spin lock和Ticket lock，CLH lock的临界区是前一个Node中的原子变量。在锁释放时，当前线程会将自己的Node值置为false，而排队的下一个线程监听到这个变化，则可以安全地占有锁了。</p>
-<h4 id="优点-1">优点</h4>
-<ul>
-<li>线程监听的不同临界区，减少缓存一致性的开销</li>
-<li>链表排队，也能保证公平性</li>
-</ul>
-<h4 id="缺点-1">缺点</h4>
-<ul>
-<li>O(n)的空间复杂度开销，n是临界区数目</li>
-<li>每个线程都是在前驱节点的Node上自旋，如果跨NUMA会有性能问题</li>
-</ul>
-<h3 id="mcs-lock">MCS Lock</h3>
-<p><img src="/images/notes/kaist-cs431-lock-implementations/image-20220324080334262.png" alt="image-20220324080334262"></p>
-<p>MCS lock也是以三个人名命名的：John M. Mellor-Crummey and Michael L. Scott。MCS lock和LCH lock最大的不同是：CLH lock是在前驱节点上自旋，MCS则是在自己节点上自旋。</p>
-<p>在CLH的Node结构里面，MCS又添加了一个<code>next</code>字段，新的线程竞争锁时，会将自己的Node添加到前驱节点的<code>next</code>字段中。</p>
-          
-        </div>
-
-        
-           <div>
-            <a class="read-more button inline" href="/posts/2025-08/kaist-cs431-lock-implementations/">[Read more]</a>
           </div>
         
       </article>
