@@ -6,7 +6,7 @@
   
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="Ownership 所有权（Ownership）是Rust中最独特的特性之一。正是因为所有权，Rust才能够在不需要GC的情况下保证内存安全。
+<meta name="description" content="所有权（Ownership）是Rust中最独特的特性之一。正是因为所有权，Rust才能够在不需要GC的情况下保证内存安全。
 我们常用的语言中，内存管理一般分为两种：
 自管理，谁分配的谁负责回收，如果没有回收，就会导致内存泄漏。如C、C&#43;&#43;。 由统一的垃圾回收器管理，GC负责追踪和管理已分配内存，如果内存不再被使用，则由GC进行回收。 Rust选择了第三种，内存会在拥有它的变量离开作用域时回收。因此，理解Rust的内存管理，就需要理解Rust中的所有权、借用规则、生命周期等概念。Rust会在编译过程中校验变量是否符合借用规则，从而保证运行时的内存安全，而且没有GC的额外开销。
 在C&#43;&#43;中，这种模式也被称作Resource Acquisition Is Initialization (RAII)。
@@ -16,13 +16,12 @@ Rust中每个值都有一个对应的变量称之为所有者（owner）； 同�
 let x = 5; let y = x; println!(&#34;x is {}, y is {}&#34;, x, y); // valid 支持Copy操作常见的类型通常是只存储在栈上的数据类型，如：
 所有的integer类型，如u32； bool值； char值； 所有的float类型，如f64； 元组，如果其包含的类型也都是支持Copy的。 这些类型都实现了Copy特型。如果一种类型实现了Copy特型，在分配新变量后，原变量仍是可用的。
 另外一种是Move。对于类似String这种在栈上存储了元数据，实际数据存储在堆上的数据类型来说，将原变量赋给新变量实际上是将堆上数据的所有权转移给新变量，原变量在赋值后不再使用。
-let s1 = String::from(&#34;hello!!!&#34;); let s2 = s1; println!(&#34;s2 is {}, s1 is {}&#34;, s2, s1); // invalid, s1 is no longer valid any more. 代码中String类型实际转移过程如上图所示。&quot;hello!!!&quot;分配在堆上，在第2行后其所有权被转移给了s2，我们无法再通过s1访问&quot;hello!!!&quot;。
-" />
+let s1 = String::from(&#34;hello!!!&#34;); let s2 = s1; println!(&#34;s2 is {}, s1 is {}&#34;, s2, s1); // invalid, s1 is no longer valid any more. " />
 <meta name="keywords" content="" />
 
   <meta name="robots" content="noodp" />
 
-<link rel="canonical" href="https://chengzhycn.github.io/posts/2025-09/rustownership/" />
+<link rel="canonical" href="https://chengzhycn.github.io/posts/2021-06/rustownership/" />
 
 
 
@@ -89,7 +88,7 @@ let s1 = String::from(&#34;hello!!!&#34;); let s2 = s1; println!(&#34;s2 is {}, 
 <meta property="og:locale" content="en" />
 <meta property="og:type" content="article" />
 <meta property="og:title" content="Rust：Ownership">
-<meta property="og:description" content="Ownership 所有权（Ownership）是Rust中最独特的特性之一。正是因为所有权，Rust才能够在不需要GC的情况下保证内存安全。
+<meta property="og:description" content="所有权（Ownership）是Rust中最独特的特性之一。正是因为所有权，Rust才能够在不需要GC的情况下保证内存安全。
 我们常用的语言中，内存管理一般分为两种：
 自管理，谁分配的谁负责回收，如果没有回收，就会导致内存泄漏。如C、C&#43;&#43;。 由统一的垃圾回收器管理，GC负责追踪和管理已分配内存，如果内存不再被使用，则由GC进行回收。 Rust选择了第三种，内存会在拥有它的变量离开作用域时回收。因此，理解Rust的内存管理，就需要理解Rust中的所有权、借用规则、生命周期等概念。Rust会在编译过程中校验变量是否符合借用规则，从而保证运行时的内存安全，而且没有GC的额外开销。
 在C&#43;&#43;中，这种模式也被称作Resource Acquisition Is Initialization (RAII)。
@@ -99,9 +98,8 @@ Rust中每个值都有一个对应的变量称之为所有者（owner）； 同�
 let x = 5; let y = x; println!(&#34;x is {}, y is {}&#34;, x, y); // valid 支持Copy操作常见的类型通常是只存储在栈上的数据类型，如：
 所有的integer类型，如u32； bool值； char值； 所有的float类型，如f64； 元组，如果其包含的类型也都是支持Copy的。 这些类型都实现了Copy特型。如果一种类型实现了Copy特型，在分配新变量后，原变量仍是可用的。
 另外一种是Move。对于类似String这种在栈上存储了元数据，实际数据存储在堆上的数据类型来说，将原变量赋给新变量实际上是将堆上数据的所有权转移给新变量，原变量在赋值后不再使用。
-let s1 = String::from(&#34;hello!!!&#34;); let s2 = s1; println!(&#34;s2 is {}, s1 is {}&#34;, s2, s1); // invalid, s1 is no longer valid any more. 代码中String类型实际转移过程如上图所示。&quot;hello!!!&quot;分配在堆上，在第2行后其所有权被转移给了s2，我们无法再通过s1访问&quot;hello!!!&quot;。
-" />
-<meta property="og:url" content="https://chengzhycn.github.io/posts/2025-09/rustownership/" />
+let s1 = String::from(&#34;hello!!!&#34;); let s2 = s1; println!(&#34;s2 is {}, s1 is {}&#34;, s2, s1); // invalid, s1 is no longer valid any more. " />
+<meta property="og:url" content="https://chengzhycn.github.io/posts/2021-06/rustownership/" />
 <meta property="og:site_name" content="chengzhycn&#39;s blog" />
 
   <meta property="og:image" content="https://chengzhycn.github.io/og-image.png">
@@ -112,7 +110,7 @@ let s1 = String::from(&#34;hello!!!&#34;); let s2 = s1; println!(&#34;s2 is {}, 
   <meta property="article:section" content="Learning" />
 
 
-  <meta property="article:published_time" content="2025-09-02 22:05:46 &#43;0800 &#43;0800" />
+  <meta property="article:published_time" content="2025-09-02 22:24:24 &#43;0800 &#43;0800" />
 
 
 
@@ -224,9 +222,9 @@ let s1 = String::from(&#34;hello!!!&#34;); let s2 = s1; println!(&#34;s2 is {}, 
     
 <article class="post">
   <h1 class="post-title">
-    <a href="https://chengzhycn.github.io/posts/2025-09/rustownership/">Rust：Ownership</a>
+    <a href="https://chengzhycn.github.io/posts/2021-06/rustownership/">Rust：Ownership</a>
   </h1>
-  <div class="post-meta"><time class="post-date">2025-09-02</time><span class="post-reading-time">2 min read (268 words)</span></div>
+  <div class="post-meta"><time class="post-date">2025-09-02</time><span class="post-reading-time">2 min read (267 words)</span></div>
 
   
     <span class="post-tags">
@@ -245,7 +243,7 @@ let s1 = String::from(&#34;hello!!!&#34;); let s2 = s1; println!(&#34;s2 is {}, 
       </h2>
       <nav id="TableOfContents">
   <ul>
-    <li><a href="#ownership">Ownership</a>
+    <li>
       <ul>
         <li><a href="#所有权基本规则">所有权基本规则</a></li>
         <li><a href="#copy和move">copy和move</a></li>
@@ -265,8 +263,7 @@ let s1 = String::from(&#34;hello!!!&#34;); let s2 = s1; println!(&#34;s2 is {}, 
   
 
   <div class="post-content"><div>
-        <h2 id="ownership">Ownership<a href="#ownership" class="hanchor" ariaLabel="Anchor">#</a> </h2>
-<p>所有权（Ownership）是Rust中最独特的特性之一。正是因为所有权，Rust才能够在不需要GC的情况下保证内存安全。</p>
+        <p>所有权（Ownership）是Rust中最独特的特性之一。正是因为所有权，Rust才能够在不需要GC的情况下保证内存安全。</p>
 <p>我们常用的语言中，内存管理一般分为两种：</p>
 <ul>
 <li>自管理，谁分配的谁负责回收，如果没有回收，就会导致内存泄漏。如C、C++。</li>
@@ -300,7 +297,7 @@ let s1 = String::from(&#34;hello!!!&#34;); let s2 = s1; println!(&#34;s2 is {}, 
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-rust" data-lang="rust"><span class="line"><span class="cl"><span class="kd">let</span><span class="w"> </span><span class="n">s1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">String</span>::<span class="n">from</span><span class="p">(</span><span class="s">&#34;hello!!!&#34;</span><span class="p">);</span><span class="w">
 </span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="kd">let</span><span class="w"> </span><span class="n">s2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s1</span><span class="p">;</span><span class="w">
 </span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="fm">println!</span><span class="p">(</span><span class="s">&#34;s2 is </span><span class="si">{}</span><span class="s">, s1 is </span><span class="si">{}</span><span class="s">&#34;</span><span class="p">,</span><span class="w"> </span><span class="n">s2</span><span class="p">,</span><span class="w"> </span><span class="n">s1</span><span class="p">);</span><span class="w"> </span><span class="c1">// invalid, s1 is no longer valid any more.
-</span></span></span></code></pre></div><!-- raw HTML omitted -->
+</span></span></span></code></pre></div><p><img src="/images/notes/rustownership/image-20210623093004432.png" alt="image-20210623093004432"></p>
 <p>代码中String类型实际转移过程如上图所示。<code>&quot;hello!!!&quot;</code>分配在堆上，在第2行后其所有权被转移给了s2，我们无法再通过s1访问<code>&quot;hello!!!&quot;</code>。</p>
 <p>那么如何实现类似于Copy的效果呢？对于String类型可以使用clone()方法。</p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-rust" data-lang="rust"><span class="line"><span class="cl"><span class="kd">let</span><span class="w"> </span><span class="n">s1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">String</span>::<span class="n">from</span><span class="p">(</span><span class="s">&#34;hello!!!&#34;</span><span class="p">);</span><span class="w">
@@ -309,7 +306,7 @@ let s1 = String::from(&#34;hello!!!&#34;); let s2 = s1; println!(&#34;s2 is {}, 
 </span></span></span></code></pre></div><p>clone()方法实际上对堆上数据也做了拷贝，如果数据对象很大，对于某些轻量的变量使用实际上是很浪费内存以及损耗性能的。如果需要规避这种损耗，就需要理解Rust中另外一个概念：Borrowing。</p>
 <h2 id="borrowing">Borrowing<a href="#borrowing" class="hanchor" ariaLabel="Anchor">#</a> </h2>
 <p>Rust中的借用（Borrowing）有点类似于其它语言中的引用。结合所有权的概念，借用操作中并没有发生所有权的转移，而是一个指针指向了原变量。</p>
-<!-- raw HTML omitted -->
+<p><img src="/images/notes/rustownership/image-20210623094449451.png" alt="image-20210623094449451"></p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-rust" data-lang="rust"><span class="line"><span class="cl"><span class="kd">let</span><span class="w"> </span><span class="n">s1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">String</span>::<span class="n">from</span><span class="p">(</span><span class="s">&#34;hello!!!&#34;</span><span class="p">);</span><span class="w">
 </span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="kd">let</span><span class="w"> </span><span class="n">s2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">&amp;</span><span class="n">s1</span><span class="p">;</span><span class="w">
 </span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="fm">println!</span><span class="p">(</span><span class="s">&#34;s2 is </span><span class="si">{}</span><span class="s">, s1 is </span><span class="si">{}</span><span class="s">&#34;</span><span class="p">,</span><span class="w"> </span><span class="n">s2</span><span class="p">,</span><span class="w"> </span><span class="n">s1</span><span class="p">);</span><span class="w"> </span><span class="c1">// valid, s1 still owns the data.
