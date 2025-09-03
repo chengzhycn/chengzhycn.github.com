@@ -6,15 +6,8 @@
     <description>Recent content in Posts on chengzhycn&#39;s blog</description>
     <generator>Hugo</generator>
     <language>en</language>
-    <lastBuildDate>Wed, 03 Sep 2025 20:13:54 +0800</lastBuildDate>
+    <lastBuildDate>Mon, 01 Sep 2025 00:27:09 +0800</lastBuildDate>
     <atom:link href="https://chengzhycn.github.io/posts/index.xml" rel="self" type="application/rss+xml" />
-    <item>
-      <title>Test Git Functionality</title>
-      <link>https://chengzhycn.github.io/posts/2025-09/test-git-functionality/</link>
-      <pubDate>Wed, 03 Sep 2025 20:13:54 +0800</pubDate>
-      <guid>https://chengzhycn.github.io/posts/2025-09/test-git-functionality/</guid>
-      <description>&lt;h1 id=&#34;test-git-functionality&#34;&gt;Test Git Functionality&lt;/h1&gt;&#xA;&lt;p&gt;This is a test file to verify that our Git functionality works correctly with the publishing scripts.&lt;/p&gt;</description>
-    </item>
     <item>
       <title>Lua：Concurrency</title>
       <link>https://chengzhycn.github.io/posts/2025-09/luaconcurrency/</link>
