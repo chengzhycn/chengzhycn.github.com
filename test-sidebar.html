@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>侧边栏断点测试</title>
+    <style>
+        body {
+            font-family: system-ui, sans-serif;
+            margin: 20px;
+            background: #1a1a1a;
+            color: #fff;
+            line-height: 1.6;
+        }
+        .info-panel {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.9);
+            border: 1px solid #FFA86B;
+            border-radius: 8px;
+            font-family: monospace;
+            z-index: 1000;
+        }
+        .test-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .breakpoint {
+            padding: 20px;
+            margin: 15px 0;
+            border-radius: 8px;
+            border: 2px solid #666;
+            background: rgba(255, 255, 255, 0.05);
+        }
+        .breakpoint.active {
+            border-color: #FFA86B;
+            background: rgba(255, 168, 107, 0.1);
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        .safe { background: #4CAF50; color: white; }
+        .static { background: #2196F3; color: white; }
+        .hidden { background: #9E9E9E; color: white; }
+        
+        .formula {
+            font-family: monospace;
+            color: #FFA86B;
+            background: rgba(255, 168, 107, 0.1);
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="info-panel">
+        <div><strong>当前视窗宽度：</strong><span id="width">-</span>px</div>
+        <div><strong>当前断点：</strong><span id="current-breakpoint">-</span></div>
+        <div><strong>侧边栏状态：</strong><span id="sidebar-status">-</span></div>
+    </div>
+
+    <div class="test-container">
+        <h1>侧边栏响应式断点测试</h1>
+        <p>调整浏览器窗口宽度来测试不同的断点行为。当前激活的断点会高亮显示。</p>
+
+        <div class="breakpoint" id="mobile">
+            <h3>移动端 (&lt; 768px)</h3>
+            <p><strong>行为：</strong>侧边栏显示在内容下方，全宽度显示</p>
+            <div class="formula">position: static<br>width: 100%</div>
+            <div class="status static">静态定位 - 无重叠风险</div>
+        </div>
+
+        <div class="breakpoint" id="tablet">
+            <h3>中等屏幕 (768px - 1523px)</h3>
+            <p><strong>行为：</strong>侧边栏显示在内容下方，居中对齐</p>
+            <div class="formula">position: static<br>max-width: 864px<br>margin: 0 auto</div>
+            <div class="status static">静态定位 - 无重叠风险</div>
+        </div>
+
+        <div class="breakpoint" id="desktop">
+            <h3>大屏幕 (≥ 1524px)</h3>
+            <p><strong>行为：</strong>浮动侧边栏，安全定位</p>
+            <div class="formula">
+                <strong>关键计算：</strong><br>
+                可用空间 = (100vw - 864px) / 2<br>
+                侧边栏需要 = 330px (300px + 30px边距)<br>
+                安全条件 = 可用空间 ≥ 330px<br>
+                即：(100vw - 864px) / 2 ≥ 330px<br>
+                解得：100vw ≥ 1524px
+            </div>
+            <div class="status" id="desktop-status">检查中...</div>
+        </div>
+
+        <h2>测试步骤</h2>
+        <ol>
+            <li>缩小浏览器窗口到不同宽度</li>
+            <li>观察右上角的状态面板</li>
+            <li>验证在 1523px 及以下时侧边栏不会浮动</li>
+            <li>验证在 1524px 及以上时侧边栏安全浮动</li>
+            <li>在实际站点上验证相同行为</li>
+        </ol>
+
+        <h2>预期结果</h2>
+        <ul>
+            <li><strong>&lt; 768px:</strong> 侧边栏在底部，全宽</li>
+            <li><strong>768px - 1523px:</strong> 侧边栏在内容下方，居中</li>
+            <li><strong>≥ 1524px:</strong> 侧边栏浮动在右侧，不遮挡内容</li>
+            <li><strong>关键：</strong>在任何宽度下都不应该出现遮挡</li>
+        </ul>
+    </div>
+
+    <script>
+        function updateStatus() {
+            const width = window.innerWidth;
+            const widthSpan = document.getElementById('width');
+            const breakpointSpan = document.getElementById('current-breakpoint');
+            const statusSpan = document.getElementById('sidebar-status');
+            const desktopStatus = document.getElementById('desktop-status');
+            
+            // 清除所有激活状态
+            document.querySelectorAll('.breakpoint').forEach(bp => bp.classList.remove('active'));
+            
+            let currentBreakpoint = '';
+            let sidebarStatus = '';
+            
+            if (width < 768) {
+                currentBreakpoint = '移动端';
+                sidebarStatus = '底部显示';
+                document.getElementById('mobile').classList.add('active');
+            } else if (width < 1524) {
+                currentBreakpoint = '中等屏幕';
+                sidebarStatus = '内容下方';
+                document.getElementById('tablet').classList.add('active');
+            } else {
+                currentBreakpoint = '大屏幕';
+                sidebarStatus = '右侧浮动';
+                document.getElementById('desktop').classList.add('active');
+                
+                // 计算安全空间
+                const availableSpace = (width - 864) / 2;
+                const requiredSpace = 330;
+                
+                if (availableSpace >= requiredSpace) {
+                    desktopStatus.textContent = `安全浮动 (可用: ${Math.round(availableSpace)}px, 需要: ${requiredSpace}px)`;
+                    desktopStatus.className = 'status safe';
+                } else {
+                    desktopStatus.textContent = `空间不足 (可用: ${Math.round(availableSpace)}px, 需要: ${requiredSpace}px)`;
+                    desktopStatus.className = 'status hidden';
+                }
+            }
+            
+            widthSpan.textContent = width;
+            breakpointSpan.textContent = currentBreakpoint;
+            statusSpan.textContent = sidebarStatus;
+        }
+        
+        // 初始化和监听窗口大小变化
+        updateStatus();
+        window.addEventListener('resize', updateStatus);
+    </script>
+</body>
+</html>

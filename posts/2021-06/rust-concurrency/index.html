@@ -529,7 +529,7 @@ Send和Sync markers其实就是将其他语言中的一些潜规则显式地标�
       <div class="archive-item">
         <a href="/posts/2025-09/" class="archive-link">
           <span class="archive-date">2025-09</span>
-          <span class="archive-month-name">September</span>
+          <span class="archive-month-name">Sep</span>
           <span class="archive-count">(1)</span>
         </a>
       </div>
@@ -557,7 +557,7 @@ Send和Sync markers其实就是将其他语言中的一些潜规则显式地标�
       <div class="archive-item">
         <a href="/posts/2025-08/" class="archive-link">
           <span class="archive-date">2025-08</span>
-          <span class="archive-month-name">August</span>
+          <span class="archive-month-name">Aug</span>
           <span class="archive-count">(8)</span>
         </a>
       </div>
@@ -585,7 +585,7 @@ Send和Sync markers其实就是将其他语言中的一些潜规则显式地标�
       <div class="archive-item">
         <a href="/posts/2025-03/" class="archive-link">
           <span class="archive-date">2025-03</span>
-          <span class="archive-month-name">March</span>
+          <span class="archive-month-name">Mar</span>
           <span class="archive-count">(1)</span>
         </a>
       </div>
@@ -613,7 +613,7 @@ Send和Sync markers其实就是将其他语言中的一些潜规则显式地标�
       <div class="archive-item">
         <a href="/posts/2022-03/" class="archive-link">
           <span class="archive-date">2022-03</span>
-          <span class="archive-month-name">March</span>
+          <span class="archive-month-name">Mar</span>
           <span class="archive-count">(1)</span>
         </a>
       </div>
@@ -641,7 +641,7 @@ Send和Sync markers其实就是将其他语言中的一些潜规则显式地标�
       <div class="archive-item">
         <a href="/posts/2021-06/" class="archive-link">
           <span class="archive-date">2021-06</span>
-          <span class="archive-month-name">June</span>
+          <span class="archive-month-name">Jun</span>
           <span class="archive-count">(3)</span>
         </a>
       </div>
@@ -669,7 +669,7 @@ Send和Sync markers其实就是将其他语言中的一些潜规则显式地标�
       <div class="archive-item">
         <a href="/posts/2021-01/" class="archive-link">
           <span class="archive-date">2021-01</span>
-          <span class="archive-month-name">January</span>
+          <span class="archive-month-name">Jan</span>
           <span class="archive-count">(1)</span>
         </a>
       </div>
@@ -685,7 +685,7 @@ Send和Sync markers其实就是将其他语言中的一些潜规则显式地标�
   border-radius: 8px;
   padding: 1rem;
   margin: 1rem 0;
-  max-width: 300px;
+  max-width: 240px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 }
 
@@ -791,27 +791,28 @@ Send和Sync markers其实就是将其他语言中的一些潜规则显式地标�
 }
 
  
-@media (min-width: 1400px) {
+.floating-sidebar {
+  display: none;
+}
+
+ 
+@media (min-width: 1524px) {
   .floating-sidebar {
     display: block;
+    position: absolute;
+    right: max(20px, calc((100vw - 864px) / 2 - 330px));
   }
 }
 
  
-@media (max-width: 1399px) {
-  .floating-sidebar {
-    display: none;
-  }
-}
-
- 
-@media (max-width: 1399px) and (min-width: 768px) {
+@media (min-width: 768px) and (max-width: 1523px) {
   .floating-sidebar {
     display: block;
     position: static;
     width: 100%;
     margin-top: 2rem;
     opacity: 1;
+    transform: none;
   }
 
   .container.center .floating-sidebar {
@@ -829,8 +830,10 @@ Send和Sync markers其实就是将其他语言中的一些潜规则显式地标�
     width: 100%;
     margin-top: 1rem;
     opacity: 1;
+    transform: none;
   }
 }
+
 </style>
 
 </body>
