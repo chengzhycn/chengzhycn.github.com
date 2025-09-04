@@ -2,52 +2,52 @@
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
   <channel>
     <title>Tags on chengzhycn&#39;s blog</title>
-    <link>https://chengzhycn.github.io/tags/</link>
+    <link>https://www.jinzhi.site/tags/</link>
     <description>Recent content in Tags on chengzhycn&#39;s blog</description>
     <generator>Hugo</generator>
     <language>en</language>
     <lastBuildDate>Mon, 01 Sep 2025 00:27:09 +0800</lastBuildDate>
-    <atom:link href="https://chengzhycn.github.io/tags/index.xml" rel="self" type="application/rss+xml" />
+    <atom:link href="https://www.jinzhi.site/tags/index.xml" rel="self" type="application/rss+xml" />
     <item>
       <title>Lua</title>
-      <link>https://chengzhycn.github.io/tags/lua/</link>
+      <link>https://www.jinzhi.site/tags/lua/</link>
       <pubDate>Mon, 01 Sep 2025 00:27:09 +0800</pubDate>
-      <guid>https://chengzhycn.github.io/tags/lua/</guid>
+      <guid>https://www.jinzhi.site/tags/lua/</guid>
       <description></description>
     </item>
     <item>
       <title>Concurrency</title>
-      <link>https://chengzhycn.github.io/tags/concurrency/</link>
+      <link>https://www.jinzhi.site/tags/concurrency/</link>
       <pubDate>Thu, 28 Aug 2025 13:09:43 +0800</pubDate>
-      <guid>https://chengzhycn.github.io/tags/concurrency/</guid>
+      <guid>https://www.jinzhi.site/tags/concurrency/</guid>
       <description></description>
     </item>
     <item>
       <title>KAIST-CS431</title>
-      <link>https://chengzhycn.github.io/tags/kaist-cs431/</link>
+      <link>https://www.jinzhi.site/tags/kaist-cs431/</link>
       <pubDate>Thu, 28 Aug 2025 13:09:43 +0800</pubDate>
-      <guid>https://chengzhycn.github.io/tags/kaist-cs431/</guid>
+      <guid>https://www.jinzhi.site/tags/kaist-cs431/</guid>
       <description></description>
     </item>
     <item>
       <title>Rust</title>
-      <link>https://chengzhycn.github.io/tags/rust/</link>
+      <link>https://www.jinzhi.site/tags/rust/</link>
       <pubDate>Thu, 28 Aug 2025 13:09:43 +0800</pubDate>
-      <guid>https://chengzhycn.github.io/tags/rust/</guid>
+      <guid>https://www.jinzhi.site/tags/rust/</guid>
       <description></description>
     </item>
     <item>
       <title>Wasm</title>
-      <link>https://chengzhycn.github.io/tags/wasm/</link>
+      <link>https://www.jinzhi.site/tags/wasm/</link>
       <pubDate>Tue, 26 Aug 2025 12:29:03 +0800</pubDate>
-      <guid>https://chengzhycn.github.io/tags/wasm/</guid>
+      <guid>https://www.jinzhi.site/tags/wasm/</guid>
       <description></description>
     </item>
     <item>
       <title>Dns</title>
-      <link>https://chengzhycn.github.io/tags/dns/</link>
+      <link>https://www.jinzhi.site/tags/dns/</link>
       <pubDate>Sun, 03 Jan 2021 10:18:55 +0800</pubDate>
-      <guid>https://chengzhycn.github.io/tags/dns/</guid>
+      <guid>https://www.jinzhi.site/tags/dns/</guid>
       <description></description>
     </item>
   </channel>
