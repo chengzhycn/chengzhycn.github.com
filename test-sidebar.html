@@ -71,18 +71,11 @@
         <h1>侧边栏响应式断点测试</h1>
         <p>调整浏览器窗口宽度来测试不同的断点行为。当前激活的断点会高亮显示。</p>
 
-        <div class="breakpoint" id="mobile">
-            <h3>移动端 (&lt; 768px)</h3>
-            <p><strong>行为：</strong>侧边栏显示在内容下方，全宽度显示</p>
-            <div class="formula">position: static<br>width: 100%</div>
-            <div class="status static">静态定位 - 无重叠风险</div>
-        </div>
-
-        <div class="breakpoint" id="tablet">
-            <h3>中等屏幕 (768px - 1523px)</h3>
-            <p><strong>行为：</strong>侧边栏显示在内容下方，居中对齐</p>
-            <div class="formula">position: static<br>max-width: 864px<br>margin: 0 auto</div>
-            <div class="status static">静态定位 - 无重叠风险</div>
+        <div class="breakpoint" id="hidden">
+            <h3>小屏幕 (&lt; 1524px)</h3>
+            <p><strong>行为：</strong>侧边栏完全隐藏，不占用页面空间</p>
+            <div class="formula">display: none !important</div>
+            <div class="status hidden">完全隐藏 - 无重叠可能</div>
         </div>
 
         <div class="breakpoint" id="desktop">
@@ -108,12 +101,11 @@
             <li>在实际站点上验证相同行为</li>
         </ol>
 
-        <h2>预期结果</h2>
+        <h2>预期结果 (极简二断点)</h2>
         <ul>
-            <li><strong>&lt; 768px:</strong> 侧边栏在底部，全宽</li>
-            <li><strong>768px - 1523px:</strong> 侧边栏在内容下方，居中</li>
-            <li><strong>≥ 1524px:</strong> 侧边栏浮动在右侧，不遮挡内容</li>
-            <li><strong>关键：</strong>在任何宽度下都不应该出现遮挡</li>
+            <li><strong>&lt; 1524px:</strong> 侧边栏完全隐藏，页面简洁</li>
+            <li><strong>≥ 1524px:</strong> 侧边栏浮动在右侧，安全可见</li>
+            <li><strong>优势：</strong>极简设计，零重叠风险，性能优异</li>
         </ul>
     </div>
 
@@ -131,14 +123,10 @@
             let currentBreakpoint = '';
             let sidebarStatus = '';
             
-            if (width < 768) {
-                currentBreakpoint = '移动端';
-                sidebarStatus = '底部显示';
-                document.getElementById('mobile').classList.add('active');
-            } else if (width < 1524) {
-                currentBreakpoint = '中等屏幕';
-                sidebarStatus = '内容下方';
-                document.getElementById('tablet').classList.add('active');
+            if (width < 1524) {
+                currentBreakpoint = '小屏幕';
+                sidebarStatus = '完全隐藏';
+                document.getElementById('hidden').classList.add('active');
             } else {
                 currentBreakpoint = '大屏幕';
                 sidebarStatus = '右侧浮动';
