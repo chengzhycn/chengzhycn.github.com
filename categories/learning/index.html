@@ -340,6 +340,86 @@
     
       <article class="post on-list">
         <h1 class="post-title">
+          <a href="https://www.jinzhi.site/posts/2025-04/vrf-an-overview/">VRF: An Overview</a>
+        </h1>
+        <div class="post-meta"><time class="post-date">2025-04-25</time></div>
+
+        
+          <span class="post-tags">
+            
+            #<a href="https://www.jinzhi.site/tags/network/">Network</a>&nbsp;
+            
+          </span>
+        
+
+        
+
+
+        <div class="post-content">
+          
+            <h2 id="什么是-vrfvirtual-routing-forwarding">什么是 VRF（virtual routing forwarding）</h2>
+<p>VRF是一种实现三层网络隔离的关键技术。<strong>它通过创建多个路由表，为不同的网络流量提供独立的转发路径。</strong> 这意味着，任何三层网络结构，如接口的IP地址、静态路由的配置，甚至BGP（边界网关协议）会话，都可以被映射到特定的VRF中。这种映射机制就像是为每个VRF构建了一个独立的网络空间，彼此之间相互隔离，极大地增强了网络的安全性和管理的便利性。在MPLS VPN（多协议标签交换虚拟专用网络）等应用场景中，VRF为实现大规模的网络隔离和灵活的路由策略提供了基础框架。就像 VLAN 隔离了二层网络一样，VRF 隔离了三层网络。</p>
+<p><img src="/images/notes/vrf-an-overview/5eb20c3e919fe3724b92c2ae7a66a7da_MD5.png" alt="5eb20c3e919fe3724b92c2ae7a66a7da_MD5"></p>
+<h2 id="为什么需要-vrf">为什么需要 VRF</h2>
+<p>在 VRF 出现之前，Linux 用户主要采用两种方式来尝试实现类似的功能：策略路由（policy routing）和网络命名空间（net namespace）。然而，这两种方法都存在明显的局限性。</p>
+<p>策略路由虽然能够通过多个路由表和策略规则来模拟 VRF 的部分功能（事实上，在 Linux 中，也是基于策略路由来去对 VRF 做的实现），但它的缺点十分突出。这种方式在配置和管理上非常复杂，难以确保网络隔离的有效性，在面对严格的网络审计时，往往无法通过。其复杂性不仅增加了运维的难度，还可能导致网络故障的风险上升，因此不被推荐使用。</p>
+<p>网络命名空间在容器技术兴起后得到了广泛应用，它能够为容器提供全面的网络隔离。但在模拟 VRF 功能时，却显得有些“大材小用”。网络命名空间会对所有网络相关的资源进行完全隔离，包括设备、接口、ARP 表和路由表等。这意味着，即使是一些不需要隔离的服务，也会被隔离在不同的命名空间中。以 LLDP（链路层发现协议）为例，在使用网络命名空间的情况下，若要在不同的网络隔离环境中使用 LLDP，就需要在每个命名空间中单独运行实例，并且由于默认套接字相同，还需要为每个实例创建独特的套接字。这不仅增加了系统的开销，还使得管理变得更加复杂。相比之下，VRF 在隔离三层网络结构的同时，允许全局配置的共享和非三层感知服务的统一运行，大大提高了资源的利用效率。</p>
+<table>
+  <thead>
+      <tr>
+          <th>Policy Routing</th>
+          <th>VRF</th>
+          <th>Net Namespace</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>隔离路由表</td>
+          <td>隔离三层网络</td>
+          <td>整个协议栈从二层到 socket 隔离</td>
+      </tr>
+  </tbody>
+</table>
+<p><img src="/images/notes/vrf-an-overview/a9f7c55f8f39572d339b138fb1e12429_MD5.png" alt="a9f7c55f8f39572d339b138fb1e12429_MD5"><img src="/images/notes/vrf-an-overview/c9b6614c864c7d35a8ef0a4f12ecdbfa_MD5.png" alt="c9b6614c864c7d35a8ef0a4f12ecdbfa_MD5"><img src="/images/notes/vrf-an-overview/9edc8b051f504bf72140d1238513d687_MD5.png" alt="9edc8b051f504bf72140d1238513d687_MD5"></p>
+<h2 id="vrf-配置">VRF 配置</h2>
+<p>在 Linux 系统中配置 VRF，主要借助<code>iproute2</code>包来完成一系列操作。</p>
+<ul>
+<li>创建 VRF，并关联到 table 1</li>
+</ul>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">test1@test1:~$ ip link add vrf-1 <span class="nb">type</span> vrf table <span class="m">1</span>
+</span></span><span class="line"><span class="cl">test1@test1:~$ ip link <span class="nb">set</span> vrf-1 up
+</span></span></code></pre></div><ul>
+<li>添加接口到 VRF，可以看到 wg0 的 master 是 vrf-1，所有 wg0 的流量会使用关联的 vrf-1 路由表进行路由</li>
+</ul>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">test1@test1:~$ ip link <span class="nb">set</span> wg0 master vrf-1
+</span></span><span class="line"><span class="cl">test1@test1:~$ ip -d link show wg0 
+</span></span><span class="line"><span class="cl">9: wg0: &lt;POINTOPOINT,NOARP,UP,LOWER_UP&gt; mtu <span class="m">1400</span> qdisc noqueue master vrf-1 state UNKNOWN mode DEFAULT group default qlen <span class="m">1000</span>
+</span></span><span class="line"><span class="cl">    link/none  promiscuity <span class="m">0</span> minmtu <span class="m">0</span> maxmtu <span class="m">2147483552</span> 
+</span></span><span class="line"><span class="cl">    wireguard 
+</span></span><span class="line"><span class="cl">    vrf_slave table <span class="m">1</span> addrgenmode none numtxqueues <span class="m">1</span> numrxqueues <span class="m">1</span> gso_max_size <span class="m">65536</span> gso_max_segs <span class="m">65535</span>
+</span></span></code></pre></div><ul>
+<li>添加和查看 VRF  静态路由</li>
+</ul>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">root@test1:~# ip route add default via 10.1.0.10 vrf vrf-1
+</span></span><span class="line"><span class="cl">root@test1:~# ip route show table <span class="m">1</span> 
+</span></span><span class="line"><span class="cl">default via 10.1.0.10 dev wg0 
+</span></span><span class="line"><span class="cl"><span class="nb">local</span> 10.1.0.10 dev wg0 proto kernel scope host src 10.1.0.10 
+</span></span><span class="line"><span class="cl">root@test1:~# ip route show vrf vrf-1 
+</span></span><span class="line"><span class="cl">default via 10.1.0.10 dev wg0 
+</span></span></code></pre></div><h3 id="vrf-之间路由">VRF 之间路由</h3>
+<p>有两种方法可以执行跨 VRF 路由。第一种方法涉及一个 VRF 的表中配置的路由，指向绑定到不同 VRF 的设备。</p>
+          
+        </div>
+
+        
+          <div>
+            <a class="read-more button inline" href="/posts/2025-04/vrf-an-overview/">[Read more]</a>
+          </div>
+        
+      </article>
+    
+      <article class="post on-list">
+        <h1 class="post-title">
           <a href="https://www.jinzhi.site/posts/2021-06/rust-concurrency/">Rust: Concurrency</a>
         </h1>
         <div class="post-meta"><time class="post-date">2021-06-27</time></div>
@@ -470,75 +550,15 @@
         
       </article>
     
-      <article class="post on-list">
-        <h1 class="post-title">
-          <a href="https://www.jinzhi.site/posts/2021-06/rustownership/">Rust：Ownership</a>
-        </h1>
-        <div class="post-meta"><time class="post-date">2021-06-23</time></div>
-
-        
-          <span class="post-tags">
-            
-            #<a href="https://www.jinzhi.site/tags/rust/">Rust</a>&nbsp;
-            
-          </span>
-        
-
-        
-
-
-        <div class="post-content">
-          
-            <p>所有权（Ownership）是Rust中最独特的特性之一。正是因为所有权，Rust才能够在不需要GC的情况下保证内存安全。</p>
-<p>我们常用的语言中，内存管理一般分为两种：</p>
-<ul>
-<li>自管理，谁分配的谁负责回收，如果没有回收，就会导致内存泄漏。如C、C++。</li>
-<li>由统一的垃圾回收器管理，GC负责追踪和管理已分配内存，如果内存不再被使用，则由GC进行回收。</li>
-</ul>
-<p>Rust选择了第三种，内存会在拥有它的变量离开作用域时回收。因此，理解Rust的内存管理，就需要理解Rust中的所有权、借用规则、生命周期等概念。Rust会在编译过程中校验变量是否符合借用规则，从而保证运行时的内存安全，而且没有GC的额外开销。</p>
-<p>在C++中，这种模式也被称作<strong>Resource Acquisition Is Initialization (RAII)</strong>。</p>
-<h3 id="所有权基本规则">所有权基本规则</h3>
-<p>所有权有三条基本规则：</p>
-<ul>
-<li>Rust中每个值都有一个对应的变量称之为所有者（owner）；</li>
-<li>同一时刻，一个值只能存在一个所有者；</li>
-<li>当所有者离开作用域时，其拥有的值会被丢弃。</li>
-</ul>
-<h3 id="copy和move">copy和move</h3>
-<p>因为同一时刻，一个值只能存在一个所有者，对于所有权的转让，Rust根据对象类型分为两种。</p>
-<p>一种是Copy。即将值做拷贝，拷贝后，原变量拥有原值的所有权，新变量拥有新值的所有权，没有所有权的转移，两者可以同时使用。</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-rust" data-lang="rust"><span class="line"><span class="cl"><span class="kd">let</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">5</span><span class="p">;</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="kd">let</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">x</span><span class="p">;</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="fm">println!</span><span class="p">(</span><span class="s">&#34;x is </span><span class="si">{}</span><span class="s">, y is </span><span class="si">{}</span><span class="s">&#34;</span><span class="p">,</span><span class="w"> </span><span class="n">x</span><span class="p">,</span><span class="w"> </span><span class="n">y</span><span class="p">);</span><span class="w"> </span><span class="c1">// valid
-</span></span></span></code></pre></div><p>支持Copy操作常见的类型通常是只存储在栈上的数据类型，如：</p>
-<ul>
-<li>所有的integer类型，如u32；</li>
-<li>bool值；</li>
-<li>char值；</li>
-<li>所有的float类型，如f64；</li>
-<li>元组，如果其包含的类型也都是支持Copy的。</li>
-</ul>
-<p>这些类型都实现了Copy特型。如果一种类型实现了Copy特型，在分配新变量后，原变量仍是可用的。</p>
-<p>另外一种是Move。对于类似String这种在栈上存储了元数据，实际数据存储在堆上的数据类型来说，将原变量赋给新变量实际上是将堆上数据的所有权转移给新变量，原变量在赋值后不再使用。</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-rust" data-lang="rust"><span class="line"><span class="cl"><span class="kd">let</span><span class="w"> </span><span class="n">s1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">String</span>::<span class="n">from</span><span class="p">(</span><span class="s">&#34;hello!!!&#34;</span><span class="p">);</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="kd">let</span><span class="w"> </span><span class="n">s2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s1</span><span class="p">;</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="fm">println!</span><span class="p">(</span><span class="s">&#34;s2 is </span><span class="si">{}</span><span class="s">, s1 is </span><span class="si">{}</span><span class="s">&#34;</span><span class="p">,</span><span class="w"> </span><span class="n">s2</span><span class="p">,</span><span class="w"> </span><span class="n">s1</span><span class="p">);</span><span class="w"> </span><span class="c1">// invalid, s1 is no longer valid any more.
-</span></span></span></code></pre></div><p><img src="/images/notes/rustownership/image-20210623093004432.png" alt="image-20210623093004432"></p>
-          
-        </div>
-
-        
-          <div>
-            <a class="read-more button inline" href="/posts/2021-06/rustownership/">[Read more]</a>
-          </div>
-        
-      </article>
-    
 
     <div class="pagination">
   <div class="pagination__buttons">
     
     
+    
+      <a href="/categories/learning/page/2/" class="button inline next">
+        [<span class="button__text">Older posts</span>] &gt;
+      </a>
     
   </div>
 </div>
@@ -582,6 +602,10 @@
     
 
     
+    
+      
+      
+      
     
       
       
@@ -701,6 +725,34 @@
           <span class="archive-date">2025-08</span>
           <span class="archive-month-name">Aug</span>
           <span class="archive-count">(8)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-04/" class="archive-link">
+          <span class="archive-date">2025-04</span>
+          <span class="archive-month-name">Apr</span>
+          <span class="archive-count">(1)</span>
         </a>
       </div>
     
@@ -957,6 +1009,10 @@
       
     
       
+        
+      
+    
+      
     
       
         
@@ -1070,6 +1126,9 @@
       
       
     
+      
+      
+    
     
     
     
@@ -1093,9 +1152,14 @@
       
       
     
+      
+      
     
     
     
+    
+    
+      
     
       
     
@@ -1186,6 +1250,25 @@
            title="2 articles">
           Lua
           <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/network/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Network
+          <span class="tag-count">(1)</span>
         </a>
       
     

@@ -1,0 +1,1640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  
+    <title>VRF: An Overview :: chengzhycn&#39;s blog</title>
+  
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="什么是 VRF（virtual routing forwarding） VRF是一种实现三层网络隔离的关键技术。它通过创建多个路由表，为不同的网络流量提供独立的转发路径。 这意味着，任何三层网络结构，如接口的IP地址、静态路由的配置，甚至BGP（边界网关协议）会话，都可以被映射到特定的VRF中。这种映射机制就像是为每个VRF构建了一个独立的网络空间，彼此之间相互隔离，极大地增强了网络的安全性和管理的便利性。在MPLS VPN（多协议标签交换虚拟专用网络）等应用场景中，VRF为实现大规模的网络隔离和灵活的路由策略提供了基础框架。就像 VLAN 隔离了二层网络一样，VRF 隔离了三层网络。
+为什么需要 VRF 在 VRF 出现之前，Linux 用户主要采用两种方式来尝试实现类似的功能：策略路由（policy routing）和网络命名空间（net namespace）。然而，这两种方法都存在明显的局限性。
+策略路由虽然能够通过多个路由表和策略规则来模拟 VRF 的部分功能（事实上，在 Linux 中，也是基于策略路由来去对 VRF 做的实现），但它的缺点十分突出。这种方式在配置和管理上非常复杂，难以确保网络隔离的有效性，在面对严格的网络审计时，往往无法通过。其复杂性不仅增加了运维的难度，还可能导致网络故障的风险上升，因此不被推荐使用。
+网络命名空间在容器技术兴起后得到了广泛应用，它能够为容器提供全面的网络隔离。但在模拟 VRF 功能时，却显得有些“大材小用”。网络命名空间会对所有网络相关的资源进行完全隔离，包括设备、接口、ARP 表和路由表等。这意味着，即使是一些不需要隔离的服务，也会被隔离在不同的命名空间中。以 LLDP（链路层发现协议）为例，在使用网络命名空间的情况下，若要在不同的网络隔离环境中使用 LLDP，就需要在每个命名空间中单独运行实例，并且由于默认套接字相同，还需要为每个实例创建独特的套接字。这不仅增加了系统的开销，还使得管理变得更加复杂。相比之下，VRF 在隔离三层网络结构的同时，允许全局配置的共享和非三层感知服务的统一运行，大大提高了资源的利用效率。
+Policy Routing VRF Net Namespace 隔离路由表 隔离三层网络 整个协议栈从二层到 socket 隔离 VRF 配置 在 Linux 系统中配置 VRF，主要借助iproute2包来完成一系列操作。
+创建 VRF，并关联到 table 1 test1@test1:~$ ip link add vrf-1 type vrf table 1 test1@test1:~$ ip link set vrf-1 up 添加接口到 VRF，可以看到 wg0 的 master 是 vrf-1，所有 wg0 的流量会使用关联的 vrf-1 路由表进行路由 test1@test1:~$ ip link set wg0 master vrf-1 test1@test1:~$ ip -d link show wg0 9: wg0: &lt;POINTOPOINT,NOARP,UP,LOWER_UP&gt; mtu 1400 qdisc noqueue master vrf-1 state UNKNOWN mode DEFAULT group default qlen 1000 link/none promiscuity 0 minmtu 0 maxmtu 2147483552 wireguard vrf_slave table 1 addrgenmode none numtxqueues 1 numrxqueues 1 gso_max_size 65536 gso_max_segs 65535 添加和查看 VRF 静态路由 root@test1:~# ip route add default via 10.1.0.10 vrf vrf-1 root@test1:~# ip route show table 1 default via 10.1.0.10 dev wg0 local 10.1.0.10 dev wg0 proto kernel scope host src 10.1.0.10 root@test1:~# ip route show vrf vrf-1 default via 10.1.0.10 dev wg0 VRF 之间路由 有两种方法可以执行跨 VRF 路由。第一种方法涉及一个 VRF 的表中配置的路由，指向绑定到不同 VRF 的设备。
+" />
+<meta name="keywords" content="" />
+
+  <meta name="robots" content="noodp" />
+
+<link rel="canonical" href="https://www.jinzhi.site/posts/2025-04/vrf-an-overview/" />
+
+
+
+
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/buttons.min.86f6b4c106b6c6eb690ae5203d36b442c1f66f718ff4e8164fa86cf6c61ad641.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/code.min.d529ea4b2fb8d34328d7d31afc5466d5f7bc2f0bc9abdd98b69385335d7baee4.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/fonts.min.5bb7ed13e1d00d8ff39ea84af26737007eb5051b157b86fc24487c94f3dc8bbe.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/footer.min.eb8dfc2c6a7eafa36cd3ba92d63e69e849e2200e0002a228d137f236b09ecd75.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/gist.min.a751e8b0abe1ba8bc53ced52a38b19d8950fe78ca29454ea8c2595cf26aad5c0.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/header.min.75c7eb0e2872d95ff48109c6647d0223a38db52e2561dd87966eb5fc7c6bdac6.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/main.min.7984a754b43b7469d389c539410e90dff2870263de16b008dfc7e8170fcd0f5b.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/menu.min.3c17467ebeb3d38663dce68f71f519901124fa5cbb4519b2fb0667a21e9aca39.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/pagination.min.bbb986dbce00a5ce5aca0504b7925fc1c581992a4bf57f163e5d69cc1db7d836.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/post.min.e6dddd258e64c83e05cec0cd49c05216742d42fc8ecbfbe6b67083412b609bd3.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/syntax.min.a0773cce9310cb6d8ed23e50f005448facf29a53001b57e038828daa466b25c0.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/terminal.min.e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/terms.min.b81791663c3790e738e571cdbf802312390d30e4b1d8dc9d814a5b5454d0ac11.css">
+
+
+
+
+
+
+
+<link rel="shortcut icon" href="https://www.jinzhi.site/favicon.png">
+<link rel="apple-touch-icon" href="https://www.jinzhi.site/apple-touch-icon.png">
+
+
+<meta name="twitter:card" content="summary" />
+
+  
+    <meta name="twitter:site" content="" />
+  
+    <meta name="twitter:creator" content="" />
+
+
+
+<meta property="og:locale" content="en" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="VRF: An Overview">
+<meta property="og:description" content="什么是 VRF（virtual routing forwarding） VRF是一种实现三层网络隔离的关键技术。它通过创建多个路由表，为不同的网络流量提供独立的转发路径。 这意味着，任何三层网络结构，如接口的IP地址、静态路由的配置，甚至BGP（边界网关协议）会话，都可以被映射到特定的VRF中。这种映射机制就像是为每个VRF构建了一个独立的网络空间，彼此之间相互隔离，极大地增强了网络的安全性和管理的便利性。在MPLS VPN（多协议标签交换虚拟专用网络）等应用场景中，VRF为实现大规模的网络隔离和灵活的路由策略提供了基础框架。就像 VLAN 隔离了二层网络一样，VRF 隔离了三层网络。
+为什么需要 VRF 在 VRF 出现之前，Linux 用户主要采用两种方式来尝试实现类似的功能：策略路由（policy routing）和网络命名空间（net namespace）。然而，这两种方法都存在明显的局限性。
+策略路由虽然能够通过多个路由表和策略规则来模拟 VRF 的部分功能（事实上，在 Linux 中，也是基于策略路由来去对 VRF 做的实现），但它的缺点十分突出。这种方式在配置和管理上非常复杂，难以确保网络隔离的有效性，在面对严格的网络审计时，往往无法通过。其复杂性不仅增加了运维的难度，还可能导致网络故障的风险上升，因此不被推荐使用。
+网络命名空间在容器技术兴起后得到了广泛应用，它能够为容器提供全面的网络隔离。但在模拟 VRF 功能时，却显得有些“大材小用”。网络命名空间会对所有网络相关的资源进行完全隔离，包括设备、接口、ARP 表和路由表等。这意味着，即使是一些不需要隔离的服务，也会被隔离在不同的命名空间中。以 LLDP（链路层发现协议）为例，在使用网络命名空间的情况下，若要在不同的网络隔离环境中使用 LLDP，就需要在每个命名空间中单独运行实例，并且由于默认套接字相同，还需要为每个实例创建独特的套接字。这不仅增加了系统的开销，还使得管理变得更加复杂。相比之下，VRF 在隔离三层网络结构的同时，允许全局配置的共享和非三层感知服务的统一运行，大大提高了资源的利用效率。
+Policy Routing VRF Net Namespace 隔离路由表 隔离三层网络 整个协议栈从二层到 socket 隔离 VRF 配置 在 Linux 系统中配置 VRF，主要借助iproute2包来完成一系列操作。
+创建 VRF，并关联到 table 1 test1@test1:~$ ip link add vrf-1 type vrf table 1 test1@test1:~$ ip link set vrf-1 up 添加接口到 VRF，可以看到 wg0 的 master 是 vrf-1，所有 wg0 的流量会使用关联的 vrf-1 路由表进行路由 test1@test1:~$ ip link set wg0 master vrf-1 test1@test1:~$ ip -d link show wg0 9: wg0: &lt;POINTOPOINT,NOARP,UP,LOWER_UP&gt; mtu 1400 qdisc noqueue master vrf-1 state UNKNOWN mode DEFAULT group default qlen 1000 link/none promiscuity 0 minmtu 0 maxmtu 2147483552 wireguard vrf_slave table 1 addrgenmode none numtxqueues 1 numrxqueues 1 gso_max_size 65536 gso_max_segs 65535 添加和查看 VRF 静态路由 root@test1:~# ip route add default via 10.1.0.10 vrf vrf-1 root@test1:~# ip route show table 1 default via 10.1.0.10 dev wg0 local 10.1.0.10 dev wg0 proto kernel scope host src 10.1.0.10 root@test1:~# ip route show vrf vrf-1 default via 10.1.0.10 dev wg0 VRF 之间路由 有两种方法可以执行跨 VRF 路由。第一种方法涉及一个 VRF 的表中配置的路由，指向绑定到不同 VRF 的设备。
+" />
+<meta property="og:url" content="https://www.jinzhi.site/posts/2025-04/vrf-an-overview/" />
+<meta property="og:site_name" content="chengzhycn&#39;s blog" />
+
+  <meta property="og:image" content="https://www.jinzhi.site/og-image.png">
+
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="627">
+
+  <meta property="article:section" content="Learning" />
+
+
+  <meta property="article:published_time" content="2025-04-25 20:30:28 &#43;0800 &#43;0800" />
+
+
+
+
+
+
+
+
+
+<html>
+<head>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-screen-web/style.css" />
+  <style>
+    body {
+      font-family: "LXGW WenKai Screen";
+      font-weight: normal;
+    }
+  </style>
+</head>
+<body>
+
+</body>
+</html>
+
+
+</head>
+<body>
+
+
+<div class="page-wrapper">
+  <div class="container center">
+
+  <header class="header">
+  <div class="header__inner">
+    <div class="header__logo">
+      <a href="/">
+  <div class="logo">
+    chengzhycn&#39;s blog
+  </div>
+</a>
+
+    </div>
+    
+      <ul class="menu menu--mobile">
+  <li class="menu__trigger">Menu&nbsp;▾</li>
+  <li>
+    <ul class="menu__dropdown">
+      
+        
+          <li><a href="/">Home</a></li>
+        
+      
+        
+          <li><a href="/about">About</a></li>
+        
+      
+        
+          <li><a href="/categories/">Categories</a></li>
+        
+      
+        
+          <li><a href="/tags/">Tags</a></li>
+        
+      
+        
+          <li><a href="/archives/">Archives</a></li>
+        
+      
+      
+    </ul>
+  </li>
+</ul>
+
+    
+    
+  </div>
+  
+    <nav class="navigation-menu">
+  <ul class="navigation-menu__inner menu--desktop">
+    
+      
+        
+          <li><a href="/" >Home</a></li>
+        
+      
+        
+          <li><a href="/about" >About</a></li>
+        
+      
+        
+          <li><a href="/categories/" >Categories</a></li>
+        
+      
+        
+          <li><a href="/tags/" >Tags</a></li>
+        
+      
+        
+          <li><a href="/archives/" >Archives</a></li>
+        
+      
+      
+    
+  </ul>
+</nav>
+
+  
+</header>
+
+
+  <div class="content">
+    
+<article class="post">
+  <h1 class="post-title">
+    <a href="https://www.jinzhi.site/posts/2025-04/vrf-an-overview/">VRF: An Overview</a>
+  </h1>
+  <div class="post-meta"><time class="post-date">2025-04-25</time><span class="post-reading-time">9 min read (1841 words)</span></div>
+
+  
+    <span class="post-tags">
+      
+      #<a href="https://www.jinzhi.site/tags/network/">Network</a>&nbsp;
+      
+    </span>
+  
+  
+
+
+  
+    <div class="table-of-contents">
+      <h2>
+        Table of Contents
+      </h2>
+      <nav id="TableOfContents">
+  <ul>
+    <li><a href="#什么是-vrfvirtual-routing-forwarding">什么是 VRF（virtual routing forwarding）</a></li>
+    <li><a href="#为什么需要-vrf">为什么需要 VRF</a></li>
+    <li><a href="#vrf-配置">VRF 配置</a>
+      <ul>
+        <li><a href="#vrf-之间路由">VRF 之间路由</a></li>
+        <li><a href="#local-路由">local 路由</a></li>
+        <li><a href="#socket-listener">socket listener</a></li>
+      </ul>
+    </li>
+    <li><a href="#vrf-在-linux-中的实现-from-dog250">VRF 在 Linux 中的实现 (From dog250)</a>
+      <ul>
+        <li><a href="#linux-44---48">Linux 4.4 - 4.8</a></li>
+        <li><a href="#linux-48-以后">Linux 4.8 以后</a></li>
+        <li><a href="#数据路径实现逻辑">数据路径实现逻辑</a></li>
+      </ul>
+    </li>
+    <li><a href="#问题">问题</a></li>
+    <li><a href="#reference">Reference</a></li>
+  </ul>
+</nav>
+    </div>
+  
+
+  <div class="post-content"><div>
+        <h2 id="什么是-vrfvirtual-routing-forwarding">什么是 VRF（virtual routing forwarding）<a href="#什么是-vrfvirtual-routing-forwarding" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>VRF是一种实现三层网络隔离的关键技术。<strong>它通过创建多个路由表，为不同的网络流量提供独立的转发路径。</strong> 这意味着，任何三层网络结构，如接口的IP地址、静态路由的配置，甚至BGP（边界网关协议）会话，都可以被映射到特定的VRF中。这种映射机制就像是为每个VRF构建了一个独立的网络空间，彼此之间相互隔离，极大地增强了网络的安全性和管理的便利性。在MPLS VPN（多协议标签交换虚拟专用网络）等应用场景中，VRF为实现大规模的网络隔离和灵活的路由策略提供了基础框架。就像 VLAN 隔离了二层网络一样，VRF 隔离了三层网络。</p>
+<p><img src="/images/notes/vrf-an-overview/5eb20c3e919fe3724b92c2ae7a66a7da_MD5.png" alt="5eb20c3e919fe3724b92c2ae7a66a7da_MD5"></p>
+<h2 id="为什么需要-vrf">为什么需要 VRF<a href="#为什么需要-vrf" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>在 VRF 出现之前，Linux 用户主要采用两种方式来尝试实现类似的功能：策略路由（policy routing）和网络命名空间（net namespace）。然而，这两种方法都存在明显的局限性。</p>
+<p>策略路由虽然能够通过多个路由表和策略规则来模拟 VRF 的部分功能（事实上，在 Linux 中，也是基于策略路由来去对 VRF 做的实现），但它的缺点十分突出。这种方式在配置和管理上非常复杂，难以确保网络隔离的有效性，在面对严格的网络审计时，往往无法通过。其复杂性不仅增加了运维的难度，还可能导致网络故障的风险上升，因此不被推荐使用。</p>
+<p>网络命名空间在容器技术兴起后得到了广泛应用，它能够为容器提供全面的网络隔离。但在模拟 VRF 功能时，却显得有些“大材小用”。网络命名空间会对所有网络相关的资源进行完全隔离，包括设备、接口、ARP 表和路由表等。这意味着，即使是一些不需要隔离的服务，也会被隔离在不同的命名空间中。以 LLDP（链路层发现协议）为例，在使用网络命名空间的情况下，若要在不同的网络隔离环境中使用 LLDP，就需要在每个命名空间中单独运行实例，并且由于默认套接字相同，还需要为每个实例创建独特的套接字。这不仅增加了系统的开销，还使得管理变得更加复杂。相比之下，VRF 在隔离三层网络结构的同时，允许全局配置的共享和非三层感知服务的统一运行，大大提高了资源的利用效率。</p>
+<table>
+  <thead>
+      <tr>
+          <th>Policy Routing</th>
+          <th>VRF</th>
+          <th>Net Namespace</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>隔离路由表</td>
+          <td>隔离三层网络</td>
+          <td>整个协议栈从二层到 socket 隔离</td>
+      </tr>
+  </tbody>
+</table>
+<p><img src="/images/notes/vrf-an-overview/a9f7c55f8f39572d339b138fb1e12429_MD5.png" alt="a9f7c55f8f39572d339b138fb1e12429_MD5"><img src="/images/notes/vrf-an-overview/c9b6614c864c7d35a8ef0a4f12ecdbfa_MD5.png" alt="c9b6614c864c7d35a8ef0a4f12ecdbfa_MD5"><img src="/images/notes/vrf-an-overview/9edc8b051f504bf72140d1238513d687_MD5.png" alt="9edc8b051f504bf72140d1238513d687_MD5"></p>
+<h2 id="vrf-配置">VRF 配置<a href="#vrf-配置" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>在 Linux 系统中配置 VRF，主要借助<code>iproute2</code>包来完成一系列操作。</p>
+<ul>
+<li>创建 VRF，并关联到 table 1</li>
+</ul>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">test1@test1:~$ ip link add vrf-1 <span class="nb">type</span> vrf table <span class="m">1</span>
+</span></span><span class="line"><span class="cl">test1@test1:~$ ip link <span class="nb">set</span> vrf-1 up
+</span></span></code></pre></div><ul>
+<li>添加接口到 VRF，可以看到 wg0 的 master 是 vrf-1，所有 wg0 的流量会使用关联的 vrf-1 路由表进行路由</li>
+</ul>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">test1@test1:~$ ip link <span class="nb">set</span> wg0 master vrf-1
+</span></span><span class="line"><span class="cl">test1@test1:~$ ip -d link show wg0 
+</span></span><span class="line"><span class="cl">9: wg0: &lt;POINTOPOINT,NOARP,UP,LOWER_UP&gt; mtu <span class="m">1400</span> qdisc noqueue master vrf-1 state UNKNOWN mode DEFAULT group default qlen <span class="m">1000</span>
+</span></span><span class="line"><span class="cl">    link/none  promiscuity <span class="m">0</span> minmtu <span class="m">0</span> maxmtu <span class="m">2147483552</span> 
+</span></span><span class="line"><span class="cl">    wireguard 
+</span></span><span class="line"><span class="cl">    vrf_slave table <span class="m">1</span> addrgenmode none numtxqueues <span class="m">1</span> numrxqueues <span class="m">1</span> gso_max_size <span class="m">65536</span> gso_max_segs <span class="m">65535</span>
+</span></span></code></pre></div><ul>
+<li>添加和查看 VRF  静态路由</li>
+</ul>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">root@test1:~# ip route add default via 10.1.0.10 vrf vrf-1
+</span></span><span class="line"><span class="cl">root@test1:~# ip route show table <span class="m">1</span> 
+</span></span><span class="line"><span class="cl">default via 10.1.0.10 dev wg0 
+</span></span><span class="line"><span class="cl"><span class="nb">local</span> 10.1.0.10 dev wg0 proto kernel scope host src 10.1.0.10 
+</span></span><span class="line"><span class="cl">root@test1:~# ip route show vrf vrf-1 
+</span></span><span class="line"><span class="cl">default via 10.1.0.10 dev wg0 
+</span></span></code></pre></div><h3 id="vrf-之间路由">VRF 之间路由<a href="#vrf-之间路由" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>有两种方法可以执行跨 VRF 路由。第一种方法涉及一个 VRF 的表中配置的路由，指向绑定到不同 VRF 的设备。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">$ ip route add table <span class="m">10</span> 192.168.200.0/24 dev sw1p6
+</span></span></code></pre></div><p>命中这些路由的数据包可以由设备转发：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">$ ip route show table <span class="m">10</span>
+</span></span><span class="line"><span class="cl">...
+</span></span><span class="line"><span class="cl">192.168.200.0/24 dev sw1p6  scope link offload
+</span></span></code></pre></div><p>执行跨 VRF 路由的第二种方法是将路由指向不同的 VRF 主设备。命中此类路由的数据包将在 VRF 的表中进行完整查找：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">$ ip route add table <span class="m">10</span> 192.168.200.0/24 dev vrf-red
+</span></span></code></pre></div><p>然而，这些路由目前并未卸载。命中它们的数据包由内核转发：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">$ ip route show table <span class="m">10</span>
+</span></span><span class="line"><span class="cl">...
+</span></span><span class="line"><span class="cl">192.168.200.0/24 dev vrf-red scope link
+</span></span></code></pre></div><p>请注意，卸载标志未设置（offloading 是 mellanox 网卡 offloading 的设置）。</p>
+<h3 id="local-路由">local 路由<a href="#local-路由" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>Linux 中，默认的路由查找顺序是先找 local 路由表，再找 main 表。而且 local 表的优先级是最高的：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">test2@test2:~$ ip rule show 
+</span></span><span class="line"><span class="cl">0:      from all lookup <span class="nb">local</span>
+</span></span><span class="line"><span class="cl">32766:  from all lookup main
+</span></span><span class="line"><span class="cl">32767:  from all lookup default
+</span></span></code></pre></div><p>这就意味着，如果有本地地址和 VRF 路由地址冲突，势必会影响到 VRF 路由转发。例如，本机的应用层有两个属于不同 VRF 域确监听同一个 IP 地址的服务。</p>
+<ul>
+<li>ens33 和 wg0 都配置了 10.1.0.10/32 地址，wg0 属于 vrf-1</li>
+</ul>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">root@test1:~# ip -4 addr show 
+</span></span><span class="line"><span class="cl">1: lo: &lt;LOOPBACK,UP,LOWER_UP&gt; mtu <span class="m">65536</span> qdisc noqueue state UNKNOWN group default qlen <span class="m">1000</span>
+</span></span><span class="line"><span class="cl">    inet 127.0.0.1/8 scope host lo
+</span></span><span class="line"><span class="cl">       valid_lft forever preferred_lft forever
+</span></span><span class="line"><span class="cl">2: ens33: &lt;BROADCAST,MULTICAST,UP,LOWER_UP&gt; mtu <span class="m">1500</span> qdisc fq_codel state UP group default qlen <span class="m">1000</span>
+</span></span><span class="line"><span class="cl">    altname enp2s1
+</span></span><span class="line"><span class="cl">    inet 192.168.50.16/24 brd 192.168.50.255 scope global dynamic noprefixroute ens33
+</span></span><span class="line"><span class="cl">       valid_lft 53664sec preferred_lft 53664sec
+</span></span><span class="line"><span class="cl">    inet 10.1.0.10/32 scope global ens33
+</span></span><span class="line"><span class="cl">       valid_lft forever preferred_lft forever
+</span></span><span class="line"><span class="cl">9: wg0: &lt;POINTOPOINT,NOARP,UP,LOWER_UP&gt; mtu <span class="m">1400</span> qdisc noqueue master vrf-1 state UNKNOWN group default qlen <span class="m">1000</span>
+</span></span><span class="line"><span class="cl">    inet 10.1.0.10/32 scope global wg0
+</span></span><span class="line"><span class="cl">       valid_lft forever preferred_lft forever
+</span></span></code></pre></div><ul>
+<li>10.1.0.10 的路由同时存在在 local 表和 vrf-1 表中：</li>
+</ul>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">root@test1:~# ip route show table <span class="nb">local</span> 
+</span></span><span class="line"><span class="cl"><span class="nb">local</span> 10.1.0.10 dev ens33 proto kernel scope host src 10.1.0.10 
+</span></span><span class="line"><span class="cl">root@test1:~# ip route show table <span class="m">1</span> 
+</span></span><span class="line"><span class="cl">default via 10.1.0.10 dev wg0 
+</span></span><span class="line"><span class="cl"><span class="nb">local</span> 10.1.0.10 dev wg0 proto kernel scope host src 10.1.0.10 
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">root@test1:~# ip rule show 
+</span></span><span class="line"><span class="cl">0:      from all lookup <span class="nb">local</span>
+</span></span><span class="line"><span class="cl">1000:   from all lookup <span class="o">[</span>l3mdev-table<span class="o">]</span>
+</span></span><span class="line"><span class="cl">32766:  from all lookup main
+</span></span><span class="line"><span class="cl">32767:  from all lookup default
+</span></span></code></pre></div><ul>
+<li>在 vrf-1 域中 ping 10.1.0.10，无法生效</li>
+</ul>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">root@test1:~# ip vrf <span class="nb">exec</span> vrf-1 ping 10.1.0.10 -c <span class="m">1</span>
+</span></span><span class="line"><span class="cl">PING 10.1.0.10 <span class="o">(</span>10.1.0.10<span class="o">)</span> 56<span class="o">(</span>84<span class="o">)</span> bytes of data.
+</span></span><span class="line"><span class="cl">^C
+</span></span><span class="line"><span class="cl">--- 10.1.0.10 ping statistics ---
+</span></span><span class="line"><span class="cl"><span class="m">1</span> packets transmitted, <span class="m">0</span> received, 100% packet loss, <span class="nb">time</span> 0ms
+</span></span></code></pre></div><p>这个问题的本质在于，VRF 的路由隔离是通过策略路由实现的，而 Linux 默认行为策略路由的优先级低于 local 路由。这样 local 路由就打破了 VRF 的路由隔离。规避这个问题的方法就是把 local 路由的优先级调低：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">root@test1:~# ip rule add pref <span class="m">32765</span> table <span class="nb">local</span> 
+</span></span><span class="line"><span class="cl">root@test1:~# ip rule del pref <span class="m">0</span>
+</span></span><span class="line"><span class="cl">root@test1:~# ip rule show 
+</span></span><span class="line"><span class="cl">1000:   from all lookup <span class="o">[</span>l3mdev-table<span class="o">]</span>
+</span></span><span class="line"><span class="cl">32765:  from all lookup <span class="nb">local</span>
+</span></span><span class="line"><span class="cl">32766:  from all lookup main
+</span></span><span class="line"><span class="cl">32767:  from all lookup default
+</span></span></code></pre></div><ul>
+<li>再次在 vrf-1 域中 ping 10.1.0.10，可以工作：</li>
+</ul>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">root@test1:~# ip vrf <span class="nb">exec</span> vrf-1 ping 10.1.0.10 -c <span class="m">1</span>
+</span></span><span class="line"><span class="cl">PING 10.1.0.10 <span class="o">(</span>10.1.0.10<span class="o">)</span> 56<span class="o">(</span>84<span class="o">)</span> bytes of data.
+</span></span><span class="line"><span class="cl"><span class="m">64</span> bytes from 10.1.0.10: <span class="nv">icmp_seq</span><span class="o">=</span><span class="m">1</span> <span class="nv">ttl</span><span class="o">=</span><span class="m">64</span> <span class="nv">time</span><span class="o">=</span>0.288 ms
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">--- 10.1.0.10 ping statistics ---
+</span></span><span class="line"><span class="cl"><span class="m">1</span> packets transmitted, <span class="m">1</span> received, 0% packet loss, <span class="nb">time</span> 0ms
+</span></span><span class="line"><span class="cl">rtt min/avg/max/mdev <span class="o">=</span> 0.288/0.288/0.288/0.000 ms
+</span></span></code></pre></div><h3 id="socket-listener">socket listener<a href="#socket-listener" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>默认情况下，不同 VRF 域中的 socket 绑定的端口是隔离的，也就是说，不同的 VRF 域中的 socket 可以监听相同的端口。</p>
+<p>使用 setsockopt 可以将 socket 绑定到指定的 VRF 域：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="nf">setsockopt</span><span class="p">(</span><span class="n">sd</span><span class="p">,</span> <span class="n">SOL_SOCKET</span><span class="p">,</span> <span class="n">SO_BINDTODEVICE</span><span class="p">,</span> <span class="n">dev</span><span class="p">,</span> <span class="nf">strlen</span><span class="p">(</span><span class="n">dev</span><span class="p">)</span><span class="o">+</span><span class="mi">1</span><span class="p">);</span>
+</span></span></code></pre></div><p>或者使用 cmsg 和 IP_PKTINFO 指定 output device。</p>
+<p>如果想让在默认 VRF 域（即没有绑定到任何 VRF 设备的 socket）中运行 TCP/UDP 服务为所有 VRF 域提供服务，需要开启 <code>tcp_l3mdev_accept</code>和 <code>udp_l3mdev_accept</code>：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">sysctl -w net.ipv4.tcp_l3mdev_accept<span class="o">=</span><span class="m">1</span>
+</span></span><span class="line"><span class="cl">sysctl -w net.ipv4.udp_l3mdev_accept<span class="o">=</span><span class="m">1</span>
+</span></span></code></pre></div><p>对于 RAW socket，出于后向兼容性的考虑默认是启用的。</p>
+<ul>
+<li>默认情况下，默认 VRF 可以和其它 VRF 可以监听同一个端口</li>
+</ul>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">root@test1:~# python3 server.py <span class="p">&amp;</span> 
+</span></span><span class="line"><span class="cl"><span class="o">[</span>1<span class="o">]</span> <span class="m">137516</span>
+</span></span><span class="line"><span class="cl">root@test1:~# Server is listening on port <span class="m">8888</span>
+</span></span><span class="line"><span class="cl">Waiting <span class="k">for</span> a connection...
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">root@test1:~# python3 server.py wg0
+</span></span><span class="line"><span class="cl">Server is listening on port <span class="m">8888</span>
+</span></span><span class="line"><span class="cl">Waiting <span class="k">for</span> a connection...
+</span></span></code></pre></div><ul>
+<li>但是包从不同的 VRF 域访问时是不会处理的</li>
+</ul>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="c1"># vrf-1 域的访问，可以连通 vrf-1 的监听</span>
+</span></span><span class="line"><span class="cl">root@test1:~# python3 server.py wg0
+</span></span><span class="line"><span class="cl">Server is listening on port <span class="m">8888</span>
+</span></span><span class="line"><span class="cl">Waiting <span class="k">for</span> a connection...
+</span></span><span class="line"><span class="cl">Connection from <span class="o">(</span><span class="s1">&#39;10.2.0.10&#39;</span>, 45948<span class="o">)</span>
+</span></span><span class="line"><span class="cl">root@test1:~# ss -nltp src :8888
+</span></span><span class="line"><span class="cl">State                       Recv-Q                      Send-Q                                           Local Address:Port                                            Peer Address:Port                      Process                      
+</span></span><span class="line"><span class="cl">LISTEN                      <span class="m">0</span>                           <span class="m">1</span>                                                  0.0.0.0%wg0:8888                                                 0.0.0.0:*                          users:<span class="o">((</span><span class="s2">&#34;python3&#34;</span>,pid<span class="o">=</span>137539,fd<span class="o">=</span>3<span class="o">))</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">test2@test2:~$ telnet 10.1.0.10 <span class="m">8888</span>
+</span></span><span class="line"><span class="cl">Trying 10.1.0.10...
+</span></span><span class="line"><span class="cl">Connected to 10.1.0.10.
+</span></span><span class="line"><span class="cl">Escape character is <span class="s1">&#39;^]&#39;</span>.
+</span></span><span class="line"><span class="cl">hello
+</span></span><span class="line"><span class="cl">hello
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1"># vrf-1 域的访问，无法访问默认 VRF 的监听，连接直接被拒绝</span>
+</span></span><span class="line"><span class="cl">root@test1:~# python3 server.py 
+</span></span><span class="line"><span class="cl">Server is listening on port <span class="m">8888</span>
+</span></span><span class="line"><span class="cl">Waiting <span class="k">for</span> a connection...
+</span></span><span class="line"><span class="cl">root@test1:~# ss -nltp src :8888
+</span></span><span class="line"><span class="cl">State                       Recv-Q                      Send-Q                                           Local Address:Port                                            Peer Address:Port                      Process                      
+</span></span><span class="line"><span class="cl">LISTEN                      <span class="m">0</span>                           <span class="m">1</span>                                                      0.0.0.0:8888                                                 0.0.0.0:*                          users:<span class="o">((</span><span class="s2">&#34;python3&#34;</span>,pid<span class="o">=</span>137528,fd<span class="o">=</span>3<span class="o">))</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">test2@test2:~$ telnet 10.1.0.10 <span class="m">8888</span>
+</span></span><span class="line"><span class="cl">Trying 10.1.0.10...
+</span></span><span class="line"><span class="cl">telnet: Unable to connect to remote host: Connection refused
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">16:52:01.999705 IP 10.2.0.10.42296 &gt; 10.1.0.10.8888: Flags <span class="o">[</span>S<span class="o">]</span>, seq 4099934920, win 65280, options <span class="o">[</span>mss 1360,sackOK,TS val <span class="m">3732241640</span> ecr 0,nop,wscale 7<span class="o">]</span>, length <span class="m">0</span>
+</span></span><span class="line"><span class="cl">16:52:02.000938 IP 10.1.0.10.8888 &gt; 10.2.0.10.42296: Flags <span class="o">[</span>R.<span class="o">]</span>, seq 0, ack 4099934921, win 0, length <span class="m">0</span>
+</span></span></code></pre></div><ul>
+<li>开启<code>tcp_l3mdev_accept</code>后，默认 VRF 不能和其它 VRF 域监听同一个端口。（这里内核文档的描述感觉有问题？可以同时监听一个端口？）</li>
+</ul>
+<blockquote>
+<p><a href="https://docs.kernel.org/networking/vrf.html">https://docs.kernel.org/networking/vrf.html</a></p>
+<p><!-- raw HTML omitted -->Using VRF-aware applications (applications which simultaneously create sockets outside and inside VRFs) in conjunction with <!-- raw HTML omitted --><code>&lt;font style=&quot;color:rgb(34, 34, 34);background-color:rgb(236, 240, 243);&quot;&gt;net.ipv4.tcp_l3mdev_accept=1&lt;/font&gt;</code><!-- raw HTML omitted --> is possible but may lead to problems in some situations. With that sysctl value, it is unspecified which listening socket will be selected to handle connections for VRF traffic; ie. either a socket bound to the VRF or an unbound socket may be used to accept new connections from a VRF. <!-- raw HTML omitted --></p></blockquote>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">root@test1:~# sysctl -w net.ipv4.tcp_l3mdev_accept<span class="o">=</span><span class="m">1</span>
+</span></span><span class="line"><span class="cl">root@test1:~# python3 server.py wg0
+</span></span><span class="line"><span class="cl">Server is listening on port <span class="m">8888</span>
+</span></span><span class="line"><span class="cl">Waiting <span class="k">for</span> a connection...
+</span></span><span class="line"><span class="cl">root@test1:~# sudo python3 server.py 
+</span></span><span class="line"><span class="cl">Traceback <span class="o">(</span>most recent call last<span class="o">)</span>:
+</span></span><span class="line"><span class="cl">  File <span class="s2">&#34;/root/server.py&#34;</span>, line 31, in &lt;module&gt;
+</span></span><span class="line"><span class="cl">    server_socket.bind<span class="o">(</span>server_address<span class="o">)</span>
+</span></span><span class="line"><span class="cl">OSError: <span class="o">[</span>Errno 98<span class="o">]</span> Address already in use
+</span></span></code></pre></div><ul>
+<li>包可以跨域访问到默认 VRF 中的 socket：</li>
+</ul>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">root@test1:~# python3 server.py 
+</span></span><span class="line"><span class="cl">Server is listening on port <span class="m">8888</span>
+</span></span><span class="line"><span class="cl">Waiting <span class="k">for</span> a connection...
+</span></span><span class="line"><span class="cl">Connection from <span class="o">(</span><span class="s1">&#39;10.2.0.10&#39;</span>, 39596<span class="o">)</span>
+</span></span><span class="line"><span class="cl">root@test1:~# ss -nltp src :8888
+</span></span><span class="line"><span class="cl">State                       Recv-Q                      Send-Q                                           Local Address:Port                                            Peer Address:Port                      Process                      
+</span></span><span class="line"><span class="cl">LISTEN                      <span class="m">0</span>                           <span class="m">1</span>                                                      0.0.0.0:8888                                                 0.0.0.0:*                          users:<span class="o">((</span><span class="s2">&#34;python3&#34;</span>,pid<span class="o">=</span>137564,fd<span class="o">=</span>3<span class="o">))</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1"># ESTA socket 可以看到是属于 vrf-1 域的</span>
+</span></span><span class="line"><span class="cl">ESTAB                   <span class="m">0</span>                       <span class="m">0</span>                                        10.1.0.10%vrf-1:8888                                       10.2.0.10:37948                   users:<span class="o">((</span><span class="s2">&#34;python3&#34;</span>,pid<span class="o">=</span>137564,fd<span class="o">=</span>4<span class="o">))</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">root@test2:~# telnet 10.1.0.10 <span class="m">8888</span>
+</span></span><span class="line"><span class="cl">Trying 10.1.0.10...
+</span></span><span class="line"><span class="cl">Connected to 10.1.0.10.
+</span></span><span class="line"><span class="cl">Escape character is <span class="s1">&#39;^]&#39;</span>.
+</span></span><span class="line"><span class="cl">hello
+</span></span><span class="line"><span class="cl">hello
+</span></span></code></pre></div><ul>
+<li>但是不能跨域访问其它的非默认 VRF：</li>
+</ul>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">root@test1:~# sudo python3 server.py wg0
+</span></span><span class="line"><span class="cl">Server is listening on port <span class="m">8888</span>
+</span></span><span class="line"><span class="cl">Waiting <span class="k">for</span> a connection...
+</span></span><span class="line"><span class="cl">root@test1:~# ss -nltp src :8888
+</span></span><span class="line"><span class="cl">State                       Recv-Q                      Send-Q                                           Local Address:Port                                            Peer Address:Port                      Process                      
+</span></span><span class="line"><span class="cl">LISTEN                      <span class="m">0</span>                           <span class="m">1</span>                                                  0.0.0.0%wg0:8888                                                 0.0.0.0:*                          users:<span class="o">((</span><span class="s2">&#34;python3&#34;</span>,pid<span class="o">=</span>137583,fd<span class="o">=</span>3<span class="o">))</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">root@test1:~# telnet localhost <span class="m">8888</span>
+</span></span><span class="line"><span class="cl">Trying 127.0.0.1...
+</span></span><span class="line"><span class="cl">telnet: Unable to connect to remote host: Connection refused
+</span></span></code></pre></div><p>不过无论如何设置<code>tcp_l3mdev_accept</code>，从 <code>accept</code>创建的 establish socket 都会基于包入向接口所在的 VRF 创建。</p>
+<p>附测试程序：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-python" data-lang="python"><span class="line"><span class="cl"><span class="kn">import</span> <span class="nn">socket</span>
+</span></span><span class="line"><span class="cl"><span class="kn">import</span> <span class="nn">sys</span>
+</span></span><span class="line"><span class="cl"><span class="kn">import</span> <span class="nn">struct</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1"># 解析命令行参数</span>
+</span></span><span class="line"><span class="cl"><span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">    <span class="n">device</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+</span></span><span class="line"><span class="cl"><span class="k">else</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">    <span class="n">device</span> <span class="o">=</span> <span class="kc">None</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1"># 定义服务器地址和端口</span>
+</span></span><span class="line"><span class="cl"><span class="n">server_address</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="mi">8080</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1"># 创建 TCP 套接字</span>
+</span></span><span class="line"><span class="cl"><span class="n">server_socket</span> <span class="o">=</span> <span class="n">socket</span><span class="o">.</span><span class="n">socket</span><span class="p">(</span><span class="n">socket</span><span class="o">.</span><span class="n">AF_INET</span><span class="p">,</span> <span class="n">socket</span><span class="o">.</span><span class="n">SOCK_STREAM</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1"># 如果指定了网络接口，则进行绑定</span>
+</span></span><span class="line"><span class="cl"><span class="k">if</span> <span class="n">device</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">    <span class="k">try</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">        <span class="c1"># 获取 SO_BINDTODEVICE 选项的值</span>
+</span></span><span class="line"><span class="cl">        <span class="n">SO_BINDTODEVICE</span> <span class="o">=</span> <span class="mi">25</span>
+</span></span><span class="line"><span class="cl">        <span class="c1"># 将设备名转换为字节类型</span>
+</span></span><span class="line"><span class="cl">        <span class="n">device_bytes</span> <span class="o">=</span> <span class="n">device</span><span class="o">.</span><span class="n">encode</span><span class="p">()</span> <span class="o">+</span> <span class="sa">b</span><span class="s1">&#39;</span><span class="se">\x00</span><span class="s1">&#39;</span>
+</span></span><span class="line"><span class="cl">        <span class="c1"># 设置 SO_BINDTODEVICE 选项</span>
+</span></span><span class="line"><span class="cl">        <span class="n">server_socket</span><span class="o">.</span><span class="n">setsockopt</span><span class="p">(</span><span class="n">socket</span><span class="o">.</span><span class="n">SOL_SOCKET</span><span class="p">,</span> <span class="n">SO_BINDTODEVICE</span><span class="p">,</span> <span class="n">device_bytes</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">except</span> <span class="ne">OSError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&#34;Failed to bind to device </span><span class="si">{</span><span class="n">device</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1"># 绑定地址和端口</span>
+</span></span><span class="line"><span class="cl"><span class="n">server_socket</span><span class="o">.</span><span class="n">bind</span><span class="p">(</span><span class="n">server_address</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1"># 开始监听</span>
+</span></span><span class="line"><span class="cl"><span class="n">server_socket</span><span class="o">.</span><span class="n">listen</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&#34;Server is listening on port </span><span class="si">{</span><span class="n">server_address</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s2">&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">    <span class="c1"># 接受客户端连接</span>
+</span></span><span class="line"><span class="cl">    <span class="nb">print</span><span class="p">(</span><span class="s2">&#34;Waiting for a connection...&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="n">connection</span><span class="p">,</span> <span class="n">client_address</span> <span class="o">=</span> <span class="n">server_socket</span><span class="o">.</span><span class="n">accept</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="k">try</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&#34;Connection from </span><span class="si">{</span><span class="n">client_address</span><span class="si">}</span><span class="s2">&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1"># 接收客户端数据并原样返回</span>
+</span></span><span class="line"><span class="cl">        <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">            <span class="n">data</span> <span class="o">=</span> <span class="n">connection</span><span class="o">.</span><span class="n">recv</span><span class="p">(</span><span class="mi">1024</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="k">if</span> <span class="n">data</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">                <span class="n">connection</span><span class="o">.</span><span class="n">sendall</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="k">else</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">                <span class="k">break</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">finally</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">        <span class="c1"># 关闭连接</span>
+</span></span><span class="line"><span class="cl">        <span class="n">connection</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+</span></span></code></pre></div><h2 id="vrf-在-linux-中的实现-from-dog250">VRF 在 Linux 中的实现 (From dog250)<a href="#vrf-在-linux-中的实现-from-dog250" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<h3 id="linux-44---48">Linux 4.4 - 4.8<a href="#linux-44---48" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p><img src="/images/notes/vrf-an-overview/f453e429c95b2818ebc715ffff42ddb1_MD5.png" alt="f453e429c95b2818ebc715ffff42ddb1_MD5"></p>
+<p>VRF 是基于虚拟网卡实现的，每一个 VRF 域都表现为一个虚拟网卡，然后将具体的物理网卡（或者是别的虚拟网卡）添加到指定的 VRF 网卡，从而实现隔离。</p>
+<p>数据包在被物理网卡 ethX 接收后，在 netif_receive_skb 中，会有 rx_handler 回调来截获数据包。VRF 会注册一个 rx_handler 回调，该回调中将 skb 的 dev 字段替换为 VRF 虚拟网卡 Device 对象，这个处理是和 Bridge 处理一致的。接下来，系统依赖以下的事实来实现 VRF 逻辑：</p>
+<ul>
+<li>数据包 skb 的 dev 字段已经是 VRF 设备，表明数据包看起来是通过 VRFX 来接收的。</li>
+<li>用户显式配置的Policy Routing 的 rule 要求来自 VRFX 接收的数据包要查询X号路由表，如：</li>
+</ul>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-python" data-lang="python"><span class="line"><span class="cl"><span class="n">root</span><span class="nd">@vm1</span><span class="p">:</span><span class="o">~</span><span class="c1"># ip rule add oif vrf-1 table 1</span>
+</span></span><span class="line"><span class="cl"><span class="n">root</span><span class="nd">@vm1</span><span class="p">:</span><span class="o">~</span><span class="c1"># ip rule add iif vrf-1 table 1</span>
+</span></span></code></pre></div><p>这就实现了VRF逻辑。</p>
+<p>可以看到，用户需要自己来手工完成策略路由表的定向操作，这个配置是重点，没有它的话，便不会让 VRF 网卡接收的数据包查询策略路由表。</p>
+<p>这明显是一种很初级但可用(我的做法确实Low，但是就是可用！这是Linux的一种典型的文化)的做法。很自然的，Linux 4.8 内核开 始，VRF 有了第二阶段的实现方法，省略了用户自己手工配置策略路由这个步骤。</p>
+<h3 id="linux-48-以后">Linux 4.8 以后<a href="#linux-48-以后" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>在 Linux 4.8 内核以及以后，系统提供了一种更加优雅的做法，即引入了一个叫做 L3mdev（Layer3 master device）的机制，有了这个 L3mdev 机制，便省去了显式配置策略路由的必要。</p>
+<p>在创建一个 VRF 虚拟网卡的时候，系统便将其与一个特定的策略路由表自动关联，L3mdev 机制基于这种关联来完成策略路由表的定向操作。这种 L3mdev 机制事实上相当于又一个3层的 Hook，该 Hook 将感兴趣流量伪装成从一个虚拟网卡接收，用该虚拟网卡来实现一些特定于3层的处理逻辑。</p>
+<p><img src="/images/notes/vrf-an-overview/b6f99011cbfae45790720393c7c89ed0_MD5.png" alt="b6f99011cbfae45790720393c7c89ed0_MD5"></p>
+<p>对比一下 4.8 内核之前的处理方法，就知道如今的 L3mdev 有多么高尚了，老的注册 rxhandler 回调的方法如下图：</p>
+<p><img src="/images/notes/vrf-an-overview/b77eae239cc961eceb4b96dcd79602ee_MD5.png" alt="b77eae239cc961eceb4b96dcd79602ee_MD5"></p>
+<p>下图是采用新的 L3mdev 机制的 VRF 实现框图：</p>
+<p><img src="/images/notes/vrf-an-overview/96f31a6dd78b05b563e168102c8ebb12_MD5.png" alt="96f31a6dd78b05b563e168102c8ebb12_MD5"></p>
+<h3 id="数据路径实现逻辑">数据路径实现逻辑<a href="#数据路径实现逻辑" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>以下（即Linux 4.8 及以后的 VRF 内核实现）来用两个情景分析的方式阐述 VRF 的实现，通过这两个情景分析，基本上 VRF 的实现也就了然于胸了。</p>
+<h4 id="收包场景">收包场景<a href="#收包场景" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<p>从独立的物理网卡，比如 eth0 收到数据包，依次经过网卡驱动程序，netif_receive_skb，ip_rcv 等调用，直到 ip_rcv_finish 被调用之前，VRF 的逻辑和非 VRF 逻辑并没有任何不同支持，在 ip_rcv_finish 中，事情起了变化：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="k">static</span> <span class="kt">int</span> <span class="nf">ip_rcv_finish</span><span class="p">(</span><span class="k">struct</span> <span class="n">net</span> <span class="o">*</span><span class="n">net</span><span class="p">,</span> <span class="k">struct</span> <span class="n">sock</span> <span class="o">*</span><span class="n">sk</span><span class="p">,</span> <span class="k">struct</span> <span class="n">sk_buff</span> <span class="o">*</span><span class="n">skb</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">const</span> <span class="k">struct</span> <span class="n">iphdr</span> <span class="o">*</span><span class="n">iph</span> <span class="o">=</span> <span class="nf">ip_hdr</span><span class="p">(</span><span class="n">skb</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="k">struct</span> <span class="n">rtable</span> <span class="o">*</span><span class="n">rt</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">struct</span> <span class="n">net_device</span> <span class="o">*</span><span class="n">dev</span> <span class="o">=</span> <span class="n">skb</span><span class="o">-&gt;</span><span class="n">dev</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="cm">/* if ingress device is enslaved to an L3 master device pass the
+</span></span></span><span class="line"><span class="cl"><span class="cm">     * skb to its handler for processing
+</span></span></span><span class="line"><span class="cl"><span class="cm">     */</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 这里增加了这么一个L3mdev调用，正是该L3mdev逻辑的处理，实现了VRF的核心：路由表使用与VRF域关联的策略路由表
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="n">skb</span> <span class="o">=</span> <span class="nf">l3mdev_ip_rcv</span><span class="p">(</span><span class="n">skb</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 后面的逻辑直到定位路由表，VRF逻辑和常规逻辑没有任何不同
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="p">...</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span></code></pre></div><p>具体来讲，I3mdev_ip_rcv 的逻辑非常简单，对于 VRF 而言，实现 I3mdev_I3_rcv 回调函数完成的功能仅仅是：</p>
+<ul>
+<li>将 skb 的 dev 字段重新修改为该 dev 的 master 设备，即该物理网卡附着的 VRF 虚拟网卡设备。</li>
+</ul>
+<p>我们接下来看下上述的 l3mdev_ip_rcv 里做的关于 skb 的 dev 字段的修改在什么时候会用到。可以想象的是，当然是在定位策略路由表的时候用的咯，问题是，在代码层面这是怎么实现的。</p>
+<p>我们跳过中间步骤，直达策略路由表的定位，在定位路由表的时候，实际上是在定位一个 rule，系统会遍历所有的 rules 链表，比较典型的 rules 链表可以通过下面的命令查看：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">ip rule ls
+</span></span></code></pre></div><p>一般情况下，我们会看到以下结果：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">0:      from all lookup <span class="nb">local</span> 
+</span></span><span class="line"><span class="cl">32766:  from all lookup main 
+</span></span><span class="line"><span class="cl">32767:  from all lookup default 
+</span></span></code></pre></div><p>当我们配置了 VRF 域时，看到的是如下结果：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">0:      from all lookup <span class="nb">local</span> 
+</span></span><span class="line"><span class="cl">1000:   from all lookup <span class="o">[</span>l3mdev-table<span class="o">]</span> 
+</span></span><span class="line"><span class="cl">32766:  from all lookup main 
+</span></span><span class="line"><span class="cl">32767:  from all lookup default  
+</span></span></code></pre></div><p>嗯，多了一个 l3mdev-table，系统在遍历 rules 链表的时候，遇到 [3mdev-table] 表的时候，采用的是一种隐式的处理方式。意思是说，即便你创建了多个 VRF 域，关联了多张策略路由表，系统中依然只能看到一张 [I3mdev-table] 表。</p>
+<p>既然这样，系统又是如何定位到与特定的 VRF 域关联的那张路由表呢？比如说，vrf-blue 关联了路由表 10，vrf-red 关联了路由表 20，此时正在处理的包属于 vrf-blue，系统如何定位到要查找路由表 10 而不是路由表 20 呢？</p>
+<p>为了了解 [l3mdev-table] 的工作方式，就需要看下 fib_rule_match 的逻辑：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="k">static</span> <span class="kt">int</span> <span class="nf">fib_rule_match</span><span class="p">(</span><span class="k">struct</span> <span class="n">fib_rule</span> <span class="o">*</span><span class="n">rule</span><span class="p">,</span> <span class="k">struct</span> <span class="n">fib_rules_ops</span> <span class="o">*</span><span class="n">ops</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                          <span class="k">struct</span> <span class="n">flowi</span> <span class="o">*</span><span class="n">fl</span><span class="p">,</span> <span class="kt">int</span> <span class="n">flags</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                          <span class="k">struct</span> <span class="n">fib_lookup_arg</span> <span class="o">*</span><span class="n">arg</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">int</span> <span class="n">ret</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="p">...</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 前面的逻辑是常规的iif，oif，mark等匹配，以下的这个l3mdev不一般！
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">// rule-&gt;l3mdev即ip rule ls看到的那个[l3mdev-table]
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="k">if</span> <span class="p">(</span><span class="n">rule</span><span class="o">-&gt;</span><span class="n">l3mdev</span> <span class="o">&amp;&amp;</span> <span class="o">!</span><span class="nf">l3mdev_fib_rule_match</span><span class="p">(</span><span class="n">rule</span><span class="o">-&gt;</span><span class="n">fr_net</span><span class="p">,</span> <span class="n">fl</span><span class="p">,</span> <span class="n">arg</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">        <span class="k">goto</span> <span class="n">out</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">ret</span> <span class="o">=</span> <span class="n">ops</span><span class="o">-&gt;</span><span class="nf">match</span><span class="p">(</span><span class="n">rule</span><span class="p">,</span> <span class="n">fl</span><span class="p">,</span> <span class="n">flags</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="nl">out</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="p">(</span><span class="n">rule</span><span class="o">-&gt;</span><span class="n">flags</span> <span class="o">&amp;</span> <span class="n">FIB_RULE_INVERT</span><span class="p">)</span> <span class="o">?</span> <span class="o">!</span><span class="nl">ret</span> <span class="p">:</span> <span class="n">ret</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>我们重点看下 l3mdev_fib_rule_match：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="kt">int</span> <span class="nf">l3mdev_fib_rule_match</span><span class="p">(</span><span class="k">struct</span> <span class="n">net</span> <span class="o">*</span><span class="n">net</span><span class="p">,</span> <span class="k">struct</span> <span class="n">flowi</span> <span class="o">*</span><span class="n">fl</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">              <span class="k">struct</span> <span class="n">fib_lookup_arg</span> <span class="o">*</span><span class="n">arg</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">struct</span> <span class="n">net_device</span> <span class="o">*</span><span class="n">dev</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">int</span> <span class="n">rc</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"> 
+</span></span><span class="line"><span class="cl">    <span class="nf">rcu_read_lock</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">...</span> <span class="c1">// 我们仅仅分析iif情景
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span> 
+</span></span><span class="line"><span class="cl">    <span class="n">dev</span> <span class="o">=</span> <span class="nf">dev_get_by_index_rcu</span><span class="p">(</span><span class="n">net</span><span class="p">,</span> <span class="n">fl</span><span class="o">-&gt;</span><span class="n">flowi_iif</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 如果这个dev是一个VRF master虚拟网卡设备
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="k">if</span> <span class="p">(</span><span class="n">dev</span> <span class="o">&amp;&amp;</span> <span class="nf">netif_is_l3_master</span><span class="p">(</span><span class="n">dev</span><span class="p">)</span> <span class="o">&amp;&amp;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">dev</span><span class="o">-&gt;</span><span class="n">l3mdev_ops</span><span class="o">-&gt;</span><span class="n">l3mdev_fib_table</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 那么便通过其自身的回调函数取出和该VRF关联的策略路由表！
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>        <span class="n">arg</span><span class="o">-&gt;</span><span class="n">table</span> <span class="o">=</span> <span class="n">dev</span><span class="o">-&gt;</span><span class="n">l3mdev_ops</span><span class="o">-&gt;</span><span class="nf">l3mdev_fib_table</span><span class="p">(</span><span class="n">dev</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">rc</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="k">goto</span> <span class="n">out</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"> 
+</span></span><span class="line"><span class="cl"><span class="nl">out</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">    <span class="nf">rcu_read_unlock</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl"> 
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">rc</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>到此为止呢，我们的一幅图景就闭合了：</p>
+<ul>
+<li>首先在 ip_rcv_finish 的 l3mdev_ip_rcv 调用中定位到与收包物理网卡关联的 VRF master 虚拟网卡；</li>
+<li>然后在 fib_lookup 内层的 l3mdev_fib_rule_match 调用中取出与 VRFmaster 虚拟网卡关联的策略路由表；</li>
+<li>最终在该特定的路由表中进行路由查找。</li>
+</ul>
+<h4 id="本地始发包场景">本地始发包场景<a href="#本地始发包场景" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<p>由于本地的数据包全部来自于某个 socket 而不是网卡，socket 是不和网卡关联的，所以 IP 层在查路由之前无法知道一个数据包和哪个网卡关联，就更别提去选择使用哪张路由表了&hellip;</p>
+<p>因此，如若一个 socket 程序想使用 VRF 机制，就必须为一个 socket 去绑定一个特定的网卡：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="nf">setsockopt</span><span class="p">(</span><span class="n">sd</span><span class="p">,</span> <span class="n">SOL_SOCKET</span><span class="p">,</span> <span class="n">SO_BINDToDEVICE</span><span class="p">,</span> <span class="n">vrf_dev</span><span class="p">,</span> <span class="nf">strlen</span><span class="p">(</span><span class="n">vrf_dev</span><span class="p">)</span><span class="o">+</span><span class="mi">1</span><span class="p">);</span>
+</span></span></code></pre></div><p>有了这个调用，在 ip_queue_xmit 中查找路由的时候，自然就会在 fib_rule_match 中定位到与参数 vrf_dev 关联的策略路由表了。然而，如果 socket 程序并不知情，它只是 bind 了一个隶属于该 vrf_dev 的 slave 物理网卡，比如 eth0，那要怎么处理呢？</p>
+<p>显然 SO_BINDTODEVICE 参数会为数据包在 <code>__ip_route_output_key_hash</code> 调用中的路由查找失败而负责，为其暂时绑定一个 dummy dst_entry，从而逻辑可以到达 <code>__ip_local_out</code>:</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="kt">int</span> <span class="nf">__ip_local_out</span><span class="p">(</span><span class="k">struct</span> <span class="n">net</span> <span class="o">*</span><span class="n">net</span><span class="p">,</span> <span class="k">struct</span> <span class="n">sock</span> <span class="o">*</span><span class="n">sk</span><span class="p">,</span> <span class="k">struct</span> <span class="n">sk_buff</span> <span class="o">*</span><span class="n">skb</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">struct</span> <span class="n">iphdr</span> <span class="o">*</span><span class="n">iph</span> <span class="o">=</span> <span class="nf">ip_hdr</span><span class="p">(</span><span class="n">skb</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"> 
+</span></span><span class="line"><span class="cl">    <span class="n">iph</span><span class="o">-&gt;</span><span class="n">tot_len</span> <span class="o">=</span> <span class="nf">htons</span><span class="p">(</span><span class="n">skb</span><span class="o">-&gt;</span><span class="n">len</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="nf">ip_send_check</span><span class="p">(</span><span class="n">iph</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"> 
+</span></span><span class="line"><span class="cl">    <span class="cm">/* if egress device is enslaved to an L3 master device pass the
+</span></span></span><span class="line"><span class="cl"><span class="cm">     * skb to its handler for processing
+</span></span></span><span class="line"><span class="cl"><span class="cm">     */</span>
+</span></span><span class="line"><span class="cl">    <span class="n">skb</span> <span class="o">=</span> <span class="nf">l3mdev_ip_out</span><span class="p">(</span><span class="n">sk</span><span class="p">,</span> <span class="n">skb</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">...</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>和网卡收包过程的 l3mdev 调用一样，我们看下这个与 l3mdev_ip_rcv 相对的 l3mdev_ip_out 调用里做了什么文章，实现对应回调函数的是 <code>vrf_ip_out</code>:</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="k">static</span> <span class="k">struct</span> <span class="n">sk_buff</span> <span class="o">*</span><span class="nf">vrf_ip_out</span><span class="p">(</span><span class="k">struct</span> <span class="n">net_device</span> <span class="o">*</span><span class="n">vrf_dev</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                  <span class="k">struct</span> <span class="n">sock</span> <span class="o">*</span><span class="n">sk</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                  <span class="k">struct</span> <span class="n">sk_buff</span> <span class="o">*</span><span class="n">skb</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">struct</span> <span class="n">net_vrf</span> <span class="o">*</span><span class="n">vrf</span> <span class="o">=</span> <span class="nf">netdev_priv</span><span class="p">(</span><span class="n">vrf_dev</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">...</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 取出VRF关联的那个唯一的dst_entry，以便将数据包定向到vrf_xmit
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="n">rth</span> <span class="o">=</span> <span class="nf">rcu_dereference</span><span class="p">(</span><span class="n">vrf</span><span class="o">-&gt;</span><span class="n">rth</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="nf">likely</span><span class="p">(</span><span class="n">rth</span><span class="p">))</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">dst</span> <span class="o">=</span> <span class="o">&amp;</span><span class="n">rth</span><span class="o">-&gt;</span><span class="n">dst</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="nf">dst_hold</span><span class="p">(</span><span class="n">dst</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">...</span>
+</span></span><span class="line"><span class="cl">    <span class="nf">skb_dst_set</span><span class="p">(</span><span class="n">skb</span><span class="p">,</span> <span class="n">dst</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"> 
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">skb</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>很简单，在这里仅仅是将 skb 的那个 dummy dst_entry 换成了和 VRF 设备绑定的那个 dst_entry。</p>
+<p>事实上，与 VRF 设备绑定的 dst_entry 只有一个且只做一件事，那就是，调用 VRF 设备的 dev_hard_xmit 回调函数，VRF 机制正是在该 dev_hard_xmit 回调函数中实现了真正的路由查询，在 dev_hard_xmit 回调中真正做事的函数是 <code>vrf_process_v4_outbound</code>：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="k">static</span> <span class="kt">netdev_tx_t</span> <span class="nf">vrf_process_v4_outbound</span><span class="p">(</span><span class="k">struct</span> <span class="n">sk_buff</span> <span class="o">*</span><span class="n">skb</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                       <span class="k">struct</span> <span class="n">net_device</span> <span class="o">*</span><span class="n">vrf_dev</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">struct</span> <span class="n">iphdr</span> <span class="o">*</span><span class="n">ip4h</span> <span class="o">=</span> <span class="nf">ip_hdr</span><span class="p">(</span><span class="n">skb</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">int</span> <span class="n">ret</span> <span class="o">=</span> <span class="n">NET_XMIT_DROP</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">struct</span> <span class="n">flowi4</span> <span class="n">fl4</span> <span class="o">=</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="cm">/* needed to match OIF rule */</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">// 这个会让l3mdev_fib_rule_match定位到正确的路由表
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>        <span class="p">.</span><span class="n">flowi4_oif</span> <span class="o">=</span> <span class="n">vrf_dev</span><span class="o">-&gt;</span><span class="n">ifindex</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="p">.</span><span class="n">flowi4_iif</span> <span class="o">=</span> <span class="n">LOOPBACK_IFINDEX</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="p">.</span><span class="n">flowi4_tos</span> <span class="o">=</span> <span class="nf">RT_TOS</span><span class="p">(</span><span class="n">ip4h</span><span class="o">-&gt;</span><span class="n">tos</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">        <span class="p">.</span><span class="n">flowi4_flags</span> <span class="o">=</span> <span class="n">FLOWI_FLAG_ANYSRC</span> <span class="o">|</span> <span class="n">FLOWI_FLAG_SKIP_NH_OIF</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="p">.</span><span class="n">daddr</span> <span class="o">=</span> <span class="n">ip4h</span><span class="o">-&gt;</span><span class="n">daddr</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="p">};</span>
+</span></span><span class="line"><span class="cl">    <span class="k">struct</span> <span class="n">net</span> <span class="o">*</span><span class="n">net</span> <span class="o">=</span> <span class="nf">dev_net</span><span class="p">(</span><span class="n">vrf_dev</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="k">struct</span> <span class="n">rtable</span> <span class="o">*</span><span class="n">rt</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 真实查路由
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="n">rt</span> <span class="o">=</span> <span class="nf">ip_route_output_flow</span><span class="p">(</span><span class="n">net</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">fl4</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">...</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 真实发送skb
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="n">ret</span> <span class="o">=</span> <span class="nf">vrf_ip_local_out</span><span class="p">(</span><span class="nf">dev_net</span><span class="p">(</span><span class="nf">skb_dst</span><span class="p">(</span><span class="n">skb</span><span class="p">)</span><span class="o">-&gt;</span><span class="n">dev</span><span class="p">),</span> <span class="n">skb</span><span class="o">-&gt;</span><span class="n">sk</span><span class="p">,</span> <span class="n">skb</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">...</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>整个流程就结束了。</p>
+<h4 id="总结">总结<a href="#总结" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<p><img src="/images/notes/vrf-an-overview/73bdcf83f5f9df9658b5e59dc119aa76_MD5.png" alt="73bdcf83f5f9df9658b5e59dc119aa76_MD5"></p>
+<h2 id="问题">问题<a href="#问题" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<ol>
+<li>VRF 设备的 mtu 为什么是 65575？</li>
+<li>在添加完静态路由后，为什么路由表中多了一条 169.254.0.0/16 的路由？</li>
+</ol>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">169.254.0.0/16 dev vrf-1 scope link metric <span class="m">1000</span> 
+</span></span></code></pre></div><h2 id="reference">Reference<a href="#reference" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<ol>
+<li><a href="https://docs.kernel.org/networking/vrf.html">https://docs.kernel.org/networking/vrf.html</a></li>
+<li><a href="https://www.dasblinkenlichten.com/working-with-linux-vrfs/">https://www.dasblinkenlichten.com/working-with-linux-vrfs/</a></li>
+<li><a href="https://blog.csdn.net/weixin_38387929/article/details/111594909">https://blog.csdn.net/weixin_38387929/article/details/111594909</a></li>
+<li><a href="https://github.com/Mellanox/mlxsw/wiki/Virtual-Routing-and-Forwarding-%28VRF%29">https://github.com/Mellanox/mlxsw/wiki/Virtual-Routing-and-Forwarding-%28VRF%29</a></li>
+</ol>
+
+      </div></div>
+
+  
+    
+
+  
+
+  
+    
+
+  
+</article>
+
+  </div>
+
+  
+    <footer class="footer">
+  <div class="footer__inner">
+    
+      <div class="copyright">
+        <span>© 2025 Powered by <a href="https://gohugo.io">Hugo</a></span>
+    
+      <span>:: <a href="https://github.com/panr/hugo-theme-terminal" target="_blank">Theme</a> made by <a href="https://github.com/panr" target="_blank">panr</a></span>
+      </div>
+  </div>
+</footer>
+
+
+
+
+
+
+<script type="text/javascript" src="/bundle.min.js"></script>
+
+
+
+
+
+  
+  </div>
+
+  <aside class="floating-sidebar">
+    
+<div class="sidebar time-archive">
+  <h3>Time Archives</h3>
+  <div class="archive-list">
+    
+    
+
+    
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+
+    
+    
+
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-09/" class="archive-link">
+          <span class="archive-date">2025-09</span>
+          <span class="archive-month-name">Sep</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-08/" class="archive-link">
+          <span class="archive-date">2025-08</span>
+          <span class="archive-month-name">Aug</span>
+          <span class="archive-count">(8)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-04/" class="archive-link">
+          <span class="archive-date">2025-04</span>
+          <span class="archive-month-name">Apr</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-03/" class="archive-link">
+          <span class="archive-date">2025-03</span>
+          <span class="archive-month-name">Mar</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-03/" class="archive-link">
+          <span class="archive-date">2022-03</span>
+          <span class="archive-month-name">Mar</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-06/" class="archive-link">
+          <span class="archive-date">2021-06</span>
+          <span class="archive-month-name">Jun</span>
+          <span class="archive-count">(3)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-01/" class="archive-link">
+          <span class="archive-date">2021-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+  </div>
+</div>
+
+<style>
+.sidebar.time-archive {
+  background: rgba(26, 23, 15, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--accent, #FFA86B);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+  max-width: var(--sidebar-component-width, 240px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.sidebar.time-archive h3 {
+  margin: 0 0 1rem 0;
+  color: var(--accent, #FFA86B);
+  font-size: 1.2rem;
+  border-bottom: 1px solid var(--accent-alpha-70, rgba(255, 168, 107, 0.7));
+  padding-bottom: 0.5rem;
+}
+
+
+.archive-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.archive-item {
+  display: block;
+}
+
+.archive-link {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  text-decoration: none;
+  color: var(--color, inherit);
+  padding: 0.5rem;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+}
+
+.archive-link:hover {
+  background-color: var(--accent-alpha-20, rgba(255, 168, 107, 0.2));
+  color: var(--accent, #FFA86B);
+}
+
+.archive-date {
+  font-family: var(--code-font-family, 'Fira Code', monospace);
+  font-weight: bold;
+  min-width: 60px;
+}
+
+.archive-month-name {
+  flex: 1;
+  margin-left: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.archive-count {
+  color: var(--accent, #FFA86B);
+  font-weight: bold;
+  font-size: 0.9rem;
+}
+
+ 
+</style>
+
+    
+<div class="sidebar tags-cloud">
+  <h3>Tags Cloud</h3>
+  <div class="tags-container">
+    
+    
+    
+    
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+    
+    
+    
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+    
+    
+    
+    
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+    
+    
+    
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+    
+    
+    
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/concurrency/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="7 articles">
+          Concurrency
+          <span class="tag-count">(7)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/dns/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          dns
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/kaist-cs431/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="7 articles">
+          KAIST-CS431
+          <span class="tag-count">(7)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/lua/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          Lua
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/network/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Network
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/rust/" 
+           class="tag-item" 
+           style="font-size: 1.5em;"
+           title="10 articles">
+          Rust
+          <span class="tag-count">(10)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/wasm/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Wasm
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+  </div>
+</div>
+
+<style>
+.sidebar.tags-cloud {
+  background: rgba(26, 23, 15, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--accent, #FFA86B);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+  max-width: var(--sidebar-component-width, 240px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.sidebar.tags-cloud h3 {
+  margin: 0 0 1rem 0;
+  color: var(--accent, #FFA86B);
+  font-size: 1.2rem;
+  border-bottom: 1px solid var(--accent-alpha-70, rgba(255, 168, 107, 0.7));
+  padding-bottom: 0.5rem;
+}
+
+.tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  line-height: 1.6;
+}
+
+.tag-item {
+  display: inline-flex;
+  align-items: baseline;
+  text-decoration: none;
+  color: var(--color, inherit);
+  padding: 0.3rem 0.6rem;
+  border-radius: 16px;
+  background: rgba(255, 168, 107, 0.1);
+  border: 1px solid transparent;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.tag-item:hover {
+  background: rgba(255, 168, 107, 0.25);
+  border-color: var(--accent-alpha-50, rgba(255, 168, 107, 0.5));
+  color: var(--accent, #FFA86B);
+  transform: translateY(-1px);
+}
+
+.tag-count {
+  font-size: 0.75em;
+  margin-left: 0.3rem;
+  opacity: 0.7;
+  font-weight: normal;
+}
+
+.tag-item:hover .tag-count {
+  opacity: 1;
+}
+
+ 
+
+ 
+.tag-item {
+  font-weight: 400;
+}
+
+ 
+.tag-item[style*="1.5"], 
+.tag-item[style*="1.4"],
+.tag-item[style*="1.3"] {
+  font-weight: 600;
+}
+
+ 
+.tag-item[style*="1.2"],
+.tag-item[style*="1.1"] {
+  font-weight: 500;
+}
+
+ 
+.tag-item[style*="1.5"]:hover,
+.tag-item[style*="1.4"]:hover,
+.tag-item[style*="1.3"]:hover {
+  box-shadow: 0 3px 10px rgba(255, 168, 107, 0.4);
+  transform: translateY(-2px);
+}
+
+</style>
+
+  </aside>
+</div>
+
+<style>
+ 
+.page-wrapper {
+  position: relative;
+  width: 100%;
+  max-width: none;
+  --sidebar-top-offset: 150px;  
+  --sidebar-component-width: 240px;  
+}
+
+   
+.floating-sidebar {
+  position: absolute;
+   
+  top: var(--sidebar-top-offset, 175px);
+   
+  right: max(20px, calc((100vw - 864px) / 2 - 330px));
+  width: 300px;
+  z-index: 100;
+  opacity: 0.96;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+ 
+.floating-sidebar:hover {
+  opacity: 1;
+  transform: translateX(-5px);
+}
+
+ 
+.floating-sidebar {
+  display: none;
+}
+
+ 
+@media (min-width: 1524px) {
+  .floating-sidebar {
+    display: block;
+    position: absolute;
+    right: max(20px, calc((100vw - 864px) / 2 - 330px));
+  }
+}
+
+ 
+@media (max-width: 1523px) {
+  .floating-sidebar {
+    display: none !important;
+  }
+}
+
+</style>
+
+</body>
+</html>
