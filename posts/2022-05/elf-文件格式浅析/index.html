@@ -1,0 +1,1673 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  
+    <title>ELF 文件格式浅析 :: chengzhycn&#39;s blog</title>
+  
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="本文是作为 Rust 的练手项目 rself(https://github.com/chengzhycn/rself) 的背景知识记录。rself 使用 Rust 重新造了一个 readelf 的轮子。
+ELF全称为Executable and Linkable Format，是Linux上可执行文件的通用文件格式。主要有三种类型的ELF文件：
+Relocatable file: 存储用于和其它对象文件链接的代码和数据，创建一个可执行文件或者共享对象文件 Executable file: 存储的是用于执行的程序。它指定了exec如何创建一个程序的进程镜像 Shared object file: 存储了在两种语义下用于链接的代码和数据。第一种是让链接器将共享对象文件和其它的可重定位文件/共享对象文件一起创建一个新的对象文件；第二种是动态链接器将它和可执行文件以及其它的共享对象一起创建一个进程镜像。 ELF构成 ELF主要由如下几个部分组成：
+ELF Header: 位于文件的起始，描述了整个文件的组织结构 Sections/Segments: 存储了指令、数据、符号表、可重定位信息等。sections 是这段数据在链接时的表现；segments 是数据在执行时的表现。 Program Header Table: 用于告诉系统如何创建一个进程镜像。对于可执行程序，Program Header Table是必须的，但是对于可重定位文件就不需要了。 Section Header Table: 存储描述文件中sections的信息。每个section都在这个表中有一个条目，存储了如section name, section size等信息。用于链接的文件必须得有Section Header Table，其它的对象文件可有可无。 上面的图中虽然描述文件各个部分的位置，但实际上只有ELF Header的位置是固定的，其它的部分在文件中的位置都在ELF Header中指定。
+ELF Header #define EI_NIDENT 16 typedef struct { unsigned char e_ident[EI_NIDENT]; Elf32_Half e_type; Elf32_Half e_machine; Elf32_Word e_version; Elf32_Addr e_entry; Elf32_Off e_phoff; Elf32_Off e_shoff; Elf32_Word e_flags; Elf32_Half e_ehsize; Elf32_Half e_phentsize; Elf32_Half e_phnum; Elf32_Half e_shentsize; Elf32_Half e_shnum; Elf32_Half e_shstrndx; } Elf32_Ehdr; typedef struct { unsigned char e_ident[EI_NIDENT]; Elf64_Half e_type; Elf64_Half e_machine; Elf64_Word e_version; Elf64_Addr e_entry; Elf64_Off e_phoff; Elf64_Off e_shoff; Elf64_Word e_flags; Elf64_Half e_ehsize; Elf64_Half e_phentsize; Elf64_Half e_phnum; Elf64_Half e_shentsize; Elf64_Half e_shnum; Elf64_Half e_shstrndx; } Elf64_Ehdr; ELF header通常由一个Elfxx_Ehdr结构体表示。它存储了当前二进制文件的一些元数据：
+" />
+<meta name="keywords" content="" />
+
+  <meta name="robots" content="noodp" />
+
+<link rel="canonical" href="https://www.jinzhi.site/posts/2022-05/elf-%E6%96%87%E4%BB%B6%E6%A0%BC%E5%BC%8F%E6%B5%85%E6%9E%90/" />
+
+
+
+
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/buttons.min.86f6b4c106b6c6eb690ae5203d36b442c1f66f718ff4e8164fa86cf6c61ad641.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/code.min.d529ea4b2fb8d34328d7d31afc5466d5f7bc2f0bc9abdd98b69385335d7baee4.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/fonts.min.5bb7ed13e1d00d8ff39ea84af26737007eb5051b157b86fc24487c94f3dc8bbe.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/footer.min.eb8dfc2c6a7eafa36cd3ba92d63e69e849e2200e0002a228d137f236b09ecd75.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/gist.min.a751e8b0abe1ba8bc53ced52a38b19d8950fe78ca29454ea8c2595cf26aad5c0.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/header.min.75c7eb0e2872d95ff48109c6647d0223a38db52e2561dd87966eb5fc7c6bdac6.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/main.min.7984a754b43b7469d389c539410e90dff2870263de16b008dfc7e8170fcd0f5b.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/menu.min.3c17467ebeb3d38663dce68f71f519901124fa5cbb4519b2fb0667a21e9aca39.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/pagination.min.bbb986dbce00a5ce5aca0504b7925fc1c581992a4bf57f163e5d69cc1db7d836.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/post.min.e6dddd258e64c83e05cec0cd49c05216742d42fc8ecbfbe6b67083412b609bd3.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/syntax.min.a0773cce9310cb6d8ed23e50f005448facf29a53001b57e038828daa466b25c0.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/terminal.min.e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/terms.min.b81791663c3790e738e571cdbf802312390d30e4b1d8dc9d814a5b5454d0ac11.css">
+
+
+
+
+
+
+
+<link rel="shortcut icon" href="https://www.jinzhi.site/favicon.png">
+<link rel="apple-touch-icon" href="https://www.jinzhi.site/apple-touch-icon.png">
+
+
+<meta name="twitter:card" content="summary" />
+
+  
+    <meta name="twitter:site" content="" />
+  
+    <meta name="twitter:creator" content="" />
+
+
+
+<meta property="og:locale" content="en" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="ELF 文件格式浅析">
+<meta property="og:description" content="本文是作为 Rust 的练手项目 rself(https://github.com/chengzhycn/rself) 的背景知识记录。rself 使用 Rust 重新造了一个 readelf 的轮子。
+ELF全称为Executable and Linkable Format，是Linux上可执行文件的通用文件格式。主要有三种类型的ELF文件：
+Relocatable file: 存储用于和其它对象文件链接的代码和数据，创建一个可执行文件或者共享对象文件 Executable file: 存储的是用于执行的程序。它指定了exec如何创建一个程序的进程镜像 Shared object file: 存储了在两种语义下用于链接的代码和数据。第一种是让链接器将共享对象文件和其它的可重定位文件/共享对象文件一起创建一个新的对象文件；第二种是动态链接器将它和可执行文件以及其它的共享对象一起创建一个进程镜像。 ELF构成 ELF主要由如下几个部分组成：
+ELF Header: 位于文件的起始，描述了整个文件的组织结构 Sections/Segments: 存储了指令、数据、符号表、可重定位信息等。sections 是这段数据在链接时的表现；segments 是数据在执行时的表现。 Program Header Table: 用于告诉系统如何创建一个进程镜像。对于可执行程序，Program Header Table是必须的，但是对于可重定位文件就不需要了。 Section Header Table: 存储描述文件中sections的信息。每个section都在这个表中有一个条目，存储了如section name, section size等信息。用于链接的文件必须得有Section Header Table，其它的对象文件可有可无。 上面的图中虽然描述文件各个部分的位置，但实际上只有ELF Header的位置是固定的，其它的部分在文件中的位置都在ELF Header中指定。
+ELF Header #define EI_NIDENT 16 typedef struct { unsigned char e_ident[EI_NIDENT]; Elf32_Half e_type; Elf32_Half e_machine; Elf32_Word e_version; Elf32_Addr e_entry; Elf32_Off e_phoff; Elf32_Off e_shoff; Elf32_Word e_flags; Elf32_Half e_ehsize; Elf32_Half e_phentsize; Elf32_Half e_phnum; Elf32_Half e_shentsize; Elf32_Half e_shnum; Elf32_Half e_shstrndx; } Elf32_Ehdr; typedef struct { unsigned char e_ident[EI_NIDENT]; Elf64_Half e_type; Elf64_Half e_machine; Elf64_Word e_version; Elf64_Addr e_entry; Elf64_Off e_phoff; Elf64_Off e_shoff; Elf64_Word e_flags; Elf64_Half e_ehsize; Elf64_Half e_phentsize; Elf64_Half e_phnum; Elf64_Half e_shentsize; Elf64_Half e_shnum; Elf64_Half e_shstrndx; } Elf64_Ehdr; ELF header通常由一个Elfxx_Ehdr结构体表示。它存储了当前二进制文件的一些元数据：
+" />
+<meta property="og:url" content="https://www.jinzhi.site/posts/2022-05/elf-%E6%96%87%E4%BB%B6%E6%A0%BC%E5%BC%8F%E6%B5%85%E6%9E%90/" />
+<meta property="og:site_name" content="chengzhycn&#39;s blog" />
+
+  <meta property="og:image" content="https://www.jinzhi.site/og-image.png">
+
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="627">
+
+  <meta property="article:section" content="Learning" />
+
+
+  <meta property="article:published_time" content="2022-05-27 09:30:28 &#43;0800 &#43;0800" />
+
+
+
+
+
+
+
+
+
+<html>
+<head>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-screen-web/style.css" />
+  <style>
+    body {
+      font-family: "LXGW WenKai Screen";
+      font-weight: normal;
+    }
+  </style>
+</head>
+<body>
+
+</body>
+</html>
+
+
+</head>
+<body>
+
+
+<div class="page-wrapper">
+  <div class="container center">
+
+  <header class="header">
+  <div class="header__inner">
+    <div class="header__logo">
+      <a href="/">
+  <div class="logo">
+    chengzhycn&#39;s blog
+  </div>
+</a>
+
+    </div>
+    
+      <ul class="menu menu--mobile">
+  <li class="menu__trigger">Menu&nbsp;▾</li>
+  <li>
+    <ul class="menu__dropdown">
+      
+        
+          <li><a href="/">Home</a></li>
+        
+      
+        
+          <li><a href="/about">About</a></li>
+        
+      
+        
+          <li><a href="/categories/">Categories</a></li>
+        
+      
+        
+          <li><a href="/tags/">Tags</a></li>
+        
+      
+        
+          <li><a href="/archives/">Archives</a></li>
+        
+      
+      
+    </ul>
+  </li>
+</ul>
+
+    
+    
+  </div>
+  
+    <nav class="navigation-menu">
+  <ul class="navigation-menu__inner menu--desktop">
+    
+      
+        
+          <li><a href="/" >Home</a></li>
+        
+      
+        
+          <li><a href="/about" >About</a></li>
+        
+      
+        
+          <li><a href="/categories/" >Categories</a></li>
+        
+      
+        
+          <li><a href="/tags/" >Tags</a></li>
+        
+      
+        
+          <li><a href="/archives/" >Archives</a></li>
+        
+      
+      
+    
+  </ul>
+</nav>
+
+  
+</header>
+
+
+  <div class="content">
+    
+<article class="post">
+  <h1 class="post-title">
+    <a href="https://www.jinzhi.site/posts/2022-05/elf-%E6%96%87%E4%BB%B6%E6%A0%BC%E5%BC%8F%E6%B5%85%E6%9E%90/">ELF 文件格式浅析</a>
+  </h1>
+  <div class="post-meta"><time class="post-date">2022-05-27</time><span class="post-reading-time">5 min read (981 words)</span></div>
+
+  
+    <span class="post-tags">
+      
+      #<a href="https://www.jinzhi.site/tags/operatingsystem/">OperatingSystem</a>&nbsp;
+      
+      #<a href="https://www.jinzhi.site/tags/elf/">ELF</a>&nbsp;
+      
+    </span>
+  
+  
+
+
+  
+    <div class="table-of-contents">
+      <h2>
+        Table of Contents
+      </h2>
+      <nav id="TableOfContents">
+  <ul>
+    <li><a href="#elf构成">ELF构成</a></li>
+    <li><a href="#elf-header">ELF Header</a>
+      <ul>
+        <li><a href="#sections">Sections</a></li>
+        <li><a href="#segments">Segments</a></li>
+      </ul>
+    </li>
+    <li><a href="#符号">符号</a>
+      <ul>
+        <li><a href="#什么是符号">什么是符号</a></li>
+        <li><a href="#elf-符号结构体">ELF 符号结构体</a></li>
+        <li><a href="#符号和字符串表">符号和字符串表</a></li>
+      </ul>
+    </li>
+    <li><a href="#重定位relocation">重定位（Relocation）</a>
+      <ul>
+        <li><a href="#relocation-entries">Relocation entries</a></li>
+        <li><a href="#重定位类型">重定位类型</a></li>
+      </ul>
+    </li>
+    <li><a href="#reference">Reference</a></li>
+  </ul>
+</nav>
+    </div>
+  
+
+  <div class="post-content"><div>
+        <p>本文是作为 Rust 的练手项目 rself(<a href="https://github.com/chengzhycn/rself">https://github.com/chengzhycn/rself</a>) 的背景知识记录。rself 使用 Rust 重新造了一个 readelf 的轮子。</p>
+<p>ELF全称为<strong>Executable and Linkable Format</strong>，是Linux上可执行文件的通用文件格式。主要有三种类型的ELF文件：</p>
+<ul>
+<li><strong>Relocatable file</strong>: 存储用于和其它对象文件链接的代码和数据，创建一个可执行文件或者共享对象文件</li>
+<li><strong>Executable file</strong>: 存储的是用于执行的程序。它指定了exec如何创建一个程序的进程镜像</li>
+<li><strong>Shared object file</strong>: 存储了在两种语义下用于链接的代码和数据。第一种是让链接器将共享对象文件和其它的可重定位文件/共享对象文件一起创建一个新的对象文件；第二种是动态链接器将它和可执行文件以及其它的共享对象一起创建一个进程镜像。</li>
+</ul>
+<h2 id="elf构成">ELF构成<a href="#elf构成" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>ELF主要由如下几个部分组成：</p>
+<ul>
+<li><strong>ELF Header</strong>: 位于文件的起始，描述了整个文件的组织结构</li>
+<li><strong>Sections/Segments</strong>: 存储了指令、数据、符号表、可重定位信息等。sections 是这段数据在链接时的表现；segments 是数据在执行时的表现。</li>
+<li><strong>Program Header Table</strong>: 用于告诉系统如何创建一个进程镜像。对于可执行程序，Program Header Table是必须的，但是对于可重定位文件就不需要了。</li>
+<li><strong>Section Header Table</strong>: 存储描述文件中sections的信息。每个section都在这个表中有一个条目，存储了如section name, section size等信息。用于链接的文件必须得有Section Header Table，其它的对象文件可有可无。</li>
+</ul>
+<p><img src="/images/notes/elf-%E6%96%87%E4%BB%B6%E6%A0%BC%E5%BC%8F%E6%B5%85%E6%9E%90/d02c13c1fa4bd228f698cf355ec47377_MD5.png" alt="d02c13c1fa4bd228f698cf355ec47377_MD5"></p>
+<p>上面的图中虽然描述文件各个部分的位置，但实际上只有ELF Header的位置是固定的，其它的部分在文件中的位置都在ELF Header中指定。</p>
+<h2 id="elf-header">ELF Header<a href="#elf-header" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<pre tabindex="0"><code>#define EI_NIDENT 16
+
+typedef struct {
+        unsigned char   e_ident[EI_NIDENT];
+        Elf32_Half      e_type;
+        Elf32_Half      e_machine;
+        Elf32_Word      e_version;
+        Elf32_Addr      e_entry;
+        Elf32_Off       e_phoff;
+        Elf32_Off       e_shoff;
+        Elf32_Word      e_flags;
+        Elf32_Half      e_ehsize;
+        Elf32_Half      e_phentsize;
+        Elf32_Half      e_phnum;
+        Elf32_Half      e_shentsize;
+        Elf32_Half      e_shnum;
+        Elf32_Half      e_shstrndx;
+} Elf32_Ehdr;
+
+typedef struct {
+        unsigned char   e_ident[EI_NIDENT];
+        Elf64_Half      e_type;
+        Elf64_Half      e_machine;
+        Elf64_Word      e_version;
+        Elf64_Addr      e_entry;
+        Elf64_Off       e_phoff;
+        Elf64_Off       e_shoff;
+        Elf64_Word      e_flags;
+        Elf64_Half      e_ehsize;
+        Elf64_Half      e_phentsize;
+        Elf64_Half      e_phnum;
+        Elf64_Half      e_shentsize;
+        Elf64_Half      e_shnum;
+        Elf64_Half      e_shstrndx;
+} Elf64_Ehdr;
+</code></pre><p>ELF header通常由一个Elfxx_Ehdr结构体表示。它存储了当前二进制文件的一些元数据：</p>
+<ul>
+<li>e_ident: 16字节的数组，存储了文件的一些用来解析文件内容的标识符。依次是：
+<ul>
+<li>EI_MAG0-3: ELF magic，固定字段，用来识别ELF文件</li>
+<li>EI_CLASS: File class</li>
+<li>EI_DATA: File&rsquo;s data encoding</li>
+<li>EI_VERSION: File&rsquo;s version</li>
+<li>EI_OSABI: OS/ABI identification</li>
+<li>EI_ABIVERSION: ABI version</li>
+<li>EI_PAD: Start of padding bytes</li>
+<li>EI_NIDENT: Size of ei_ident</li>
+</ul>
+</li>
+<li>e_type: 可执行文件类型，常见的有：
+<ul>
+<li>ET_REL: 可重定位文件，值为1</li>
+<li>ET_EXEC: 可执行文件，值为2</li>
+<li>ET_DYN：共享对象文件，值为3</li>
+<li>ET_CORE：core 文件，值为4</li>
+</ul>
+</li>
+<li>e_machine: 文件的架构</li>
+<li>e_version: 对象文件版本，固定值为1</li>
+<li>e_entry: 系统初始转移控制的虚拟地址，启动进程。如果文件没有关联的entry point，值为0。</li>
+<li>e_phoff: Program Header Table 在文件中的偏移。如果没有Program Header Table，值为0。</li>
+<li>e_shoff: Section Header Table 在文件中的偏移。如果没有Section Header Table，值为0。</li>
+<li>e_flags: processor-specific flags</li>
+<li>e_ehsize: ELF Header 大小</li>
+<li>e_phentsize: Program Header Table 中的entry的大小</li>
+<li>e_phnum: Program Headers 的个数</li>
+<li>e_shentsize: Section Header Table 中的entry的大小</li>
+<li>e_shnum: Section Headers 的个数</li>
+<li>e_shstrndx: 存储Section Header Name的section.shstrtab在Section Header Table中的index</li>
+</ul>
+<p>我们可以用readelf来查看可执行文件的ELF header：</p>
+<pre tabindex="0"><code>readelf -h &lt;executable&gt;
+</code></pre><h3 id="sections">Sections<a href="#sections" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<pre tabindex="0"><code>typedef struct {
+        Elf32_Word        sh_name;
+        Elf32_Word        sh_type;
+        Elf32_Word        sh_flags;
+        Elf32_Addr        sh_addr;
+        Elf32_Off        sh_offset;
+        Elf32_Word        sh_size;
+        Elf32_Word        sh_link;
+        Elf32_Word        sh_info;
+        Elf32_Word        sh_addralign;
+        Elf32_Word        sh_entsize;
+} Elf32_Shdr;
+
+typedef struct {
+        Elf64_Word        sh_name;
+        Elf64_Word        sh_type;
+        Elf64_Xword        sh_flags;
+        Elf64_Addr        sh_addr;
+        Elf64_Off        sh_offset;
+        Elf64_Xword        sh_size;
+        Elf64_Word        sh_link;
+        Elf64_Word        sh_info;
+        Elf64_Xword        sh_addralign;
+        Elf64_Xword        sh_entsize;
+} Elf64_Shdr;
+</code></pre><p>Sections中包括了从一个目标对象文件构建一个可执行文件所需要的所有信息（<strong>Sections是在链接时需要，在运行时数据以Segments形式呈现</strong>）。每个ELF可执行文件中都有一个Section Header Table。这个table是一个Elfxx_Shdr结构体的数组，每个section一个Elfxx_Shdr。Elfxx_Shdr字段的定义如下：</p>
+<ul>
+<li>sh_name: section名字，用在section header string table中的index表示</li>
+<li>sh_type: section类型，常见的类型有：
+<ul>
+<li>SHT_NULL: 表示这个section header是inactive的，没有一个相关联的section。</li>
+<li>SHT_PROGBITS: 表示该section存储了程序定义的信息，格式和含义完全取决于程序。</li>
+<li>SHT_SYMTAB和SHT_DYNSYM: 符号表section</li>
+<li>SHT_STRTAB: string table section</li>
+<li>SHT_RELA: 携带显式的addends的重定位section</li>
+<li>SHT_HASH: symbol hash table</li>
+<li>SHT_DYNAMIC: 存储动态链接相关的信息。</li>
+<li>SHT_NOTE: 存储以某种方式标记文件的信息。</li>
+<li>SHT_NOBITS: 表示该section在文件中不占空间，但在其它方面类似于SHT_PROGBITS。尽管该section不占空间，sh_offset字段还是会包含一个概念上的文件偏移量。</li>
+<li>SHT_REL: 不携带显式的addends的重定位section。</li>
+<li>SHT_INIT_ARRAY: 存储了指向初始化函数的指针的数组。</li>
+<li>SHT_FINI_ARRAY: 存储了指向终止函数的指针的数组。</li>
+<li>SHT_PREINIT_ARRAY: 同上面一样，存储了一个指针数组。每个指针指向的函数会在所有其它初始化函数之前调用。</li>
+</ul>
+</li>
+<li>sh_flags: section attributes</li>
+<li>sh_addr: 如果该section会在进程的内存镜像中存在，该值表示的是这个section的虚拟首地址。否则该值为0。</li>
+<li>sh_offset: 该值表示从文件开始到该section第一个字节的偏移。SHT_NOBITS类型的section在文件中不占空间，它的sh_offset表示文件中的一个概念位置。</li>
+<li>sh_size: section的大小</li>
+<li>sh_link: section link index，释义取决于section类型</li>
+<li>sh_info: section extra information，释义取决于section类型</li>
+<li>sh_addralign: section alignment限制</li>
+<li>sh_entsize: size of entries contained in section。为0表示section没有存储一个固定条目长度的table。</li>
+</ul>
+<p>一些常见的sections如下所示：</p>
+<ul>
+<li>.text: code</li>
+<li>.data: 初始化过的数据</li>
+<li>.rodata: 初始化过的只读数据</li>
+<li>.bss: 未初始化的数据</li>
+<li>.plt: PLT（Procedure Linkage Table）（IAT equivalent）</li>
+<li>.got: 专用于动态链接全局变量的GOT条目</li>
+<li>.got.plt: 专用于动态链接函数的GOT条目</li>
+<li>.symtab: 全局符号表</li>
+<li>.dynamic: 存储动态链接所需的所有信息</li>
+<li>.dynsym: 专用于动态链接符号的符号表</li>
+<li>.strtab: string table of .symtab section</li>
+<li>.dynstr: string table of .dynsym section</li>
+<li>.interp: RTLD embedded string</li>
+<li>.rel.dyn: 全局变量 relocation table</li>
+<li>.rel.plt: 函数 relocation table</li>
+</ul>
+<h3 id="segments">Segments<a href="#segments" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<pre tabindex="0"><code>typedef struct {
+        Elf32_Word        p_type;
+        Elf32_Off        p_offset;
+        Elf32_Addr        p_vaddr;
+        Elf32_Addr        p_paddr;
+        Elf32_Word        p_filesz;
+        Elf32_Word        p_memsz;
+        Elf32_Word        p_flags;
+        Elf32_Word        p_align;
+} Elf32_Phdr;
+
+typedef struct {
+        Elf64_Word        p_type;
+        Elf64_Word        p_flags;
+        Elf64_Off        p_offset;
+        Elf64_Addr        p_vaddr;
+        Elf64_Addr        p_paddr;
+        Elf64_Xword        p_filesz;
+        Elf64_Xword        p_memsz;
+        Elf64_Xword        p_align;
+} Elf64_Phdr;
+</code></pre><p>Segments也被称作 Program Headers，将ELF二进制文件的结构分解为适当的块，以准备加载到内存中的可执行文件。和Section Headers相比，Program Headers在链接时是不需要的。</p>
+<p>同样，每个ELF二进制文件都有一个Program Header Table，由每个现有segments一个的<code>Elfxx_Phdr</code>结构体组成。<code>Elfxx_Phdr</code>字段的定义如下：</p>
+<ul>
+<li>p_type: Segment type，常见的类型如下：
+<ul>
+<li>PT_NULL: 该segment未使用</li>
+<li>PT_LOAD: 指向一个loadable segment。</li>
+<li>PT_DYNAMIC: 动态链接信息。</li>
+<li>PT_INTERP: 指向了一个null-terminated的路径名称的地址和长度，用来引用一个解释器。这个segment仅仅在可执行文件中有意义。如果存在，它必须优先于任何loadable segment entry。</li>
+<li>PT_NOTE: 指向一些辅助信息的地址和长度。</li>
+<li>PT_SHLIB: reserved</li>
+<li>PT_PHDR: 如果存在，指向了Program Header Table自身在文件和内存中的地址和长度。它也是要优先于任何loadable segment entry的。</li>
+<li>PT_TLS: 指向一个 Thread-Local Storage 模版。</li>
+</ul>
+</li>
+<li>p_flags: Segment attributes</li>
+<li>p_offset: segment在文件中从文件的第一个字节开始的偏移量</li>
+<li>p_vaddr: segment在内存中第一个字节的虚拟地址</li>
+<li>p_paddr: segment的物理地址。由于System V 程序的物理寻址，这个字段在可执行文件和共享对象中是未指定的。</li>
+<li>p_filesz: segment在磁盘上的大小</li>
+<li>p_memsz: segment在内存中的大小</li>
+<li>p_align: segment alignment in memory</li>
+</ul>
+<p>Segment的类型有很多。下面是一些常见的类型：</p>
+<ul>
+<li>PT_NULL: 未分配的segment(通常是Program Header Table的第一个entry)</li>
+<li>PT_LOAD: loadable segment</li>
+<li>PT_INTERP: Segment holding .interp section</li>
+<li>PT_TLS: Thread Local Storage segment（常见在静态链接的二进制中）</li>
+<li>PT_DYNAMIC: Holding .dynamic section</li>
+</ul>
+<p>需要注意的是只有PT_LOAD segments会加载进内存。因此，每个其他的segment都会被映射到一个PT_LOAD segments的内存范围中。</p>
+<p><img src="/images/notes/elf-%E6%96%87%E4%BB%B6%E6%A0%BC%E5%BC%8F%E6%B5%85%E6%9E%90/dbfe522f4e2dd6731122ccab518043e5_MD5.png" alt="dbfe522f4e2dd6731122ccab518043e5_MD5"></p>
+<p>Another important aspect of segments is that their offsets and virtual addresses must be congruent modulo the page size and their p_align field must be a multiple of the system page size.</p>
+<p>The reason for this alignment is to prevent the mapping of two different segments within a single memory page. This is due to the fact that different segments usually have different access attributes, and these cannot be enforced if two segments are mapped within the same memory page. Therefore, the default segment alignment for PT_LOAD segments is usually a system page size.</p>
+<h2 id="符号">符号<a href="#符号" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<h3 id="什么是符号">什么是符号<a href="#什么是符号" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>在程序开发过程中，我们会用名称来指代代码中的对象，如函数、变量。这些信息被称作程序的符号信息。在编译过程中，机器码中的符号引用被翻译成地址和偏移。</p>
+<p>但是，编译器的作用不仅限于机器码生成，它还会从源代码中导出符号信息。导出符号信息是为了改善对生成的机器码的可解释性。ELF文件格式定义了存储符号信息的方法，并且提供了本地和外部ELF对象访问这些符号信息的接口。</p>
+<p>链接器和调试器是常见的使用符号的工具。在链接时，链接器会和符号表交互来匹配、引用和修改一个ELF对象中的符号。如果没有符号，链接器不知道relocation应该在哪个地方起作用，因此也就没有办法将符号引用匹配到相应的值。调试器则从符号中来识别函数和变量。</p>
+<h3 id="elf-符号结构体">ELF 符号结构体<a href="#elf-符号结构体" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<pre tabindex="0"><code>typedef struct {
+        Elf32_Word        st_name;
+        Elf32_Addr        st_value;
+        Elf32_Word        st_size;
+        unsigned char        st_info;
+        unsigned char        st_other;
+        Elf32_Half        st_shndx;
+} Elf32_Sym;
+
+typedef struct {
+        Elf64_Word        st_name;
+        unsigned char        st_info;
+        unsigned char        st_other;
+        Elf64_Half        st_shndx;
+        Elf64_Addr        st_value;
+        Elf64_Xword        st_size;
+} Elf64_Sym;
+</code></pre><p>ELF文件格式中，每个符号在指定的符号表中用一个Elfxx_Sym结构体表示：</p>
+<p>结构体的成员包括：</p>
+<ul>
+<li>st_name: 在符号表对应的string table中该符号的名称的index。如果这个字段没有初始化，那么该符号没有名称。</li>
+<li>st_info: contains symbol bind and type attributes。
+<ul>
+<li>Binding attributes决定了外部对象引用给定符号时链接的可见性和行为。常见的symbol binds有：
+<ul>
+<li>STB_LOCAL: 在符号定义的ELF对象之外是不可见ƒ的。这也就意味着同名的local符号可以存在在多个文件中，互不影响。</li>
+<li>STB_GLOBAL: 符号对所有将要组合的对象文件都是可见的。定义在其中一个文件中的global符号可以满足另外一个文件中对其的未定义引用。</li>
+<li>STB_WEAK: 表示这也是一个全局符号，但是它的定义是低优先级，可以被覆盖，即可以在多个文件中被定义。</li>
+</ul>
+</li>
+<li>常见的符号类型有：
+<ul>
+<li>STT_NOTYPE: 符号类型未指定</li>
+<li>STT_OBJECT: 符号是数据对象，比如变量，数组等</li>
+<li>STT_FUNC: 符号是代码对象（函数）</li>
+<li>STT_SECTION: 符号是section，通常用于relocation</li>
+</ul>
+</li>
+<li>为了从st_info中解析对象，定义了一些bitmask：
+<ul>
+<li>ELF64_ST_BIND(info) ((info) &raquo; 4)</li>
+<li>ELF64_ST_TYPE(info) ((info) &amp; 0xf)</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>st_other: 符号可见性的信息。符号可见性定义了当符号成为一个可执行文件或者共享库的一部分时，该符号是否允许被访问。它和前面symbol binding的区别是符号可见性是在符号的宿主对象上实施，并且应用到所有引用这个符号的外部对象上。而symbol binding是由引用该符号的外部对象指定，并且在链接时实施的。常见的symbol visibilities有：
+<ul>
+<li>STV_DEFAULT: 默认可见性的符号，其属性由符号的binding类型指定。这类情况下，（可执行文件和共享库中的）全局符号和弱符号默认是外部可访问的，本地符号默认外部是无法被访问的。但是，可见性是STV_DEFAULT的全局符号和弱符号是可被覆盖的。什么意思？举个最典型的例子，共享库中的可见性值为STV_DEFAULTD的全局符号和弱符号是可被可执行文件中的同名符号覆盖的。</li>
+<li>STV_PROTECTED: 当符号的可见性是STV_PROTECTED时，它是外部可见的，这点跟可见性STV_DEFAULT的一样，但不同的是它是不可覆盖的。这样的符号在共享库中比较常见。不可覆盖意味着如果是在该符号所在的共享库中访问这个符号，那么就一定是访问的这个符号，尽管可执行文件中也会存在同样名字的符号也不会被覆盖掉。规定绑定属性为STB_LOCAL的符号的可见性不可以是STV_PROTECTED。</li>
+<li>STV_HIDDEN: 该符号是外部无法访问的。这个属性主要用来控制共享库对外接口的数量。需要注意的是，一个可见性为STV_HIDDEN的数据对象，如果能获取到该符号的地址，那么依然是可以访问或者修改该数据对象的。在可重定位文件中，如果一个符号的可见性是STV_HIDDEN的话，那么在链接生成可执行文件或者共享库的过程中，该符号要么被删除，要么绑定属性变成STB_LOCAL。</li>
+<li>STV_INTERNAL: 该可见性属性的含义可以由处理器补充定义，以进一步约束隐藏的符号。 处理器补充程序的定义应使通用工具可以安全地将内部符号视为隐藏符号。当可重定位对象包含在可执行文件或共享对象中时，可重定位对象中包含的内部符号必须被链接编辑器删除或转换为STB_LOCAL绑定。</li>
+<li><code>st_other</code>中只有最后3个bits表示可见性信息，其他的bits暂时没有特殊的意义。所以用如下的宏来获取可见性信息：
+<ul>
+<li>ELF64_ST_VISIBILITY(o) ((o) &amp; 0x3)</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>st_shndx: 符号表中每个符号entry都和一个section相关联。st_shndx表示当前符号与之相关联的section在section header table中的index。</li>
+<li>st_value: 这个字段表示当前符号表entry的符号值。根据对象类型的不同这个字段有不同的含义：
+<ul>
+<li>对于ET_REL文件，该字段的值表示在st_shndx关联的section中的offset。</li>
+<li>对于ET_EXEC和ET_DYN文件，该字段的值表示一个虚拟地址。如果该字段的值是0并且st_shndx中指向的section的类型是SHT_UNDEF，这个符号就是一个导入的relocation，它的值会在运行时由RTLD(ld.so)解析。</li>
+</ul>
+</li>
+</ul>
+<h3 id="符号和字符串表">符号和字符串表<a href="#符号和字符串表" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>一个ELF对象最多包含两个符号表，分别是.symtab和.dynsym。</p>
+<p>.symtab是二进制的全局符号表，包含了当前对象所有的符号引用。section .strtab是这个符号表的字符串表，存储了对应符号表中引用的null-terminated的字符串。即.symtab中的Elfxx_Sym entry的index值和其引用的字符串在.strtab中分配的index是一样的。</p>
+<p>.dynsym符号表仅存储那些在动态链接中使用的符号。.dynstr是其对应的字符串表。</p>
+<p>strip一个二进制文件会将.symtab和.strtab移除，但是不会影响.dynsym和.dynstr，因为运行时做动态链接时RTLD需要这个子集中符号的信息。这些符号能够通过解析位于PT_DYNAMIC segment内DT_SYMTAB entry中的.dynsym表来恢复。</p>
+<p><img src="/images/notes/elf-%E6%96%87%E4%BB%B6%E6%A0%BC%E5%BC%8F%E6%B5%85%E6%9E%90/2c06437bc43045db7cc7f7e641bd0535_MD5.png" alt="2c06437bc43045db7cc7f7e641bd0535_MD5"></p>
+<h2 id="重定位relocation">重定位（Relocation）<a href="#重定位relocation" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>重定位是将前面提到的符号引用和它对应的符号定义连接起来的机制。举个例子，假设我们的程序中有两个全局变量。如果我们想成功地使用这两个变量，它们在程序虚拟地址空间的地址就需要被解析。同样，如果我们的程序从外部依赖中调用一个函数，计算函数地址也必须在将执行控制转移给它之前。这两个场景就是我们说的重定位发生的地方。</p>
+<p>程序编译过程中有一个阶段是可重定位对象（relocatable objects）的生成。可重定位对象包含了将符号引用映射到它的定义所需的所有信息。可重定位对象有3种类型：</p>
+<ul>
+<li>Generic object files(*.o)</li>
+<li>Kernel object files(*.ko)</li>
+<li>Shared object files(*.so)</li>
+</ul>
+<p>Generic object files用于静态链接，它是编译过程中的产物，其中所有的符号定义都会变成随后生成的主可执行文件的一部分。很显然，静态链接有它的优缺点。优点是它可以不需要任何外部依赖运行在任何主机上。缺点就是静态链接的可执行文件可能会变得非常庞大，所有的依赖都会变成其自身的一部分。不过在今天内存/存储爆炸的时代，这个缺陷似乎可以忽略不计，越来越多的编程语言如Go/Rust选择了静态编译来提供更好的可移植性。</p>
+<p>Kernel objects files是用来在Linux内核中加载的一类可重定位对象。它可以在不重启系统的情况下以模块的形式加载到内核中。</p>
+<p>Shared objects files是在运行时链接的可重定位对象，它可以在不同的进程中共享。因此，动态依赖的重定位是在运行时进行的，这是我们常说的动态链接。</p>
+<h3 id="relocation-entries">Relocation entries<a href="#relocation-entries" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<pre tabindex="0"><code>typedef struct {
+        Elf32_Addr        r_offset;
+        Elf32_Word        r_info;
+} Elf32_Rel;
+
+typedef struct {
+        Elf32_Addr        r_offset;
+        Elf32_Word        r_info;
+        Elf32_Sword        r_addend;
+} Elf32_Rela;
+
+typedef struct {
+        Elf64_Addr        r_offset;
+        Elf64_Xword        r_info;
+} Elf64_Rel;
+
+typedef struct {
+        Elf64_Addr        r_offset;
+        Elf64_Xword        r_info;
+        Elf64_Sxword        r_addend;
+} Elf64_Rela;
+</code></pre><p>重定位信息存储在ELF对象中指定的relocation sections中。sections中的relocatable entries也有两种结构：Elfxx_Rel和Elfxx_Rela。两者唯一的区别是Elfxx_Rela多了一个r_addend字段。同一个ELF对象里面这两个结构体是互斥的，即如果使用了其中一个结构体，另外一个结构体就不会再使用了。</p>
+<p>结构体中字段的含义如下：</p>
+<ul>
+<li>r_offset: 存储重定位发生的地方。根据ELF对象类型的不同，有不同的解释
+<ul>
+<li>对于ET_REL文件，值指向的是重定位发生的section header中的offset</li>
+<li>对于ET_EXEC文件，值指向的是重定位影响的虚拟地址</li>
+</ul>
+</li>
+<li>r_info: 这个字段中有两个含义，一个是需要被重定位的符号在符号表中的index，和这个符号的重定位类型。这两个信息可以用下面的宏来获取：
+<ul>
+<li>ELF32_R_SYM(info) ((info)&raquo;8)</li>
+<li>ELF32_R_TYPE(info) ((unsigned char)(info))</li>
+<li>ELF64_R_SYM(info) ((info)&raquo;32)</li>
+<li>ELF64_R_TYPE(info) ((Elf64_Word)(info))</li>
+</ul>
+</li>
+<li>r_addend: 这个字段存储了一个固定的addend，用来计算存储在重定位引用中的值，见重定位类型中解释。</li>
+</ul>
+<p>每个relocation section可能会引用另外两个sections：</p>
+<ul>
+<li>第一个是与其相对应的符号表。符号表的index可以从relocation section的Elfxx_Shdr中的sh_link字段获取。</li>
+<li>如果是ET_REL文件，relocation entry的offset指向的是特定的section中的offset。这个section的index就存储在relocation section header的 sh_info字段中。</li>
+</ul>
+<h3 id="重定位类型">重定位类型<a href="#重定位类型" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>不同的重定位类型之间的区别是重定位的值的计算方式。下面是一些计算过程中可能会引用的变量：</p>
+<ul>
+<li>A: Addend of Elfxx_Rela entries.</li>
+<li>B: Image base where the shared object was loaded in process virtual address space.</li>
+<li>G: Offset to the GOT relative to the address of the correspondent relocation entry’s symbol.</li>
+<li>GOT: Address of the Global Offset Table</li>
+<li>L: Section offset or address of the procedure linkage table (PLT, .got.plt).</li>
+<li>P: The section offset or address of the storage unit being relocated. retrieved via r_offset relocation entry’s field.</li>
+<li>S: Relocation entry’s correspondent symbol value.</li>
+<li>Z: Size of Relocations entry’s symbol.</li>
+</ul>
+<p>下面是一些常见的重定位类型的suffix：</p>
+<ul>
+<li>*_NONE: Neglected entry.</li>
+<li>*_64: qword relocation value.</li>
+<li>*_32: dword relocation value.</li>
+<li>*_16: word relocation value.</li>
+<li>*_8: byte relocation value.</li>
+<li>*_PC: relative to program counter.</li>
+<li>*_GOT: relative to GOT.</li>
+<li>*_PLT: relative to PLT (Procedure Linkage Table).</li>
+<li>*_COPY: value copied directly from shared object at load-time.</li>
+<li>*_GLOB_DAT: global variable.</li>
+<li>*_JMP_SLOT: PLT entry.</li>
+<li>*_RELATIVE: relative to image base of program’s image.</li>
+<li>*_GOTOFF: absolute address within GOT.</li>
+<li>*_GOTPC: program counter relative GOT offset.</li>
+</ul>
+<h2 id="reference">Reference<a href="#reference" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<ul>
+<li><a href="https://refspecs.linuxfoundation.org/">https://refspecs.linuxfoundation.org/</a></li>
+<li><a href="https://refspecs.linuxfoundation.org/elf/gabi4&#43;/contents.html">https://refspecs.linuxfoundation.org/elf/gabi4+/contents.html</a></li>
+</ul>
+
+      </div></div>
+
+  
+    
+<div class="pagination">
+  <div class="pagination__title">
+    <span class="pagination__title-h">Read other posts</span>
+    <hr />
+  </div>
+  <div class="pagination__buttons">
+    
+      <a href="https://www.jinzhi.site/posts/2025-04/vrf-an-overview/" class="button inline prev">
+        &lt; [<span class="button__text">VRF: An Overview</span>]
+      </a>
+    
+    
+    
+  </div>
+</div>
+
+
+  
+
+  
+    
+
+  
+</article>
+
+  </div>
+
+  
+    <footer class="footer">
+  <div class="footer__inner">
+    
+      <div class="copyright">
+        <span>© 2025 Powered by <a href="https://gohugo.io">Hugo</a></span>
+    
+      <span>:: <a href="https://github.com/panr/hugo-theme-terminal" target="_blank">Theme</a> made by <a href="https://github.com/panr" target="_blank">panr</a></span>
+      </div>
+  </div>
+</footer>
+
+
+
+
+
+
+<script type="text/javascript" src="/bundle.min.js"></script>
+
+
+
+
+
+  
+  </div>
+
+  <aside class="floating-sidebar">
+    
+<div class="sidebar time-archive">
+  <h3>Time Archives</h3>
+  <div class="archive-list">
+    
+    
+
+    
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+
+    
+    
+
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-09/" class="archive-link">
+          <span class="archive-date">2025-09</span>
+          <span class="archive-month-name">Sep</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-08/" class="archive-link">
+          <span class="archive-date">2025-08</span>
+          <span class="archive-month-name">Aug</span>
+          <span class="archive-count">(8)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-04/" class="archive-link">
+          <span class="archive-date">2025-04</span>
+          <span class="archive-month-name">Apr</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-03/" class="archive-link">
+          <span class="archive-date">2025-03</span>
+          <span class="archive-month-name">Mar</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-05/" class="archive-link">
+          <span class="archive-date">2022-05</span>
+          <span class="archive-month-name">May</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-03/" class="archive-link">
+          <span class="archive-date">2022-03</span>
+          <span class="archive-month-name">Mar</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-06/" class="archive-link">
+          <span class="archive-date">2021-06</span>
+          <span class="archive-month-name">Jun</span>
+          <span class="archive-count">(3)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-01/" class="archive-link">
+          <span class="archive-date">2021-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+  </div>
+</div>
+
+<style>
+.sidebar.time-archive {
+  background: rgba(26, 23, 15, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--accent, #FFA86B);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+  max-width: var(--sidebar-component-width, 240px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.sidebar.time-archive h3 {
+  margin: 0 0 1rem 0;
+  color: var(--accent, #FFA86B);
+  font-size: 1.2rem;
+  border-bottom: 1px solid var(--accent-alpha-70, rgba(255, 168, 107, 0.7));
+  padding-bottom: 0.5rem;
+}
+
+
+.archive-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.archive-item {
+  display: block;
+}
+
+.archive-link {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  text-decoration: none;
+  color: var(--color, inherit);
+  padding: 0.5rem;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+}
+
+.archive-link:hover {
+  background-color: var(--accent-alpha-20, rgba(255, 168, 107, 0.2));
+  color: var(--accent, #FFA86B);
+}
+
+.archive-date {
+  font-family: var(--code-font-family, 'Fira Code', monospace);
+  font-weight: bold;
+  min-width: 60px;
+}
+
+.archive-month-name {
+  flex: 1;
+  margin-left: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.archive-count {
+  color: var(--accent, #FFA86B);
+  font-weight: bold;
+  font-size: 0.9rem;
+}
+
+ 
+</style>
+
+    
+<div class="sidebar tags-cloud">
+  <h3>Tags Cloud</h3>
+  <div class="tags-container">
+    
+    
+    
+    
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+    
+    
+    
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+    
+    
+    
+    
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+    
+    
+    
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+    
+    
+    
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/concurrency/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="7 articles">
+          Concurrency
+          <span class="tag-count">(7)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/dns/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          dns
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/elf/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          ELF
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/kaist-cs431/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="7 articles">
+          KAIST-CS431
+          <span class="tag-count">(7)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/lua/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          Lua
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/network/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Network
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/operatingsystem/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          OperatingSystem
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/rust/" 
+           class="tag-item" 
+           style="font-size: 1.5em;"
+           title="10 articles">
+          Rust
+          <span class="tag-count">(10)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/wasm/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Wasm
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+  </div>
+</div>
+
+<style>
+.sidebar.tags-cloud {
+  background: rgba(26, 23, 15, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--accent, #FFA86B);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+  max-width: var(--sidebar-component-width, 240px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.sidebar.tags-cloud h3 {
+  margin: 0 0 1rem 0;
+  color: var(--accent, #FFA86B);
+  font-size: 1.2rem;
+  border-bottom: 1px solid var(--accent-alpha-70, rgba(255, 168, 107, 0.7));
+  padding-bottom: 0.5rem;
+}
+
+.tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  line-height: 1.6;
+}
+
+.tag-item {
+  display: inline-flex;
+  align-items: baseline;
+  text-decoration: none;
+  color: var(--color, inherit);
+  padding: 0.3rem 0.6rem;
+  border-radius: 16px;
+  background: rgba(255, 168, 107, 0.1);
+  border: 1px solid transparent;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.tag-item:hover {
+  background: rgba(255, 168, 107, 0.25);
+  border-color: var(--accent-alpha-50, rgba(255, 168, 107, 0.5));
+  color: var(--accent, #FFA86B);
+  transform: translateY(-1px);
+}
+
+.tag-count {
+  font-size: 0.75em;
+  margin-left: 0.3rem;
+  opacity: 0.7;
+  font-weight: normal;
+}
+
+.tag-item:hover .tag-count {
+  opacity: 1;
+}
+
+ 
+
+ 
+.tag-item {
+  font-weight: 400;
+}
+
+ 
+.tag-item[style*="1.5"], 
+.tag-item[style*="1.4"],
+.tag-item[style*="1.3"] {
+  font-weight: 600;
+}
+
+ 
+.tag-item[style*="1.2"],
+.tag-item[style*="1.1"] {
+  font-weight: 500;
+}
+
+ 
+.tag-item[style*="1.5"]:hover,
+.tag-item[style*="1.4"]:hover,
+.tag-item[style*="1.3"]:hover {
+  box-shadow: 0 3px 10px rgba(255, 168, 107, 0.4);
+  transform: translateY(-2px);
+}
+
+</style>
+
+  </aside>
+</div>
+
+<style>
+ 
+.page-wrapper {
+  position: relative;
+  width: 100%;
+  max-width: none;
+  --sidebar-top-offset: 150px;  
+  --sidebar-component-width: 240px;  
+}
+
+   
+.floating-sidebar {
+  position: absolute;
+   
+  top: var(--sidebar-top-offset, 175px);
+   
+  right: max(20px, calc((100vw - 864px) / 2 - 330px));
+  width: 300px;
+  z-index: 100;
+  opacity: 0.96;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+ 
+.floating-sidebar:hover {
+  opacity: 1;
+  transform: translateX(-5px);
+}
+
+ 
+.floating-sidebar {
+  display: none;
+}
+
+ 
+@media (min-width: 1524px) {
+  .floating-sidebar {
+    display: block;
+    position: absolute;
+    right: max(20px, calc((100vw - 864px) / 2 - 330px));
+  }
+}
+
+ 
+@media (max-width: 1523px) {
+  .floating-sidebar {
+    display: none !important;
+  }
+}
+
+</style>
+
+</body>
+</html>
