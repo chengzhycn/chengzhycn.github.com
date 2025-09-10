@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   
-    <title>Archives :: chengzhycn&#39;s blog</title>
+    <title>EBPF :: chengzhycn&#39;s blog</title>
   
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -11,7 +11,7 @@
 
   <meta name="robots" content="noodp" />
 
-<link rel="canonical" href="https://www.jinzhi.site/archives/" />
+<link rel="canonical" href="https://www.jinzhi.site/tags/ebpf/" />
 
 
 
@@ -77,9 +77,9 @@
 
 <meta property="og:locale" content="en" />
 <meta property="og:type" content="website" />
-<meta property="og:title" content="Archives">
+<meta property="og:title" content="EBPF">
 <meta property="og:description" content="" />
-<meta property="og:url" content="https://www.jinzhi.site/archives/" />
+<meta property="og:url" content="https://www.jinzhi.site/tags/ebpf/" />
 <meta property="og:site_name" content="chengzhycn&#39;s blog" />
 
   <meta property="og:image" content="https://www.jinzhi.site/og-image.png">
@@ -91,7 +91,7 @@
 
 
 
-  <link href="/archives/index.xml" rel="alternate" type="application/rss+xml" title="chengzhycn&#39;s blog" />
+  <link href="/tags/ebpf/index.xml" rel="alternate" type="application/rss+xml" title="chengzhycn&#39;s blog" />
 
 
 
@@ -201,39 +201,96 @@
 
   <div class="content">
     
-  <h1>Archives</h1>
+  <h1>Posts for: #EBPF</h1>
   
-  
-  
+  <div class="posts">
+    
+      <article class="post on-list">
+        <h1 class="post-title">
+          <a href="https://www.jinzhi.site/posts/2024-01/ebpf-%E6%8C%87%E4%BB%A4%E9%9B%86%E8%A7%84%E8%8C%83/">eBPF 指令集规范</a>
+        </h1>
+        <div class="post-meta"><time class="post-date">2024-01-05</time></div>
 
-  <ul class="archive-list">
-    
-      <li class="archive-item">
-        <a href="https://www.jinzhi.site/posts/2021-06/rustgeneric-and-traits/">Rust：Generic and Traits</a>
-      </li>
-    
-      <li class="archive-item">
-        <a href="https://www.jinzhi.site/posts/2021-06/rustownership/">Rust：Ownership</a>
-      </li>
-    
-      <li class="archive-item">
-        <a href="https://www.jinzhi.site/posts/2021-01/dns-zone-files/">Dns Zone Files</a>
-      </li>
-    
-  </ul>
+        
+          <span class="post-tags">
+            
+            #<a href="https://www.jinzhi.site/tags/ebpf/">eBPF</a>&nbsp;
+            
+          </span>
+        
 
-  <div class="pagination">
+        
+
+
+        <div class="post-content">
+          
+            <p><a href="https://docs.kernel.org/bpf/standardization/instruction-set.html">1 BPF Instruction Set Specification, v1.0 — The Linux Kernel documentation</a></p>
+<h2 id="寄存器和调用约定">寄存器和调用约定</h2>
+<p>eBPF有10个通用寄存器和一个只读的帧指针寄存器，所有的寄存器都是64bits位长。</p>
+<p>eBPF的调用约定如下：</p>
+<ul>
+<li><strong>R0:</strong> 函数调用的返回值和eBPF程序的退出值</li>
+<li><strong>R1 - R5:</strong> 函数调用的参数</li>
+<li><strong>R6 - R9:</strong> callee saved registers，由函数调用负责保存到栈上</li>
+<li><strong>R10:</strong> 只读的帧指针，用于访问栈
+R0 - R5是临时寄存器，eBPF程序在函数调用时如需使用需要将它们保存/填充。</li>
+</ul>
+<h2 id="指令编码">指令编码</h2>
+<p>eBPF使用64bit指令，编码如下：</p>
+<table>
+  <thead>
+      <tr>
+          <th><strong>32位（最高有效位）</strong></th>
+          <th><strong>16位</strong></th>
+          <th><strong>4位</strong></th>
+          <th><strong>4位</strong></th>
+          <th><strong>8位（最低有效位）</strong></th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>immediate</td>
+          <td>offset</td>
+          <td>source register</td>
+          <td>dest register</td>
+          <td>opcode</td>
+      </tr>
+  </tbody>
+</table>
+<ul>
+<li>imm: 有符号整型立即数</li>
+<li>offset: 有符号整型数，用于指针算术</li>
+<li>src_reg: 除开特殊指令的编码外（如64位立即数指令）指的是源寄存器(R0 - R10)</li>
+<li>dst_reg: 目标寄存器(R0 - R10)</li>
+<li>opcode: 操作码</li>
+</ul>
+<p>绝大多数指令不会使用所有的字段。没有使用的字段应当被置0。多字节的字段（如imm和offset）在大端BPF中以大端字节序存储，小端BPF中以小端字节序存储。</p>
+<pre tabindex="0"><code>opcode                  offset imm          assembly
+       src_reg dst_reg
+07     0       1        00 00  44 33 22 11  r1 += 0x11223344 // little
+       dst_reg src_reg
+07     1       0        00 00  11 22 33 44  r1 += 0x11223344 // big
+</code></pre><p>除了这些基本指令编码外，eBPF还有一种宽指令编码，在基本指令之后使用第2个64位立即数做扩展。第2个立即数包括一个伪指令，和基本指令的格式一样，不过所有的字段（除了imm）都置为0。它的imm作为整个宽指令中的imm64值的高32位：</p>
+          
+        </div>
+
+        
+          <div>
+            <a class="read-more button inline" href="/posts/2024-01/ebpf-%E6%8C%87%E4%BB%A4%E9%9B%86%E8%A7%84%E8%8C%83/">[Read more]</a>
+          </div>
+        
+      </article>
+    
+
+    <div class="pagination">
   <div class="pagination__buttons">
-    
-      <a href="/archives/" class="button inline prev">
-        &lt; [<span class="button__text">Newer posts</span>]
-      </a>
     
     
     
   </div>
 </div>
 
+  </div>
 
   </div>
 

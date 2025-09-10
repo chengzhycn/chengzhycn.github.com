@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>EBPF on chengzhycn&#39;s blog</title>
+    <link>https://www.jinzhi.site/tags/ebpf/</link>
+    <description>Recent content in EBPF on chengzhycn&#39;s blog</description>
+    <generator>Hugo</generator>
+    <language>en</language>
+    <lastBuildDate>Fri, 05 Jan 2024 18:06:28 +0800</lastBuildDate>
+    <atom:link href="https://www.jinzhi.site/tags/ebpf/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>eBPF 指令集规范</title>
+      <link>https://www.jinzhi.site/posts/2024-01/ebpf-%E6%8C%87%E4%BB%A4%E9%9B%86%E8%A7%84%E8%8C%83/</link>
+      <pubDate>Fri, 05 Jan 2024 18:06:28 +0800</pubDate>
+      <guid>https://www.jinzhi.site/posts/2024-01/ebpf-%E6%8C%87%E4%BB%A4%E9%9B%86%E8%A7%84%E8%8C%83/</guid>
+      <description>&lt;p&gt;&lt;a href=&#34;https://docs.kernel.org/bpf/standardization/instruction-set.html&#34;&gt;1 BPF Instruction Set Specification, v1.0 — The Linux Kernel documentation&lt;/a&gt;&lt;/p&gt;&#xA;&lt;h2 id=&#34;寄存器和调用约定&#34;&gt;寄存器和调用约定&lt;/h2&gt;&#xA;&lt;p&gt;eBPF有10个通用寄存器和一个只读的帧指针寄存器，所有的寄存器都是64bits位长。&lt;/p&gt;&#xA;&lt;p&gt;eBPF的调用约定如下：&lt;/p&gt;&#xA;&lt;ul&gt;&#xA;&lt;li&gt;&lt;strong&gt;R0:&lt;/strong&gt; 函数调用的返回值和eBPF程序的退出值&lt;/li&gt;&#xA;&lt;li&gt;&lt;strong&gt;R1 - R5:&lt;/strong&gt; 函数调用的参数&lt;/li&gt;&#xA;&lt;li&gt;&lt;strong&gt;R6 - R9:&lt;/strong&gt; callee saved registers，由函数调用负责保存到栈上&lt;/li&gt;&#xA;&lt;li&gt;&lt;strong&gt;R10:&lt;/strong&gt; 只读的帧指针，用于访问栈&#xA;R0 - R5是临时寄存器，eBPF程序在函数调用时如需使用需要将它们保存/填充。&lt;/li&gt;&#xA;&lt;/ul&gt;&#xA;&lt;h2 id=&#34;指令编码&#34;&gt;指令编码&lt;/h2&gt;&#xA;&lt;p&gt;eBPF使用64bit指令，编码如下：&lt;/p&gt;&#xA;&lt;table&gt;&#xA;  &lt;thead&gt;&#xA;      &lt;tr&gt;&#xA;          &lt;th&gt;&lt;strong&gt;32位（最高有效位）&lt;/strong&gt;&lt;/th&gt;&#xA;          &lt;th&gt;&lt;strong&gt;16位&lt;/strong&gt;&lt;/th&gt;&#xA;          &lt;th&gt;&lt;strong&gt;4位&lt;/strong&gt;&lt;/th&gt;&#xA;          &lt;th&gt;&lt;strong&gt;4位&lt;/strong&gt;&lt;/th&gt;&#xA;          &lt;th&gt;&lt;strong&gt;8位（最低有效位）&lt;/strong&gt;&lt;/th&gt;&#xA;      &lt;/tr&gt;&#xA;  &lt;/thead&gt;&#xA;  &lt;tbody&gt;&#xA;      &lt;tr&gt;&#xA;          &lt;td&gt;immediate&lt;/td&gt;&#xA;          &lt;td&gt;offset&lt;/td&gt;&#xA;          &lt;td&gt;source register&lt;/td&gt;&#xA;          &lt;td&gt;dest register&lt;/td&gt;&#xA;          &lt;td&gt;opcode&lt;/td&gt;&#xA;      &lt;/tr&gt;&#xA;  &lt;/tbody&gt;&#xA;&lt;/table&gt;&#xA;&lt;ul&gt;&#xA;&lt;li&gt;imm: 有符号整型立即数&lt;/li&gt;&#xA;&lt;li&gt;offset: 有符号整型数，用于指针算术&lt;/li&gt;&#xA;&lt;li&gt;src_reg: 除开特殊指令的编码外（如64位立即数指令）指的是源寄存器(R0 - R10)&lt;/li&gt;&#xA;&lt;li&gt;dst_reg: 目标寄存器(R0 - R10)&lt;/li&gt;&#xA;&lt;li&gt;opcode: 操作码&lt;/li&gt;&#xA;&lt;/ul&gt;&#xA;&lt;p&gt;绝大多数指令不会使用所有的字段。没有使用的字段应当被置0。多字节的字段（如imm和offset）在大端BPF中以大端字节序存储，小端BPF中以小端字节序存储。&lt;/p&gt;&#xA;&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;opcode                  offset imm          assembly&#xA;       src_reg dst_reg&#xA;07     0       1        00 00  44 33 22 11  r1 += 0x11223344 // little&#xA;       dst_reg src_reg&#xA;07     1       0        00 00  11 22 33 44  r1 += 0x11223344 // big&#xA;&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;除了这些基本指令编码外，eBPF还有一种宽指令编码，在基本指令之后使用第2个64位立即数做扩展。第2个立即数包括一个伪指令，和基本指令的格式一样，不过所有的字段（除了imm）都置为0。它的imm作为整个宽指令中的imm64值的高32位：&lt;/p&gt;</description>
+    </item>
+  </channel>
+</rss>

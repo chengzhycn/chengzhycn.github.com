@@ -1,0 +1,2236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  
+    <title>eBPF 指令集规范 :: chengzhycn&#39;s blog</title>
+  
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="1 BPF Instruction Set Specification, v1.0 — The Linux Kernel documentation
+寄存器和调用约定 eBPF有10个通用寄存器和一个只读的帧指针寄存器，所有的寄存器都是64bits位长。
+eBPF的调用约定如下：
+R0: 函数调用的返回值和eBPF程序的退出值 R1 - R5: 函数调用的参数 R6 - R9: callee saved registers，由函数调用负责保存到栈上 R10: 只读的帧指针，用于访问栈 R0 - R5是临时寄存器，eBPF程序在函数调用时如需使用需要将它们保存/填充。 指令编码 eBPF使用64bit指令，编码如下：
+32位（最高有效位） 16位 4位 4位 8位（最低有效位） immediate offset source register dest register opcode imm: 有符号整型立即数 offset: 有符号整型数，用于指针算术 src_reg: 除开特殊指令的编码外（如64位立即数指令）指的是源寄存器(R0 - R10) dst_reg: 目标寄存器(R0 - R10) opcode: 操作码 绝大多数指令不会使用所有的字段。没有使用的字段应当被置0。多字节的字段（如imm和offset）在大端BPF中以大端字节序存储，小端BPF中以小端字节序存储。
+opcode offset imm assembly src_reg dst_reg 07 0 1 00 00 44 33 22 11 r1 &#43;= 0x11223344 // little dst_reg src_reg 07 1 0 00 00 11 22 33 44 r1 &#43;= 0x11223344 // big 除了这些基本指令编码外，eBPF还有一种宽指令编码，在基本指令之后使用第2个64位立即数做扩展。第2个立即数包括一个伪指令，和基本指令的格式一样，不过所有的字段（除了imm）都置为0。它的imm作为整个宽指令中的imm64值的高32位：
+" />
+<meta name="keywords" content="" />
+
+  <meta name="robots" content="noodp" />
+
+<link rel="canonical" href="https://www.jinzhi.site/posts/2024-01/ebpf-%E6%8C%87%E4%BB%A4%E9%9B%86%E8%A7%84%E8%8C%83/" />
+
+
+
+
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/buttons.min.86f6b4c106b6c6eb690ae5203d36b442c1f66f718ff4e8164fa86cf6c61ad641.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/code.min.d529ea4b2fb8d34328d7d31afc5466d5f7bc2f0bc9abdd98b69385335d7baee4.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/fonts.min.5bb7ed13e1d00d8ff39ea84af26737007eb5051b157b86fc24487c94f3dc8bbe.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/footer.min.eb8dfc2c6a7eafa36cd3ba92d63e69e849e2200e0002a228d137f236b09ecd75.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/gist.min.a751e8b0abe1ba8bc53ced52a38b19d8950fe78ca29454ea8c2595cf26aad5c0.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/header.min.75c7eb0e2872d95ff48109c6647d0223a38db52e2561dd87966eb5fc7c6bdac6.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/main.min.7984a754b43b7469d389c539410e90dff2870263de16b008dfc7e8170fcd0f5b.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/menu.min.3c17467ebeb3d38663dce68f71f519901124fa5cbb4519b2fb0667a21e9aca39.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/pagination.min.bbb986dbce00a5ce5aca0504b7925fc1c581992a4bf57f163e5d69cc1db7d836.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/post.min.e6dddd258e64c83e05cec0cd49c05216742d42fc8ecbfbe6b67083412b609bd3.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/syntax.min.a0773cce9310cb6d8ed23e50f005448facf29a53001b57e038828daa466b25c0.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/terminal.min.e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/terms.min.b81791663c3790e738e571cdbf802312390d30e4b1d8dc9d814a5b5454d0ac11.css">
+
+
+
+
+
+
+
+<link rel="shortcut icon" href="https://www.jinzhi.site/favicon.png">
+<link rel="apple-touch-icon" href="https://www.jinzhi.site/apple-touch-icon.png">
+
+
+<meta name="twitter:card" content="summary" />
+
+  
+    <meta name="twitter:site" content="" />
+  
+    <meta name="twitter:creator" content="" />
+
+
+
+<meta property="og:locale" content="en" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="eBPF 指令集规范">
+<meta property="og:description" content="1 BPF Instruction Set Specification, v1.0 — The Linux Kernel documentation
+寄存器和调用约定 eBPF有10个通用寄存器和一个只读的帧指针寄存器，所有的寄存器都是64bits位长。
+eBPF的调用约定如下：
+R0: 函数调用的返回值和eBPF程序的退出值 R1 - R5: 函数调用的参数 R6 - R9: callee saved registers，由函数调用负责保存到栈上 R10: 只读的帧指针，用于访问栈 R0 - R5是临时寄存器，eBPF程序在函数调用时如需使用需要将它们保存/填充。 指令编码 eBPF使用64bit指令，编码如下：
+32位（最高有效位） 16位 4位 4位 8位（最低有效位） immediate offset source register dest register opcode imm: 有符号整型立即数 offset: 有符号整型数，用于指针算术 src_reg: 除开特殊指令的编码外（如64位立即数指令）指的是源寄存器(R0 - R10) dst_reg: 目标寄存器(R0 - R10) opcode: 操作码 绝大多数指令不会使用所有的字段。没有使用的字段应当被置0。多字节的字段（如imm和offset）在大端BPF中以大端字节序存储，小端BPF中以小端字节序存储。
+opcode offset imm assembly src_reg dst_reg 07 0 1 00 00 44 33 22 11 r1 &#43;= 0x11223344 // little dst_reg src_reg 07 1 0 00 00 11 22 33 44 r1 &#43;= 0x11223344 // big 除了这些基本指令编码外，eBPF还有一种宽指令编码，在基本指令之后使用第2个64位立即数做扩展。第2个立即数包括一个伪指令，和基本指令的格式一样，不过所有的字段（除了imm）都置为0。它的imm作为整个宽指令中的imm64值的高32位：
+" />
+<meta property="og:url" content="https://www.jinzhi.site/posts/2024-01/ebpf-%E6%8C%87%E4%BB%A4%E9%9B%86%E8%A7%84%E8%8C%83/" />
+<meta property="og:site_name" content="chengzhycn&#39;s blog" />
+
+  <meta property="og:image" content="https://www.jinzhi.site/og-image.png">
+
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="627">
+
+  <meta property="article:section" content="Learning" />
+
+
+  <meta property="article:published_time" content="2024-01-05 18:06:28 &#43;0800 &#43;0800" />
+
+
+
+
+
+
+
+
+
+<html>
+<head>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-screen-web/style.css" />
+  <style>
+    body {
+      font-family: "LXGW WenKai Screen";
+      font-weight: normal;
+    }
+  </style>
+</head>
+<body>
+
+</body>
+</html>
+
+
+</head>
+<body>
+
+
+<div class="page-wrapper">
+  <div class="container center">
+
+  <header class="header">
+  <div class="header__inner">
+    <div class="header__logo">
+      <a href="/">
+  <div class="logo">
+    chengzhycn&#39;s blog
+  </div>
+</a>
+
+    </div>
+    
+      <ul class="menu menu--mobile">
+  <li class="menu__trigger">Menu&nbsp;▾</li>
+  <li>
+    <ul class="menu__dropdown">
+      
+        
+          <li><a href="/">Home</a></li>
+        
+      
+        
+          <li><a href="/about">About</a></li>
+        
+      
+        
+          <li><a href="/categories/">Categories</a></li>
+        
+      
+        
+          <li><a href="/tags/">Tags</a></li>
+        
+      
+        
+          <li><a href="/archives/">Archives</a></li>
+        
+      
+      
+    </ul>
+  </li>
+</ul>
+
+    
+    
+  </div>
+  
+    <nav class="navigation-menu">
+  <ul class="navigation-menu__inner menu--desktop">
+    
+      
+        
+          <li><a href="/" >Home</a></li>
+        
+      
+        
+          <li><a href="/about" >About</a></li>
+        
+      
+        
+          <li><a href="/categories/" >Categories</a></li>
+        
+      
+        
+          <li><a href="/tags/" >Tags</a></li>
+        
+      
+        
+          <li><a href="/archives/" >Archives</a></li>
+        
+      
+      
+    
+  </ul>
+</nav>
+
+  
+</header>
+
+
+  <div class="content">
+    
+<article class="post">
+  <h1 class="post-title">
+    <a href="https://www.jinzhi.site/posts/2024-01/ebpf-%E6%8C%87%E4%BB%A4%E9%9B%86%E8%A7%84%E8%8C%83/">eBPF 指令集规范</a>
+  </h1>
+  <div class="post-meta"><time class="post-date">2024-01-05</time><span class="post-reading-time">8 min read (1540 words)</span></div>
+
+  
+    <span class="post-tags">
+      
+      #<a href="https://www.jinzhi.site/tags/ebpf/">eBPF</a>&nbsp;
+      
+    </span>
+  
+  
+
+
+  
+    <div class="table-of-contents">
+      <h2>
+        Table of Contents
+      </h2>
+      <nav id="TableOfContents">
+  <ul>
+    <li><a href="#寄存器和调用约定">寄存器和调用约定</a></li>
+    <li><a href="#指令编码">指令编码</a></li>
+    <li><a href="#指令类型">指令类型</a></li>
+    <li><a href="#算术和跳转指令">算术和跳转指令</a>
+      <ul>
+        <li><a href="#算术指令">算术指令</a></li>
+        <li><a href="#字节序转换指令">字节序转换指令</a></li>
+        <li><a href="#跳转指令">跳转指令</a></li>
+      </ul>
+    </li>
+  </ul>
+
+  <ul>
+    <li>
+      <ul>
+        <li><a href="#常规加载和存储指令">常规加载和存储指令</a></li>
+        <li><a href="#带符号扩展的加载指令">带符号扩展的加载指令</a></li>
+        <li><a href="#原子指令">原子指令</a></li>
+        <li><a href="#64位立即数指令">64位立即数指令</a></li>
+        <li><a href="#数据包访问指令">数据包访问指令</a></li>
+      </ul>
+    </li>
+    <li><a href="#简单的例子">简单的例子</a></li>
+  </ul>
+</nav>
+    </div>
+  
+
+  <div class="post-content"><div>
+        <p><a href="https://docs.kernel.org/bpf/standardization/instruction-set.html">1 BPF Instruction Set Specification, v1.0 — The Linux Kernel documentation</a></p>
+<h2 id="寄存器和调用约定">寄存器和调用约定<a href="#寄存器和调用约定" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>eBPF有10个通用寄存器和一个只读的帧指针寄存器，所有的寄存器都是64bits位长。</p>
+<p>eBPF的调用约定如下：</p>
+<ul>
+<li><strong>R0:</strong> 函数调用的返回值和eBPF程序的退出值</li>
+<li><strong>R1 - R5:</strong> 函数调用的参数</li>
+<li><strong>R6 - R9:</strong> callee saved registers，由函数调用负责保存到栈上</li>
+<li><strong>R10:</strong> 只读的帧指针，用于访问栈
+R0 - R5是临时寄存器，eBPF程序在函数调用时如需使用需要将它们保存/填充。</li>
+</ul>
+<h2 id="指令编码">指令编码<a href="#指令编码" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>eBPF使用64bit指令，编码如下：</p>
+<table>
+  <thead>
+      <tr>
+          <th><strong>32位（最高有效位）</strong></th>
+          <th><strong>16位</strong></th>
+          <th><strong>4位</strong></th>
+          <th><strong>4位</strong></th>
+          <th><strong>8位（最低有效位）</strong></th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>immediate</td>
+          <td>offset</td>
+          <td>source register</td>
+          <td>dest register</td>
+          <td>opcode</td>
+      </tr>
+  </tbody>
+</table>
+<ul>
+<li>imm: 有符号整型立即数</li>
+<li>offset: 有符号整型数，用于指针算术</li>
+<li>src_reg: 除开特殊指令的编码外（如64位立即数指令）指的是源寄存器(R0 - R10)</li>
+<li>dst_reg: 目标寄存器(R0 - R10)</li>
+<li>opcode: 操作码</li>
+</ul>
+<p>绝大多数指令不会使用所有的字段。没有使用的字段应当被置0。多字节的字段（如imm和offset）在大端BPF中以大端字节序存储，小端BPF中以小端字节序存储。</p>
+<pre tabindex="0"><code>opcode                  offset imm          assembly
+       src_reg dst_reg
+07     0       1        00 00  44 33 22 11  r1 += 0x11223344 // little
+       dst_reg src_reg
+07     1       0        00 00  11 22 33 44  r1 += 0x11223344 // big
+</code></pre><p>除了这些基本指令编码外，eBPF还有一种宽指令编码，在基本指令之后使用第2个64位立即数做扩展。第2个立即数包括一个伪指令，和基本指令的格式一样，不过所有的字段（除了imm）都置为0。它的imm作为整个宽指令中的imm64值的高32位：</p>
+<pre tabindex="0"><code>basic_instruction
+.-----------------------------.
+|                             |
+code:8 regs:8 offset:16 imm:32 unused:32 imm:32
+                               |              |
+                               &#39;--------------&#39;
+                              pseudo instruction
+                              
+imm64 = (next_imm &lt;&lt; 32) | imm
+</code></pre><h2 id="指令类型">指令类型<a href="#指令类型" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>opcode中最低3位有效位表示指令的类型，如下表所示：</p>
+<table>
+  <thead>
+      <tr>
+          <th><strong>类型</strong></th>
+          <th><strong>值</strong></th>
+          <th><strong>含义</strong></th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>BPF_LD</td>
+          <td>0x00</td>
+          <td>非标准load操作</td>
+      </tr>
+      <tr>
+          <td>BPF_LDX</td>
+          <td>0x01</td>
+          <td>加载到寄存器的操作</td>
+      </tr>
+      <tr>
+          <td>BPF_ST</td>
+          <td>0x02</td>
+          <td>存储立即数的值到内存中</td>
+      </tr>
+      <tr>
+          <td>BPF_STX</td>
+          <td>0x03</td>
+          <td>存储寄存器中的值到内存中</td>
+      </tr>
+      <tr>
+          <td>BPF_ALU</td>
+          <td>0x04</td>
+          <td>32位算术操作</td>
+      </tr>
+      <tr>
+          <td>BPF_JMP</td>
+          <td>0x05</td>
+          <td>64位跳转操作</td>
+      </tr>
+      <tr>
+          <td>BPF_JMP32</td>
+          <td>0x06</td>
+          <td>32位跳转操作</td>
+      </tr>
+      <tr>
+          <td>BPF_ALU64</td>
+          <td>0x07</td>
+          <td>64位算术操作</td>
+      </tr>
+  </tbody>
+</table>
+<h2 id="算术和跳转指令">算术和跳转指令<a href="#算术和跳转指令" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>对于算术和跳转指令（BPF_ALU, BPF_ALU64, BPF_JMP, BPF_JMP32)，8位的opcode字段可以分成3个部分：</p>
+<table>
+  <thead>
+      <tr>
+          <th><strong>4位（最高有效位）</strong></th>
+          <th><strong>1位</strong></th>
+          <th><strong>3位（最低有效位）</strong></th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>操作码</td>
+          <td>源操作数</td>
+          <td>指令类型</td>
+      </tr>
+      <tr>
+          <td>第4位的源操作数编码如下：</td>
+          <td></td>
+          <td></td>
+      </tr>
+  </tbody>
+</table>
+<table>
+  <thead>
+      <tr>
+          <th><strong>源</strong></th>
+          <th><strong>值</strong></th>
+          <th><strong>含义</strong></th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>BPF_K</td>
+          <td>0x00</td>
+          <td>使用32位立即数作为源操作数</td>
+      </tr>
+      <tr>
+          <td>BPF_X</td>
+          <td>0x08</td>
+          <td>使用src_reg寄存器作为源操作数</td>
+      </tr>
+      <tr>
+          <td>前4个最高有效位存储了操作码。</td>
+          <td></td>
+          <td></td>
+      </tr>
+  </tbody>
+</table>
+<h3 id="算术指令">算术指令<a href="#算术指令" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>对于相同的操作，BPF_ALU使用32位宽的操作数，而BPF_ALU64使用64位宽的操作数。操作码编码的操作如下：</p>
+<table>
+  <thead>
+      <tr>
+          <th><strong>操作码</strong></th>
+          <th><strong>值</strong></th>
+          <th><strong>offset</strong></th>
+          <th><strong>含义</strong></th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>BPF_ADD</td>
+          <td>0x00</td>
+          <td>0</td>
+          <td>dst += src</td>
+      </tr>
+      <tr>
+          <td>BPF_SUB</td>
+          <td>0x10</td>
+          <td>0</td>
+          <td>dst -= src</td>
+      </tr>
+      <tr>
+          <td>BPF_MUL</td>
+          <td>0x20</td>
+          <td>0</td>
+          <td>dst *= src</td>
+      </tr>
+      <tr>
+          <td>BPF_DIV</td>
+          <td>0x30</td>
+          <td>0</td>
+          <td>dst = (src != 0) ? (dst / src) : 0</td>
+      </tr>
+      <tr>
+          <td>BPF_SDIV</td>
+          <td>0x30</td>
+          <td>1</td>
+          <td>dst = (src != 0) ? (dst s/ src) : 0</td>
+      </tr>
+      <tr>
+          <td>BPF_OR</td>
+          <td>0x40</td>
+          <td>0</td>
+          <td>dst |= src</td>
+      </tr>
+      <tr>
+          <td>BPF_AND</td>
+          <td>0x50</td>
+          <td>0</td>
+          <td>dst &amp;= src</td>
+      </tr>
+      <tr>
+          <td>BPF_LSH</td>
+          <td>0x60</td>
+          <td>0</td>
+          <td>dst &laquo;= (src &amp; mask)</td>
+      </tr>
+      <tr>
+          <td>BPF_RSH</td>
+          <td>0x70</td>
+          <td>0</td>
+          <td>dst &raquo;= (src &amp; mask)</td>
+      </tr>
+      <tr>
+          <td>BPF_NEG</td>
+          <td>0x80</td>
+          <td>0</td>
+          <td>dst = -dst</td>
+      </tr>
+      <tr>
+          <td>BPF_MOD</td>
+          <td>0x90</td>
+          <td>0</td>
+          <td>dst = (src != 0) ? (dst % src) : dst</td>
+      </tr>
+      <tr>
+          <td>BPF_SMOD</td>
+          <td>0x90</td>
+          <td>1</td>
+          <td>dst = (src != 0) ? (dst s% src) : dst</td>
+      </tr>
+      <tr>
+          <td>BPF_XOR</td>
+          <td>0xa0</td>
+          <td>0</td>
+          <td>dst ^= src</td>
+      </tr>
+      <tr>
+          <td>BPF_MOV</td>
+          <td>0xb0</td>
+          <td>0</td>
+          <td>dst = src</td>
+      </tr>
+      <tr>
+          <td>BPF_MOXSX</td>
+          <td>0xb0</td>
+          <td>8/16/32</td>
+          <td>dst = (s8,s16,s32)src</td>
+      </tr>
+      <tr>
+          <td>BPF_ARSH</td>
+          <td>0xc0</td>
+          <td>0</td>
+          <td>sign extending dst &raquo;= (src &amp; mask)</td>
+      </tr>
+      <tr>
+          <td>BPF_END</td>
+          <td>0xd0</td>
+          <td>0</td>
+          <td>字节序转换</td>
+      </tr>
+  </tbody>
+</table>
+<p>在算术运算过程中允许下溢和上溢，意味着64位或32位的值会进行循环。如果BPF程序执行会导致除以零，目标寄存器将被设置为零。如果执行会导致模除零，对于BPF_ALU64指令，目标寄存器的值保持不变，而对于BPF_ALU指令，目标寄存器的高32位将被清零。</p>
+<p>对于无符号操作（BPF_DIV和BPF_MOD），对于BPF_ALU指令，<code>imm</code>被解释为32位无符号值。对于BPF_ALU64指令，<code>imm</code>首先被符号扩展为64位，然后被解释为64位无符号值。</p>
+<p>对于有符号操作（BPF_SDIV和BPF_SMOD），对于BPF_ALU指令，<code>imm</code>被解释为32位有符号值。对于BPF_ALU64指令，<code>imm</code>首先被符号扩展为64位，然后被解释为64位有符号值。</p>
+<p>当被除数或除数为负数时，有关有符号模除操作的定义存在差异，不同的编程语言（如Python、Ruby等）与C、Go、Java等实现可能不同。该规范要求使用截断除法（例如，在C、Go等中实现的方式）来进行有符号模除操作（例如，-13 % 3 == -1）。</p>
+<p>a % n = a - n * trunc(a / n)</p>
+<p>BPF_MOVSX指令执行带符号扩展的移动操作。BPF_ALU | BPF_MOVSX将8位和16位操作数进行符号扩展，转换为32位操作数，并将剩余的高32位清零。BPF_ALU64 | BPF_MOVSX将8位、16位和32位操作数进行符号扩展，转换为64位操作数。</p>
+<p>移位操作在64位操作中使用0x3F（63）的掩码，在32位操作中使用0x1F（31）的掩码。</p>
+<p>举例：</p>
+<pre tabindex="0"><code>// BPF_ADD|BPF_X|BPF_ALU
+dst_reg = (u32) dst_reg + (u32) src_reg;
+
+// BPF_ADD|BPF_X|BPF_ALU64
+dst_reg = dst_reg + src_reg
+
+// BPF_XOR|BPF_K|BPF_ALU
+src_reg = (u32) src_reg ^ (u32) imm32
+
+// BPF_XOR|BPF_K|BPF_ALU64
+src_reg = src_reg ^ imm32
+</code></pre><h3 id="字节序转换指令">字节序转换指令<a href="#字节序转换指令" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>字节序转换指令使用BPF_ALU和BPF_ALU64指令类加上BPF_END，仅对目标寄存器进行操作，不需要源寄存器和imm中的值。</p>
+<p>对于BPF_ALU指令类，操作码中的1位源操作数字段用于选择操作转换的字节顺序（从哪种字节顺序转换到哪种字节顺序）。对于BPF_ALU64指令，操作码中的1位源操作数字段保留，必须设置为0。如下所示：</p>
+<table>
+  <thead>
+      <tr>
+          <th><strong>指令类型</strong></th>
+          <th><strong>源操作数</strong></th>
+          <th><strong>值</strong></th>
+          <th><strong>含义</strong></th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>BPF_ALU</td>
+          <td>BPF_TO_LE</td>
+          <td>0x00</td>
+          <td>在主机字节序和小端字节序间转换</td>
+      </tr>
+      <tr>
+          <td>BPF_ALU</td>
+          <td>BPF_TO_BE</td>
+          <td>0x08</td>
+          <td>在主机字节序和大端字节序间转换</td>
+      </tr>
+      <tr>
+          <td>BPF_ALU64</td>
+          <td>Reserved</td>
+          <td>0x00</td>
+          <td>反向字节序转换</td>
+      </tr>
+      <tr>
+          <td>imm字段编码了交换操作的位宽，支持16, 32, 64。</td>
+          <td></td>
+          <td></td>
+          <td></td>
+      </tr>
+  </tbody>
+</table>
+<pre tabindex="0"><code>// BPF_ALU | BPF_TO_LE | BPF_END, host-endian format to little-endian format
+dst = htole16(dst) // imm = 16
+dst = htole32(dst) // imm = 32
+dst = htole64(dst) // imm = 64
+
+// BPF_ALU | BPF_TO_BE | BPF_END, host-endian format to big-endian format
+dst = htobe16(dst) // imm = 16
+dst = htobe32(dst) // imm = 32
+dst = htobe64(dst) // imm = 64
+
+// BPF_ALU64 | BPF_TO_LE | BPF_END, big- or little-endian to opposite endianness
+dst = bswap16(dst) // imm = 16
+dst = bswap32(dst) // imm = 32
+dst = bswap64(dst) // imm = 64
+</code></pre><h3 id="跳转指令">跳转指令<a href="#跳转指令" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>同样，BPF_JMP32使用32位宽的操作数，BPF_JMP使用64位宽的操作数。操作码编码如下：</p>
+<table>
+  <thead>
+      <tr>
+          <th><strong>操作码</strong></th>
+          <th><strong>值</strong></th>
+          <th><strong>源操作数</strong></th>
+          <th><strong>含义</strong></th>
+          <th><strong>注释</strong></th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>BPF_JA</td>
+          <td>0x00</td>
+          <td>0x0</td>
+          <td>PC += off</td>
+          <td>BPF_JMP 指令类</td>
+      </tr>
+      <tr>
+          <td>BPF_JA</td>
+          <td>0x00</td>
+          <td>0x0</td>
+          <td>PC += imm</td>
+          <td>BPF_JMP32 指令类</td>
+      </tr>
+      <tr>
+          <td>BPF_JEQ</td>
+          <td>0x10</td>
+          <td>any</td>
+          <td>PC += off if dst == src</td>
+          <td></td>
+      </tr>
+      <tr>
+          <td>BPF_JGT</td>
+          <td>0x20</td>
+          <td>any</td>
+          <td>PC += off if dst &gt; src</td>
+          <td>unsigned</td>
+      </tr>
+      <tr>
+          <td>BPF_JGE</td>
+          <td>0x30</td>
+          <td>any</td>
+          <td>PC += off if dst &gt;= src</td>
+          <td>unsigned</td>
+      </tr>
+      <tr>
+          <td>BPF_JSET</td>
+          <td>0x40</td>
+          <td>any</td>
+          <td>PC += off if dst &amp; src</td>
+          <td></td>
+      </tr>
+      <tr>
+          <td>BPF_JNE</td>
+          <td>0x50</td>
+          <td>any</td>
+          <td>PC += off if dst != src</td>
+          <td></td>
+      </tr>
+      <tr>
+          <td>BPF_JSGT</td>
+          <td>0x60</td>
+          <td>any</td>
+          <td>PC += off if dst &gt; src</td>
+          <td>signed</td>
+      </tr>
+      <tr>
+          <td>BPF_JSGE</td>
+          <td>0x70</td>
+          <td>any</td>
+          <td>PC += off if dst &gt;= src</td>
+          <td>signed</td>
+      </tr>
+      <tr>
+          <td>BPF_CALL</td>
+          <td>0x80</td>
+          <td>0x0</td>
+          <td>通过地址调用辅助函数</td>
+          <td>Helper functions</td>
+      </tr>
+      <tr>
+          <td>BPF_CALL</td>
+          <td>0x80</td>
+          <td>0x1</td>
+          <td>调用 PC += imm</td>
+          <td>Program-local functions</td>
+      </tr>
+      <tr>
+          <td>BPF_CALL</td>
+          <td>0x80</td>
+          <td>0x2</td>
+          <td>通过BTF ID调用辅助函数</td>
+          <td>Helper functions</td>
+      </tr>
+      <tr>
+          <td>BPF_EXIT</td>
+          <td>0x90</td>
+          <td>0x0</td>
+          <td>函数/程序返回</td>
+          <td>BPF_JMP only</td>
+      </tr>
+      <tr>
+          <td>BPF_JLT</td>
+          <td>0xa0</td>
+          <td>any</td>
+          <td>PC += off if dst &lt; src</td>
+          <td>unsigned</td>
+      </tr>
+      <tr>
+          <td>BPF_JLE</td>
+          <td>0xb0</td>
+          <td>any</td>
+          <td>PC += off if dst &lt;= src</td>
+          <td>unsigned</td>
+      </tr>
+      <tr>
+          <td>BPF_JSLT</td>
+          <td>0xc0</td>
+          <td>any</td>
+          <td>PC += off if dst &lt; src</td>
+          <td>signed</td>
+      </tr>
+      <tr>
+          <td>BPF_JSLE</td>
+          <td>0xd0</td>
+          <td>any</td>
+          <td>PC += off if dst &lt;= src</td>
+          <td>signed</td>
+      </tr>
+      <tr>
+          <td>eBPF程序需要在做BPF_EXIT操作之前将返回值存储到R0。</td>
+          <td></td>
+          <td></td>
+          <td></td>
+          <td></td>
+      </tr>
+  </tbody>
+</table>
+<p>举例：</p>
+<pre tabindex="0"><code>// BPF_JSGE | BPF_X | BPF_JMP32 (0x7e)
+if (s32) dst s&gt;= (s32)src goto +offset // &#39;s&gt;=&#39; indicates a signed &#39;&gt;=&#39; comparison
+
+// BPF_JA | BPF_K | BPF_JMP32(0x06)
+gotol +imm // &#39;imm&#39; means the branch offset comes from insn &#39;imm&#39; field
+</code></pre><p>对于BPF_JA指令的两种变体，BPF_JMP类允许由<code>offset</code>字段指定的16位跳转偏移量，而BPF_JMP32类允许由<code>imm</code>字段指定的32位跳转偏移量。大于16位的条件跳转可以转换为小于16位的条件跳转加上一个32位的无条件跳转。</p>
+<p>早期的指令集里面没有BPF_JMP32的变体，这也可能是早期BPF程序限制指令数的原因？</p>
+<p>早期的指令集里面BPF_CALL也只有通过imm中编码的地址调用辅助函数这一种变体，每个BTF程序类型可用的helper函数可能有所不同，但地址值在所有程序类型中是唯一的。现在加上新的2种变体后，BPF也就支持了本地函数调用和BTF ID识别辅助函数调用。</p>
+<p>本地函数调用类似于BPF_JA，通过从调用指令开始的偏移量进行引用。偏移量编码在调用指令的imm字段中。本地函数执行完成后执行BPF_EXIT指令返回调用方。</p>
+<h1 id="加载和存储操作">加载和存储操作<a href="#加载和存储操作" class="hanchor" ariaLabel="Anchor">#</a> </h1>
+<p>对于加载和存储操作（BPF_LD, BPF_LDX, BPF_ST, BPF_STX），8位的opcode字段被分成3个部分：</p>
+<table>
+  <thead>
+      <tr>
+          <th><strong>3位（最高有效位）</strong></th>
+          <th><strong>2位</strong></th>
+          <th><strong>3位（最低有效位）</strong></th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>模式（mode）</td>
+          <td>大小（size）</td>
+          <td>指令类型</td>
+      </tr>
+      <tr>
+          <td>size取值如下：</td>
+          <td></td>
+          <td></td>
+      </tr>
+  </tbody>
+</table>
+<table>
+  <thead>
+      <tr>
+          <th><strong>size</strong></th>
+          <th><strong>值</strong></th>
+          <th><strong>含义</strong></th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>BPF_W</td>
+          <td>0x00</td>
+          <td>word（4字节）</td>
+      </tr>
+      <tr>
+          <td>BPF_H</td>
+          <td>0x08</td>
+          <td>half word（2字节）</td>
+      </tr>
+      <tr>
+          <td>BPF_B</td>
+          <td>0x10</td>
+          <td>1字节</td>
+      </tr>
+      <tr>
+          <td>BPF_DW</td>
+          <td>0x18</td>
+          <td>double word（8字节）</td>
+      </tr>
+      <tr>
+          <td>mode取值如下：</td>
+          <td></td>
+          <td></td>
+      </tr>
+  </tbody>
+</table>
+<table>
+  <thead>
+      <tr>
+          <th><strong>mode</strong></th>
+          <th><strong>值</strong></th>
+          <th><strong>含义</strong></th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>BPF_IMM</td>
+          <td>0x00</td>
+          <td>64位立即数指令</td>
+      </tr>
+      <tr>
+          <td>BPF_ABS</td>
+          <td>0x20</td>
+          <td>从cBPF继承的数据包访问指令（absolute），已废弃</td>
+      </tr>
+      <tr>
+          <td>BPF_IND</td>
+          <td>0x40</td>
+          <td>从cBPF继承的数据包访问指令（indirect），已废弃</td>
+      </tr>
+      <tr>
+          <td>BPF_MEM</td>
+          <td>0x60</td>
+          <td>常规的加载和存储指令</td>
+      </tr>
+      <tr>
+          <td>BPF_MEMSX</td>
+          <td>0x80</td>
+          <td>带符号扩展的加载指令</td>
+      </tr>
+      <tr>
+          <td>BPF_ATOMIC</td>
+          <td>0xc0</td>
+          <td>原子指令</td>
+      </tr>
+  </tbody>
+</table>
+<h3 id="常规加载和存储指令">常规加载和存储指令<a href="#常规加载和存储指令" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>BPF_MEM用于编码在寄存器和内存之间传输数据的常规加载和存储指令。如：</p>
+<pre tabindex="0"><code>// BPF_MEM|&lt;size&gt;|BPF_STX
+*(size *) (dst_reg + off) = src_reg
+
+// BPF_MEM|&lt;size&gt;|BPF_ST
+*(size *) (dst_reg + off) = imm32
+
+// BPF_MEM|&lt;size&gt;|BPF_LDX
+dst_reg = *(unsigned size *) (src_reg + off)
+</code></pre><p>其中，size是BPF_B, BPF_H, BPF_W, BPF_DW其中之一，unsigned size是u8, u16, u32 or u64其中之一。</p>
+<h3 id="带符号扩展的加载指令">带符号扩展的加载指令<a href="#带符号扩展的加载指令" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>BPF_MEMSX用于编码带符号扩展的加载指令，用于在寄存器和内存之间传输数据，如：</p>
+<pre tabindex="0"><code>// BPF_MEMSX | &lt;size&gt; | BPF_LDX
+dst = *(signed size *) (src + offset)
+</code></pre><p>其中，size是BPF_B, BPF_H, BPF_W其中之一，unsigned size是s8, s16, s32其中之一。</p>
+<h3 id="原子指令">原子指令<a href="#原子指令" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>eBPF支持的所有原子操作都被编码为使用BPF_ATOMIC模式修饰符的存储操作，如下：</p>
+<ul>
+<li>32位原子操作：BPF_ATOMIC | BPF_W | BPF_STX</li>
+<li>64位原子操作：BPF_ATOMIC | BPF_DW | BPF_STX</li>
+<li>不支持8位和16位的原子操作</li>
+</ul>
+<p>立即数（immediate）字段在原子指令中做了额外的编码， 用于表示实际的操作类型：</p>
+<table>
+  <thead>
+      <tr>
+          <th><strong>imm</strong></th>
+          <th><strong>值</strong></th>
+          <th><strong>含义</strong></th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>BPF_ADD</td>
+          <td>0x00</td>
+          <td>atomic add</td>
+      </tr>
+      <tr>
+          <td>BPF_OR</td>
+          <td>0x40</td>
+          <td>atomic or</td>
+      </tr>
+      <tr>
+          <td>BPF_AND</td>
+          <td>0x50</td>
+          <td>atomic and</td>
+      </tr>
+      <tr>
+          <td>BPF_XOR</td>
+          <td>0xa0</td>
+          <td>atomic xor</td>
+      </tr>
+      <tr>
+          <td>BPF_FETCH</td>
+          <td>0x01</td>
+          <td>修饰符：返回原值</td>
+      </tr>
+      <tr>
+          <td>BPF_XCHG</td>
+          <td>0xe0 | BPF_FETCH</td>
+          <td>atomic exchange</td>
+      </tr>
+      <tr>
+          <td>BPF_CMPXCHG</td>
+          <td>0xf0 | BPF_FETCH</td>
+          <td>atomic compare and exchange</td>
+      </tr>
+      <tr>
+          <td>前面4个为简单原子操作，BPF_FETCH是修饰符，后面2个为复杂原子操作。BPF_FETCH对于简单原子操作来说是可选的，对复杂原子操作是始终置位的。如果BPF_FETCH被置位，操作也会用内存被修改之前的值替换源寄存器中的值。</td>
+          <td></td>
+          <td></td>
+      </tr>
+  </tbody>
+</table>
+<p>举例：</p>
+<pre tabindex="0"><code>// .imm = BPF_ADD, .code = BPF_ATOMIC|BPF_W|BPF_STX
+lock xadd *(u32 *)(dst_reg + off16) += src_reg
+
+// .imm = BPF_ADD, .code = BPF_ATOMIC | BPF_DW | BPF_STX
+lock xadd *(u64 *)(dst_reg + off16) += src_reg
+</code></pre><p>dst_reg + off指向的内存地址中的值被原子修改，src_reg中的值作为另外一个操作数。</p>
+<p>复杂原子操作：</p>
+<ul>
+<li>BPF_XCHG: 原子性地交换src_reg和dst_reg + off指向内存地址的值</li>
+<li>BPF_CMPXCHG: 原子性地比较dst_reg + off指向内存地址的值和R0。如果匹配则用src_reg替换该值。无论哪种情况，原来的值都会被零扩展并加载回R0寄存器中。</li>
+</ul>
+<p>当-mcpu=v3使能时，Clang默认能生成原子指令。如果低版本的-mcpu设置时，唯一能被Clang生成的原子指令是不带BPF_FETCH的BPF_ADD。如果需要在保持较低-mcpu版本的同时启用原子特性，可以使用-Xclang -target-feature -Xclang +alu32选项。</p>
+<h3 id="64位立即数指令">64位立即数指令<a href="#64位立即数指令" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>64位立即数指令使用宽指令编码，使用BPF_IMM模式修饰符，并且使用基本指令中的源寄存器字段存储操作码的子类型。</p>
+<p>下面是BPF_LD | BPF_DW | BPF_IMM(0x18)指令的子类型：</p>
+<table>
+  <thead>
+      <tr>
+          <th>源寄存器值</th>
+          <th>伪代码</th>
+          <th>立即数类型</th>
+          <th>目的寄存器值类型</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>0x0</td>
+          <td>dst = imm64</td>
+          <td>integer</td>
+          <td>integer</td>
+      </tr>
+      <tr>
+          <td>0x1</td>
+          <td>dst = map_by_fd(imm)</td>
+          <td>map fd</td>
+          <td>map</td>
+      </tr>
+      <tr>
+          <td>0x2</td>
+          <td>dst = map_val(map_by_fd(imm)) + next_imm</td>
+          <td>map fd</td>
+          <td>data pointer</td>
+      </tr>
+      <tr>
+          <td>0x3</td>
+          <td>dst = var_addr(imm)</td>
+          <td>variable id</td>
+          <td>data pointer</td>
+      </tr>
+      <tr>
+          <td>0x4</td>
+          <td>dst = code_addr(imm)</td>
+          <td>integer</td>
+          <td>code pointer</td>
+      </tr>
+      <tr>
+          <td>0x5</td>
+          <td>dst = map_by_idx(imm)</td>
+          <td>map index</td>
+          <td>map</td>
+      </tr>
+      <tr>
+          <td>0x6</td>
+          <td>dst = map_val(map_by_idx(imm)) + next_imm</td>
+          <td>map index</td>
+          <td>data pointer</td>
+      </tr>
+  </tbody>
+</table>
+<ul>
+<li>map_by_fd(imm): 将一个32位的文件描述符转换成一个map的地址</li>
+<li>map_by_idx(imm): 将一个32位的index转换成一个map的地址</li>
+<li>map_val(map): 获取给定map的第一个值的地址</li>
+<li>var_addr(imm): 获取给定id的platform variable的地址</li>
+<li>code_addr(imm): 获取指定相对偏移量处的指令的地址</li>
+<li>立即数类型能够被反汇编器用作展示</li>
+<li>目的寄存器值类型能够被用作校验和JIT编译</li>
+</ul>
+<h4 id="maps">Maps<a href="#maps" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<p>Maps是一些平台上可被BPF程序访问的共享内存区域。不同的map类型可能存在或不存在单个连续的内存区域。当前的map_val(map)仅对具有单个连续内存区域的map类型有意义。</p>
+<p>如果平台支持，每个map都有一个文件描述符（fd）。map_by_fd(imm)表示获取具有指定文件描述符的map。BPF程序在加载时可以定义程序中需要使用的一组maps，map_by_idx(imm)表示获取包含该指令的BPF程序中的这组maps中给定索引的map。</p>
+<h4 id="platform-variables">Platform Variables<a href="#platform-variables" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<p>平台变量是由运行时公开并可被某些平台上的BPF程序访问的内存区域，通过整数ID进行标识。var_addr(imm)操作表示获取由给定ID标识的内存区域的地址。</p>
+<p>老的规范（v5.17）中只有64位立即数指令只有第一个子类型，其它的都是后来添加的。</p>
+<h3 id="数据包访问指令">数据包访问指令<a href="#数据包访问指令" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>eBPF有两个非通用指令，用于访问数据包数据：</p>
+<ul>
+<li>(BPF_ABS | &lt;size&gt; | BPF_LD)</li>
+<li>(BPF_IND | &lt;size&gt; | BPF_LD)</li>
+</ul>
+<p>这些指令必须从cBPF继承下来，用来保证在eBPF解释器中运行的套接字过滤器具有强大的性能。这些指令只能在解释器上下文为指向struct sk_buff的指针时使用，并具有七个隐式操作数。寄存器R6是一个隐式输入，必须包含指向sk_buff的指针。寄存器R0是一个隐式输出，其中包含从数据包中获取的数据。寄存器R1-R5是临时寄存器，不能用于在BPF_ABS | BPF_LD或BPF_IND | BPF_LD指令之间存储数据。</p>
+<p>这些指令还具有隐式的程序退出条件。当eBPF程序尝试访问数据包边界之外的数据时，解释器将中止程序的执行。JIT编译器也必须保留此属性。src_reg和imm32字段是这些指令的显式输入。</p>
+<p><strong>这两个指令在 spec 1.0 中已经被废弃。</strong></p>
+<h2 id="简单的例子">简单的例子<a href="#简单的例子" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>原始c语言代码：</p>
+<pre tabindex="0"><code>// BPF_IND|BPF_W|BPF_LD
+R0 = ntohl(*(u32 *) (((struct sk_buff *) R6)-&gt;data + src_reg + imm32))
+</code></pre><p>并且R1至R5的值会被该操作覆盖。</p>
+<pre tabindex="0"><code>//go:build ignore
+
+#include &#34;common.h&#34;
+
+char __license[] SEC(&#34;license&#34;) = &#34;Dual MIT/GPL&#34;;
+
+struct bpf_map_def SEC(&#34;maps&#34;) kprobe_map = {
+        .type        = BPF_MAP_TYPE_ARRAY,
+        .key_size    = sizeof(u32),
+        .value_size  = sizeof(u64),
+        .max_entries = 1,
+};
+
+SEC(&#34;kprobe/sys_execve&#34;)
+int kprobe_execve() {
+        u32 key     = 0;
+        u64 initval = 1, *valp;
+
+        valp = bpf_map_lookup_elem(&amp;kprobe_map, &amp;key);
+        if (!valp) {
+                bpf_map_update_elem(&amp;kprobe_map, &amp;key, &amp;initval, BPF_ANY);
+                return 0;
+        }
+        __sync_fetch_and_add(valp, 1);
+
+        return 0;
+}
+</code></pre><p>对ELF文件反汇编的结果：</p>
+<pre tabindex="0"><code>$ llvm-objdump -d bpf_bpfel.o
+
+bpf_bpfel.o:        file format elf64-bpf
+
+
+Disassembly of section kprobe/sys_execve:
+
+0000000000000000 &lt;kprobe_execve&gt;:
+       0:        b7 01 00 00 00 00 00 00        r1 = 0
+       1:        63 1a fc ff 00 00 00 00        *(u32 *)(r10 - 4) = r1
+       2:        b7 06 00 00 01 00 00 00        r6 = 1
+       3:        7b 6a f0 ff 00 00 00 00        *(u64 *)(r10 - 16) = r6
+       4:        bf a2 00 00 00 00 00 00        r2 = r10
+       5:        07 02 00 00 fc ff ff ff        r2 += -4
+       6:        18 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00        r1 = 0 ll
+       8:        85 00 00 00 01 00 00 00        call 1
+       9:        55 00 09 00 00 00 00 00        if r0 != 0 goto +9 &lt;LBB0_2&gt;
+      10:        bf a2 00 00 00 00 00 00        r2 = r10
+      11:        07 02 00 00 fc ff ff ff        r2 += -4
+      12:        bf a3 00 00 00 00 00 00        r3 = r10
+      13:        07 03 00 00 f0 ff ff ff        r3 += -16
+      14:        18 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00        r1 = 0 ll
+      16:        b7 04 00 00 00 00 00 00        r4 = 0
+      17:        85 00 00 00 02 00 00 00        call 2
+      18:        05 00 01 00 00 00 00 00        goto +1 &lt;LBB0_3&gt;
+
+0000000000000098 &lt;LBB0_2&gt;:
+      19:        db 60 00 00 00 00 00 00        lock *(u64 *)(r0 + 0) += r6
+
+00000000000000a0 &lt;LBB0_3&gt;:
+      20:        b7 00 00 00 00 00 00 00        r0 = 0
+      21:        95 00 00 00 00 00 00 00        exit
+</code></pre><p>指令最左边为LSB，最右边为MSB。</p>
+<ul>
+<li>b7 01 00 00 00 00 00 00
+<ul>
+<li>opcode是b7，指令类型值为0x07（BPF_ALU64），操作码为0xb0（BPF_MOV），源操作数为0x00（BPF_K），即从imm中取值</li>
+<li>dst_reg 为R1，imm值为0</li>
+<li>总结为 r1 = 0</li>
+</ul>
+</li>
+<li>63 1a fc ff 00 00 00 00
+<ul>
+<li>opcode是63，指令类型值为0x03（BPF_STX），操作大小为0x00（BPF_W），模式为0x60（BPF_MEM），即将寄存器中的值存储到内存中</li>
+<li>dst_reg 为R10，src_reg 为 R1，offset值为0xfffc，即-4</li>
+<li>总结为*(u32 *) (r10 - 4) = r1</li>
+</ul>
+</li>
+<li>18 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+<ul>
+<li>opcode是18，指令类型值为0x00（BPF_LD），操作大小为0x18（BPF_DW），模式为0x00（BPF_IMM），即64位立即数的mov</li>
+<li>dst_reg 为R1</li>
+<li>总结为r1 = 0 ll</li>
+</ul>
+</li>
+<li>85 00 00 00 01 00 00 00
+<ul>
+<li>opcode是0x85，BPF_JMP | BPF_W | BPF_CALL</li>
+<li>imm = 0x01</li>
+<li>call 1</li>
+</ul>
+</li>
+<li>55 00 09 00 00 00 00 00
+<ul>
+<li>opcode是0x55，BPF_JMP | BPF_B | BPF_JSET(PC += off if dst &amp; src)</li>
+<li>des_reg和src_reg都为R0，offset为0x09</li>
+<li>if r0 != 0 goto +9 &lt;LBB0_2&gt;</li>
+</ul>
+</li>
+<li>db 60 00 00 00 00 00 00
+<ul>
+<li>opcode是db，BPF_STX | BPF_DW | BPF_ATOMIC，原子操作使用imm做额外编码，imm为0x00，即BPF_ADD</li>
+<li>det_reg 为R0，src_reg 为R6，offset 为0</li>
+<li>lock *(u64 *)(r0 + 0) += r6</li>
+</ul>
+</li>
+<li>95 00 00 00 00 00 00 00
+<ul>
+<li>opcode是95，BPF_JMP | BPF_K | BPF_EXIT</li>
+<li>exit</li>
+</ul>
+</li>
+</ul>
+
+      </div></div>
+
+  
+    
+<div class="pagination">
+  <div class="pagination__title">
+    <span class="pagination__title-h">Read other posts</span>
+    <hr />
+  </div>
+  <div class="pagination__buttons">
+    
+      <a href="https://www.jinzhi.site/posts/2025-04/vrf-an-overview/" class="button inline prev">
+        &lt; [<span class="button__text">VRF: An Overview</span>]
+      </a>
+    
+    
+      ::
+    
+    
+      <a href="https://www.jinzhi.site/posts/2022-05/elf-%E6%96%87%E4%BB%B6%E6%A0%BC%E5%BC%8F%E6%B5%85%E6%9E%90/" class="button inline next">
+         [<span class="button__text">ELF 文件格式浅析</span>] &gt;
+      </a>
+    
+  </div>
+</div>
+
+
+  
+
+  
+    
+
+  
+</article>
+
+  </div>
+
+  
+    <footer class="footer">
+  <div class="footer__inner">
+    
+      <div class="copyright">
+        <span>© 2025 Powered by <a href="https://gohugo.io">Hugo</a></span>
+    
+      <span>:: <a href="https://github.com/panr/hugo-theme-terminal" target="_blank">Theme</a> made by <a href="https://github.com/panr" target="_blank">panr</a></span>
+      </div>
+  </div>
+</footer>
+
+
+
+
+
+
+<script type="text/javascript" src="/bundle.min.js"></script>
+
+
+
+
+
+  
+  </div>
+
+  <aside class="floating-sidebar">
+    
+<div class="sidebar time-archive">
+  <h3>Time Archives</h3>
+  <div class="archive-list">
+    
+    
+
+    
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+
+    
+    
+
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-09/" class="archive-link">
+          <span class="archive-date">2025-09</span>
+          <span class="archive-month-name">Sep</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-08/" class="archive-link">
+          <span class="archive-date">2025-08</span>
+          <span class="archive-month-name">Aug</span>
+          <span class="archive-count">(8)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-04/" class="archive-link">
+          <span class="archive-date">2025-04</span>
+          <span class="archive-month-name">Apr</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-03/" class="archive-link">
+          <span class="archive-date">2025-03</span>
+          <span class="archive-month-name">Mar</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2024-01/" class="archive-link">
+          <span class="archive-date">2024-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-05/" class="archive-link">
+          <span class="archive-date">2022-05</span>
+          <span class="archive-month-name">May</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-03/" class="archive-link">
+          <span class="archive-date">2022-03</span>
+          <span class="archive-month-name">Mar</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-06/" class="archive-link">
+          <span class="archive-date">2021-06</span>
+          <span class="archive-month-name">Jun</span>
+          <span class="archive-count">(3)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-01/" class="archive-link">
+          <span class="archive-date">2021-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+  </div>
+</div>
+
+<style>
+.sidebar.time-archive {
+  background: rgba(26, 23, 15, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--accent, #FFA86B);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+  max-width: var(--sidebar-component-width, 240px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.sidebar.time-archive h3 {
+  margin: 0 0 1rem 0;
+  color: var(--accent, #FFA86B);
+  font-size: 1.2rem;
+  border-bottom: 1px solid var(--accent-alpha-70, rgba(255, 168, 107, 0.7));
+  padding-bottom: 0.5rem;
+}
+
+
+.archive-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.archive-item {
+  display: block;
+}
+
+.archive-link {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  text-decoration: none;
+  color: var(--color, inherit);
+  padding: 0.5rem;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+}
+
+.archive-link:hover {
+  background-color: var(--accent-alpha-20, rgba(255, 168, 107, 0.2));
+  color: var(--accent, #FFA86B);
+}
+
+.archive-date {
+  font-family: var(--code-font-family, 'Fira Code', monospace);
+  font-weight: bold;
+  min-width: 60px;
+}
+
+.archive-month-name {
+  flex: 1;
+  margin-left: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.archive-count {
+  color: var(--accent, #FFA86B);
+  font-weight: bold;
+  font-size: 0.9rem;
+}
+
+ 
+</style>
+
+    
+<div class="sidebar tags-cloud">
+  <h3>Tags Cloud</h3>
+  <div class="tags-container">
+    
+    
+    
+    
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+    
+    
+    
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+    
+    
+    
+    
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+    
+    
+    
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+    
+    
+    
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/concurrency/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="7 articles">
+          Concurrency
+          <span class="tag-count">(7)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/dns/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          dns
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/ebpf/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          eBPF
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/elf/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          ELF
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/kaist-cs431/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="7 articles">
+          KAIST-CS431
+          <span class="tag-count">(7)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/lua/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          Lua
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/network/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Network
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/operatingsystem/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          OperatingSystem
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/rust/" 
+           class="tag-item" 
+           style="font-size: 1.5em;"
+           title="10 articles">
+          Rust
+          <span class="tag-count">(10)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/wasm/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Wasm
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+  </div>
+</div>
+
+<style>
+.sidebar.tags-cloud {
+  background: rgba(26, 23, 15, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--accent, #FFA86B);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+  max-width: var(--sidebar-component-width, 240px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.sidebar.tags-cloud h3 {
+  margin: 0 0 1rem 0;
+  color: var(--accent, #FFA86B);
+  font-size: 1.2rem;
+  border-bottom: 1px solid var(--accent-alpha-70, rgba(255, 168, 107, 0.7));
+  padding-bottom: 0.5rem;
+}
+
+.tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  line-height: 1.6;
+}
+
+.tag-item {
+  display: inline-flex;
+  align-items: baseline;
+  text-decoration: none;
+  color: var(--color, inherit);
+  padding: 0.3rem 0.6rem;
+  border-radius: 16px;
+  background: rgba(255, 168, 107, 0.1);
+  border: 1px solid transparent;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.tag-item:hover {
+  background: rgba(255, 168, 107, 0.25);
+  border-color: var(--accent-alpha-50, rgba(255, 168, 107, 0.5));
+  color: var(--accent, #FFA86B);
+  transform: translateY(-1px);
+}
+
+.tag-count {
+  font-size: 0.75em;
+  margin-left: 0.3rem;
+  opacity: 0.7;
+  font-weight: normal;
+}
+
+.tag-item:hover .tag-count {
+  opacity: 1;
+}
+
+ 
+
+ 
+.tag-item {
+  font-weight: 400;
+}
+
+ 
+.tag-item[style*="1.5"], 
+.tag-item[style*="1.4"],
+.tag-item[style*="1.3"] {
+  font-weight: 600;
+}
+
+ 
+.tag-item[style*="1.2"],
+.tag-item[style*="1.1"] {
+  font-weight: 500;
+}
+
+ 
+.tag-item[style*="1.5"]:hover,
+.tag-item[style*="1.4"]:hover,
+.tag-item[style*="1.3"]:hover {
+  box-shadow: 0 3px 10px rgba(255, 168, 107, 0.4);
+  transform: translateY(-2px);
+}
+
+</style>
+
+  </aside>
+</div>
+
+<style>
+ 
+.page-wrapper {
+  position: relative;
+  width: 100%;
+  max-width: none;
+  --sidebar-top-offset: 150px;  
+  --sidebar-component-width: 240px;  
+}
+
+   
+.floating-sidebar {
+  position: absolute;
+   
+  top: var(--sidebar-top-offset, 175px);
+   
+  right: max(20px, calc((100vw - 864px) / 2 - 330px));
+  width: 300px;
+  z-index: 100;
+  opacity: 0.96;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+ 
+.floating-sidebar:hover {
+  opacity: 1;
+  transform: translateX(-5px);
+}
+
+ 
+.floating-sidebar {
+  display: none;
+}
+
+ 
+@media (min-width: 1524px) {
+  .floating-sidebar {
+    display: block;
+    position: absolute;
+    right: max(20px, calc((100vw - 864px) / 2 - 330px));
+  }
+}
+
+ 
+@media (max-width: 1523px) {
+  .floating-sidebar {
+    display: none !important;
+  }
+}
+
+</style>
+
+</body>
+</html>
