@@ -216,6 +216,95 @@
     
       <article class="post on-list">
         <h2 class="post-title">
+          <a href="https://www.jinzhi.site/posts/2025-08/kaist-cs431-lock-implementations/">KAIST-CS431: Lock Implementations</a>
+        </h2>
+
+        <div class="post-meta"><time class="post-date">2025-08-28</time></div>
+
+        
+          <span class="post-tags">
+            
+            #<a href="https://www.jinzhi.site/tags/rust/">Rust</a>&nbsp;
+            
+            #<a href="https://www.jinzhi.site/tags/concurrency/">Concurrency</a>&nbsp;
+            
+            #<a href="https://www.jinzhi.site/tags/kaist-cs431/">KAIST-CS431</a>&nbsp;
+            
+          </span>
+        
+
+        
+
+
+        <div class="post-content">
+          
+            <h2 id="naive-spin-lock">Naive Spin Lock</h2>
+<p><img src="/images/notes/kaist-cs431-lock-implementations/image-20220324081153922.png" alt="image-20220324081153922"></p>
+<h3 id="naive-spin-lock的缺陷">Naive Spin Lock的缺陷</h3>
+<ul>
+<li>无法保证公平性，可能有的倒霉蛋空转了一辈子也无法cas成功，无法做到按竞争线程先来后到的次序占有锁。</li>
+<li>扩展性差，大量对同一内存区域的自旋引发性能问题。</li>
+</ul>
+<h2 id="对naive-spin-lock的优化">对Naive Spin Lock的优化</h2>
+<p>关键思路：</p>
+<ul>
+<li>通过release/acquire同步机制保证互斥量的排他性
+<ul>
+<li>从一个临界区的结束（release）到另一个临界区的开始（acquire）</li>
+<li>在ticket lock里面是<code>curr</code>成员，CLH/MCS lock是每个waiter的一个新内存区域</li>
+</ul>
+</li>
+<li>通过排队和等待不同的区域释放保证公平性
+<ul>
+<li>通过公平的指令来排队（如swap, fetch-and-add）</li>
+<li>Ticket lock：通过<code>next</code>来排队，<code>curr</code>来等待锁</li>
+<li>CLH/MCS lock：通过<code>tail</code>来排队，等待每个锁调用者申请的不同区域中值的变化来获取锁</li>
+</ul>
+</li>
+</ul>
+<h3 id="ticket-lock">Ticket Lock</h3>
+<p><img src="/images/notes/kaist-cs431-lock-implementations/image-20220323075751550.png" alt="image-20220323075751550"></p>
+<p>ticket lock在锁的结构体里面新增了一个原子变量<code>next</code>，每次需要竞争锁时，需要先从<code>next</code>中拿到一个ticket，然后再去监听<code>curr</code>，只有<code>curr</code>被更新成当前的ticket值后，才能去占领锁。</p>
+<h4 id="优点">优点</h4>
+<ul>
+<li>利用公平指令排队解决了公平性问题</li>
+</ul>
+<h4 id="缺点">缺点</h4>
+<ul>
+<li>API相对较复杂（调用者感知ticket）（为什么不直接用curr+1？）</li>
+<li>没有解决spinlock中所有线程监听同一个原子变量的问题</li>
+</ul>
+<h3 id="clh-lock">CLH Lock</h3>
+<p><img src="/images/notes/kaist-cs431-lock-implementations/image-20220323082114800.png" alt="image-20220323082114800"></p>
+<p>为了减少缓存一致性带来的开销，CLH lock被发明了。CLH是三个人首字母的缩写：Craig, Landin, and Hagersten。</p>
+<p>CLH lock给所有等待线程分配了一个Node，每个Node初始为true，在锁内维护一个链表，所有竞争锁的线程都会获取到前一个线程的Node，并将<code>tail</code>指针指向自己的Node。</p>
+<p>不同于spin lock和Ticket lock，CLH lock的临界区是前一个Node中的原子变量。在锁释放时，当前线程会将自己的Node值置为false，而排队的下一个线程监听到这个变化，则可以安全地占有锁了。</p>
+<h4 id="优点-1">优点</h4>
+<ul>
+<li>线程监听的不同临界区，减少缓存一致性的开销</li>
+<li>链表排队，也能保证公平性</li>
+</ul>
+<h4 id="缺点-1">缺点</h4>
+<ul>
+<li>O(n)的空间复杂度开销，n是临界区数目</li>
+<li>每个线程都是在前驱节点的Node上自旋，如果跨NUMA会有性能问题</li>
+</ul>
+<h3 id="mcs-lock">MCS Lock</h3>
+<p><img src="/images/notes/kaist-cs431-lock-implementations/image-20220324080334262.png" alt="image-20220324080334262"></p>
+<p>MCS lock也是以三个人名命名的：John M. Mellor-Crummey and Michael L. Scott。MCS lock和LCH lock最大的不同是：CLH lock是在前驱节点上自旋，MCS则是在自己节点上自旋。</p>
+<p>在CLH的Node结构里面，MCS又添加了一个<code>next</code>字段，新的线程竞争锁时，会将自己的Node添加到前驱节点的<code>next</code>字段中。</p>
+          
+        </div>
+
+        
+          <div>
+            <a class="read-more button inline" href="/posts/2025-08/kaist-cs431-lock-implementations/">[Read more]</a>
+          </div>
+        
+      </article>
+    
+      <article class="post on-list">
+        <h2 class="post-title">
           <a href="https://www.jinzhi.site/posts/2025-08/kaist-cs431-promising-semantics/">KAIST-CS431: Promising Semantics</a>
         </h2>
 
@@ -505,87 +594,6 @@ FLAG.store(1);   ||       assert(DATA == 42);
         
       </article>
     
-      <article class="post on-list">
-        <h2 class="post-title">
-          <a href="https://www.jinzhi.site/posts/2025-04/vrf-an-overview/">VRF: An Overview</a>
-        </h2>
-
-        <div class="post-meta"><time class="post-date">2025-04-25</time></div>
-
-        
-          <span class="post-tags">
-            
-            #<a href="https://www.jinzhi.site/tags/network/">Network</a>&nbsp;
-            
-          </span>
-        
-
-        
-
-
-        <div class="post-content">
-          
-            <h2 id="什么是-vrfvirtual-routing-forwarding">什么是 VRF（virtual routing forwarding）</h2>
-<p>VRF是一种实现三层网络隔离的关键技术。<strong>它通过创建多个路由表，为不同的网络流量提供独立的转发路径。</strong> 这意味着，任何三层网络结构，如接口的IP地址、静态路由的配置，甚至BGP（边界网关协议）会话，都可以被映射到特定的VRF中。这种映射机制就像是为每个VRF构建了一个独立的网络空间，彼此之间相互隔离，极大地增强了网络的安全性和管理的便利性。在MPLS VPN（多协议标签交换虚拟专用网络）等应用场景中，VRF为实现大规模的网络隔离和灵活的路由策略提供了基础框架。就像 VLAN 隔离了二层网络一样，VRF 隔离了三层网络。</p>
-<p><img src="/images/notes/vrf-an-overview/5eb20c3e919fe3724b92c2ae7a66a7da_MD5.png" alt="5eb20c3e919fe3724b92c2ae7a66a7da_MD5"></p>
-<h2 id="为什么需要-vrf">为什么需要 VRF</h2>
-<p>在 VRF 出现之前，Linux 用户主要采用两种方式来尝试实现类似的功能：策略路由（policy routing）和网络命名空间（net namespace）。然而，这两种方法都存在明显的局限性。</p>
-<p>策略路由虽然能够通过多个路由表和策略规则来模拟 VRF 的部分功能（事实上，在 Linux 中，也是基于策略路由来去对 VRF 做的实现），但它的缺点十分突出。这种方式在配置和管理上非常复杂，难以确保网络隔离的有效性，在面对严格的网络审计时，往往无法通过。其复杂性不仅增加了运维的难度，还可能导致网络故障的风险上升，因此不被推荐使用。</p>
-<p>网络命名空间在容器技术兴起后得到了广泛应用，它能够为容器提供全面的网络隔离。但在模拟 VRF 功能时，却显得有些“大材小用”。网络命名空间会对所有网络相关的资源进行完全隔离，包括设备、接口、ARP 表和路由表等。这意味着，即使是一些不需要隔离的服务，也会被隔离在不同的命名空间中。以 LLDP（链路层发现协议）为例，在使用网络命名空间的情况下，若要在不同的网络隔离环境中使用 LLDP，就需要在每个命名空间中单独运行实例，并且由于默认套接字相同，还需要为每个实例创建独特的套接字。这不仅增加了系统的开销，还使得管理变得更加复杂。相比之下，VRF 在隔离三层网络结构的同时，允许全局配置的共享和非三层感知服务的统一运行，大大提高了资源的利用效率。</p>
-<table>
-  <thead>
-      <tr>
-          <th>Policy Routing</th>
-          <th>VRF</th>
-          <th>Net Namespace</th>
-      </tr>
-  </thead>
-  <tbody>
-      <tr>
-          <td>隔离路由表</td>
-          <td>隔离三层网络</td>
-          <td>整个协议栈从二层到 socket 隔离</td>
-      </tr>
-  </tbody>
-</table>
-<p><img src="/images/notes/vrf-an-overview/a9f7c55f8f39572d339b138fb1e12429_MD5.png" alt="a9f7c55f8f39572d339b138fb1e12429_MD5"><img src="/images/notes/vrf-an-overview/c9b6614c864c7d35a8ef0a4f12ecdbfa_MD5.png" alt="c9b6614c864c7d35a8ef0a4f12ecdbfa_MD5"><img src="/images/notes/vrf-an-overview/9edc8b051f504bf72140d1238513d687_MD5.png" alt="9edc8b051f504bf72140d1238513d687_MD5"></p>
-<h2 id="vrf-配置">VRF 配置</h2>
-<p>在 Linux 系统中配置 VRF，主要借助<code>iproute2</code>包来完成一系列操作。</p>
-<ul>
-<li>创建 VRF，并关联到 table 1</li>
-</ul>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">test1@test1:~$ ip link add vrf-1 <span class="nb">type</span> vrf table <span class="m">1</span>
-</span></span><span class="line"><span class="cl">test1@test1:~$ ip link <span class="nb">set</span> vrf-1 up
-</span></span></code></pre></div><ul>
-<li>添加接口到 VRF，可以看到 wg0 的 master 是 vrf-1，所有 wg0 的流量会使用关联的 vrf-1 路由表进行路由</li>
-</ul>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">test1@test1:~$ ip link <span class="nb">set</span> wg0 master vrf-1
-</span></span><span class="line"><span class="cl">test1@test1:~$ ip -d link show wg0 
-</span></span><span class="line"><span class="cl">9: wg0: &lt;POINTOPOINT,NOARP,UP,LOWER_UP&gt; mtu <span class="m">1400</span> qdisc noqueue master vrf-1 state UNKNOWN mode DEFAULT group default qlen <span class="m">1000</span>
-</span></span><span class="line"><span class="cl">    link/none  promiscuity <span class="m">0</span> minmtu <span class="m">0</span> maxmtu <span class="m">2147483552</span> 
-</span></span><span class="line"><span class="cl">    wireguard 
-</span></span><span class="line"><span class="cl">    vrf_slave table <span class="m">1</span> addrgenmode none numtxqueues <span class="m">1</span> numrxqueues <span class="m">1</span> gso_max_size <span class="m">65536</span> gso_max_segs <span class="m">65535</span>
-</span></span></code></pre></div><ul>
-<li>添加和查看 VRF  静态路由</li>
-</ul>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">root@test1:~# ip route add default via 10.1.0.10 vrf vrf-1
-</span></span><span class="line"><span class="cl">root@test1:~# ip route show table <span class="m">1</span> 
-</span></span><span class="line"><span class="cl">default via 10.1.0.10 dev wg0 
-</span></span><span class="line"><span class="cl"><span class="nb">local</span> 10.1.0.10 dev wg0 proto kernel scope host src 10.1.0.10 
-</span></span><span class="line"><span class="cl">root@test1:~# ip route show vrf vrf-1 
-</span></span><span class="line"><span class="cl">default via 10.1.0.10 dev wg0 
-</span></span></code></pre></div><h3 id="vrf-之间路由">VRF 之间路由</h3>
-<p>有两种方法可以执行跨 VRF 路由。第一种方法涉及一个 VRF 的表中配置的路由，指向绑定到不同 VRF 的设备。</p>
-          
-        </div>
-
-        
-          <div>
-            <a class="read-more button inline" href="/posts/2025-04/vrf-an-overview/">[Read more]</a>
-          </div>
-        
-      </article>
-    
 
     <div class="pagination">
   <div class="pagination__buttons">
@@ -717,6 +725,10 @@ FLAG.store(1);   ||       assert(DATA == 42);
       
       
     
+      
+      
+      
+    
 
     
     
@@ -746,7 +758,7 @@ FLAG.store(1);   ||       assert(DATA == 42);
         <a href="/posts/2025-09/" class="archive-link">
           <span class="archive-date">2025-09</span>
           <span class="archive-month-name">Sep</span>
-          <span class="archive-count">(1)</span>
+          <span class="archive-count">(2)</span>
         </a>
       </div>
     
@@ -1065,10 +1077,6 @@ FLAG.store(1);   ||       assert(DATA == 42);
       
         
       
-        
-      
-        
-      
     
       
         
@@ -1113,26 +1121,6 @@ FLAG.store(1);   ||       assert(DATA == 42);
       
         
       
-    
-      
-        
-      
-    
-      
-    
-      
-        
-      
-    
-      
-        
-      
-        
-      
-    
-      
-        
-      
         
       
         
@@ -1147,6 +1135,22 @@ FLAG.store(1);   ||       assert(DATA == 42);
       
     
       
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
         
       
     
@@ -1154,9 +1158,24 @@ FLAG.store(1);   ||       assert(DATA == 42);
         
       
     
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
     
     
     
+    
+    
+      
+      
     
       
       
@@ -1425,9 +1444,9 @@ FLAG.store(1);   ||       assert(DATA == 42);
         <a href="https://www.jinzhi.site/tags/lua/" 
            class="tag-item" 
            style="font-size: 0.9em;"
-           title="2 articles">
+           title="3 articles">
           Lua
-          <span class="tag-count">(2)</span>
+          <span class="tag-count">(3)</span>
         </a>
       
     

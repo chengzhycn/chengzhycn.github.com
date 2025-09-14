@@ -207,6 +207,84 @@
     
       <article class="post on-list">
         <h1 class="post-title">
+          <a href="https://www.jinzhi.site/posts/2025-09/luatable-%E6%B5%85%E6%9E%90/">Lua：Table 浅析</a>
+        </h1>
+        <div class="post-meta"><time class="post-date">2025-09-14</time></div>
+
+        
+          <span class="post-tags">
+            
+            #<a href="https://www.jinzhi.site/tags/lua/">Lua</a>&nbsp;
+            
+          </span>
+        
+
+        
+
+
+        <div class="post-content">
+          
+            <p>本文的分析基于 OpenResty 的 Lua 分支（https://github.com/openresty/luajit2）。</p>
+<h2 id="核心-api">核心 API</h2>
+<p>table 的 API 定义在 src/lib_table.c 中，API 分为三个部分：</p>
+<p>标准库函数：</p>
+<ul>
+<li>table.insert() - 向 table 插入元素</li>
+<li>table.remove() - 移除 table 元素</li>
+<li>table.concat() - 连接 table 元素为字符串</li>
+<li>table.sort() - 对 table 进行排序</li>
+<li>table.maxn() - 找到 table 中最大数字键</li>
+<li>table.move() - 移动 table 元素</li>
+</ul>
+<p>LuaJIT 扩展函数：</p>
+<ul>
+<li>table.new() - 预分配指定大小的 table</li>
+</ul>
+<p>OpenResty 扩展函数：</p>
+<ul>
+<li>table.clear() - 清空 table 内容</li>
+<li>table.clone() - 克隆 table</li>
+<li>table.nkeys() - 获取 table 键的数量</li>
+<li>table.isarray() - 检查是否为数组</li>
+<li>table.isempty() - 检查 table 是否为空</li>
+</ul>
+<h2 id="数据结构">数据结构</h2>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="k">typedef</span> <span class="k">struct</span> <span class="n">Node</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="n">TValue</span> <span class="n">val</span><span class="p">;</span>         <span class="c1">// 值对象，必须是第一个字段
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">TValue</span> <span class="n">key</span><span class="p">;</span>         <span class="c1">// 键对象
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">MRef</span> <span class="n">next</span><span class="p">;</span>          <span class="c1">// 哈希链指针
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="cp">#if !LJ_GC64
+</span></span></span><span class="line"><span class="cl"><span class="cp"></span>  <span class="n">MRef</span> <span class="n">freetop</span><span class="p">;</span>       <span class="c1">// 32位架构下的空闲节点顶部指针(存储在node[0])
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="cp">#endif
+</span></span></span><span class="line"><span class="cl"><span class="cp"></span><span class="p">}</span> <span class="n">Node</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">typedef</span> <span class="k">struct</span> <span class="n">GCtab</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="n">GCHeader</span><span class="p">;</span>           <span class="c1">// GC 通用头部：nextgc, marked, gct
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="kt">uint8_t</span> <span class="n">nomm</span><span class="p">;</span>       <span class="c1">// 元方法负缓存掩码
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="kt">int8_t</span> <span class="n">colo</span><span class="p">;</span>        <span class="c1">// 数组共址标记 (-1表示已分离, &gt;0表示共址大小)
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">MRef</span> <span class="n">array</span><span class="p">;</span>         <span class="c1">// 数组部分指针
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">GCRef</span> <span class="n">gclist</span><span class="p">;</span>       <span class="c1">// GC 链表指针
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">GCRef</span> <span class="n">metatable</span><span class="p">;</span>    <span class="c1">// 元表引用
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">MRef</span> <span class="n">node</span><span class="p">;</span>          <span class="c1">// 哈希部分指针
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="kt">uint32_t</span> <span class="n">asize</span><span class="p">;</span>     <span class="c1">// 数组部分大小 [0, asize-1]
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="kt">uint32_t</span> <span class="n">hmask</span><span class="p">;</span>     <span class="c1">// 哈希掩码 (哈希部分大小-1)
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="cp">#if LJ_GC64
+</span></span></span><span class="line"><span class="cl"><span class="cp"></span>  <span class="n">MRef</span> <span class="n">freetop</span><span class="p">;</span>       <span class="c1">// 64位架构下的空闲节点顶部指针
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="cp">#endif
+</span></span></span><span class="line"><span class="cl"><span class="cp"></span><span class="p">}</span> <span class="n">GCtab</span><span class="p">;</span>
+</span></span></code></pre></div><p>可以看到，GCtab 中同时定义了数组部分 <code>array</code> 和哈希部分 <code>node</code>。</p>
+          
+        </div>
+
+        
+          <div>
+            <a class="read-more button inline" href="/posts/2025-09/luatable-%E6%B5%85%E6%9E%90/">[Read more]</a>
+          </div>
+        
+      </article>
+    
+      <article class="post on-list">
+        <h1 class="post-title">
           <a href="https://www.jinzhi.site/posts/2025-09/luaconcurrency/">Lua：Concurrency</a>
         </h1>
         <div class="post-meta"><time class="post-date">2025-09-01</time></div>
@@ -494,91 +572,6 @@ R0 - R5是临时寄存器，eBPF程序在函数调用时如需使用需要将它
         
       </article>
     
-      <article class="post on-list">
-        <h1 class="post-title">
-          <a href="https://www.jinzhi.site/posts/2022-05/elf-%E6%96%87%E4%BB%B6%E6%A0%BC%E5%BC%8F%E6%B5%85%E6%9E%90/">ELF 文件格式浅析</a>
-        </h1>
-        <div class="post-meta"><time class="post-date">2022-05-27</time></div>
-
-        
-          <span class="post-tags">
-            
-            #<a href="https://www.jinzhi.site/tags/operatingsystem/">OperatingSystem</a>&nbsp;
-            
-            #<a href="https://www.jinzhi.site/tags/elf/">ELF</a>&nbsp;
-            
-          </span>
-        
-
-        
-
-
-        <div class="post-content">
-          
-            <p>本文是作为 Rust 的练手项目 rself(<a href="https://github.com/chengzhycn/rself">https://github.com/chengzhycn/rself</a>) 的背景知识记录。rself 使用 Rust 重新造了一个 readelf 的轮子。</p>
-<p>ELF全称为<strong>Executable and Linkable Format</strong>，是Linux上可执行文件的通用文件格式。主要有三种类型的ELF文件：</p>
-<ul>
-<li><strong>Relocatable file</strong>: 存储用于和其它对象文件链接的代码和数据，创建一个可执行文件或者共享对象文件</li>
-<li><strong>Executable file</strong>: 存储的是用于执行的程序。它指定了exec如何创建一个程序的进程镜像</li>
-<li><strong>Shared object file</strong>: 存储了在两种语义下用于链接的代码和数据。第一种是让链接器将共享对象文件和其它的可重定位文件/共享对象文件一起创建一个新的对象文件；第二种是动态链接器将它和可执行文件以及其它的共享对象一起创建一个进程镜像。</li>
-</ul>
-<h2 id="elf构成">ELF构成</h2>
-<p>ELF主要由如下几个部分组成：</p>
-<ul>
-<li><strong>ELF Header</strong>: 位于文件的起始，描述了整个文件的组织结构</li>
-<li><strong>Sections/Segments</strong>: 存储了指令、数据、符号表、可重定位信息等。sections 是这段数据在链接时的表现；segments 是数据在执行时的表现。</li>
-<li><strong>Program Header Table</strong>: 用于告诉系统如何创建一个进程镜像。对于可执行程序，Program Header Table是必须的，但是对于可重定位文件就不需要了。</li>
-<li><strong>Section Header Table</strong>: 存储描述文件中sections的信息。每个section都在这个表中有一个条目，存储了如section name, section size等信息。用于链接的文件必须得有Section Header Table，其它的对象文件可有可无。</li>
-</ul>
-<p><img src="/images/notes/elf-%E6%96%87%E4%BB%B6%E6%A0%BC%E5%BC%8F%E6%B5%85%E6%9E%90/d02c13c1fa4bd228f698cf355ec47377_MD5.png" alt="d02c13c1fa4bd228f698cf355ec47377_MD5"></p>
-<p>上面的图中虽然描述文件各个部分的位置，但实际上只有ELF Header的位置是固定的，其它的部分在文件中的位置都在ELF Header中指定。</p>
-<h2 id="elf-header">ELF Header</h2>
-<pre tabindex="0"><code>#define EI_NIDENT 16
-
-typedef struct {
-        unsigned char   e_ident[EI_NIDENT];
-        Elf32_Half      e_type;
-        Elf32_Half      e_machine;
-        Elf32_Word      e_version;
-        Elf32_Addr      e_entry;
-        Elf32_Off       e_phoff;
-        Elf32_Off       e_shoff;
-        Elf32_Word      e_flags;
-        Elf32_Half      e_ehsize;
-        Elf32_Half      e_phentsize;
-        Elf32_Half      e_phnum;
-        Elf32_Half      e_shentsize;
-        Elf32_Half      e_shnum;
-        Elf32_Half      e_shstrndx;
-} Elf32_Ehdr;
-
-typedef struct {
-        unsigned char   e_ident[EI_NIDENT];
-        Elf64_Half      e_type;
-        Elf64_Half      e_machine;
-        Elf64_Word      e_version;
-        Elf64_Addr      e_entry;
-        Elf64_Off       e_phoff;
-        Elf64_Off       e_shoff;
-        Elf64_Word      e_flags;
-        Elf64_Half      e_ehsize;
-        Elf64_Half      e_phentsize;
-        Elf64_Half      e_phnum;
-        Elf64_Half      e_shentsize;
-        Elf64_Half      e_shnum;
-        Elf64_Half      e_shstrndx;
-} Elf64_Ehdr;
-</code></pre><p>ELF header通常由一个Elfxx_Ehdr结构体表示。它存储了当前二进制文件的一些元数据：</p>
-          
-        </div>
-
-        
-          <div>
-            <a class="read-more button inline" href="/posts/2022-05/elf-%E6%96%87%E4%BB%B6%E6%A0%BC%E5%BC%8F%E6%B5%85%E6%9E%90/">[Read more]</a>
-          </div>
-        
-      </article>
-    
 
     <div class="pagination">
   <div class="pagination__buttons">
@@ -704,6 +697,10 @@ typedef struct {
       
       
     
+      
+      
+      
+    
 
     
     
@@ -733,7 +730,7 @@ typedef struct {
         <a href="/posts/2025-09/" class="archive-link">
           <span class="archive-date">2025-09</span>
           <span class="archive-month-name">Sep</span>
-          <span class="archive-count">(1)</span>
+          <span class="archive-count">(2)</span>
         </a>
       </div>
     
@@ -1052,10 +1049,6 @@ typedef struct {
       
         
       
-        
-      
-        
-      
     
       
         
@@ -1100,26 +1093,6 @@ typedef struct {
       
         
       
-    
-      
-        
-      
-    
-      
-    
-      
-        
-      
-    
-      
-        
-      
-        
-      
-    
-      
-        
-      
         
       
         
@@ -1134,6 +1107,22 @@ typedef struct {
       
     
       
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
         
       
     
@@ -1141,9 +1130,24 @@ typedef struct {
         
       
     
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
     
     
     
+    
+    
+      
+      
     
       
       
@@ -1412,9 +1416,9 @@ typedef struct {
         <a href="https://www.jinzhi.site/tags/lua/" 
            class="tag-item" 
            style="font-size: 0.9em;"
-           title="2 articles">
+           title="3 articles">
           Lua
-          <span class="tag-count">(2)</span>
+          <span class="tag-count">(3)</span>
         </a>
       
     

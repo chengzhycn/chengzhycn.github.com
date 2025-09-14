@@ -2,28 +2,31 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
   xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url>
+    <loc>https://www.jinzhi.site/categories/</loc>
+    <lastmod>2025-09-14T23:45:28+08:00</lastmod>
+  </url><url>
+    <loc>https://www.jinzhi.site/</loc>
+    <lastmod>2025-09-14T23:45:28+08:00</lastmod>
+  </url><url>
+    <loc>https://www.jinzhi.site/categories/learning/</loc>
+    <lastmod>2025-09-14T23:45:28+08:00</lastmod>
+  </url><url>
+    <loc>https://www.jinzhi.site/tags/lua/</loc>
+    <lastmod>2025-09-14T23:45:28+08:00</lastmod>
+  </url><url>
+    <loc>https://www.jinzhi.site/posts/2025-09/luatable-%E6%B5%85%E6%9E%90/</loc>
+    <lastmod>2025-09-14T23:45:28+08:00</lastmod>
+  </url><url>
+    <loc>https://www.jinzhi.site/posts/</loc>
+    <lastmod>2025-09-14T23:45:28+08:00</lastmod>
+  </url><url>
+    <loc>https://www.jinzhi.site/tags/</loc>
+    <lastmod>2025-09-14T23:45:28+08:00</lastmod>
+  </url><url>
     <loc>https://www.jinzhi.site/posts/2025-09/</loc>
     <lastmod>2025-09-01T00:00:00+00:00</lastmod>
   </url><url>
-    <loc>https://www.jinzhi.site/</loc>
-    <lastmod>2025-09-01T00:00:00+00:00</lastmod>
-  </url><url>
-    <loc>https://www.jinzhi.site/posts/</loc>
-    <lastmod>2025-09-01T00:00:00+00:00</lastmod>
-  </url><url>
-    <loc>https://www.jinzhi.site/categories/</loc>
-    <lastmod>2025-09-01T00:27:09+08:00</lastmod>
-  </url><url>
-    <loc>https://www.jinzhi.site/categories/learning/</loc>
-    <lastmod>2025-09-01T00:27:09+08:00</lastmod>
-  </url><url>
-    <loc>https://www.jinzhi.site/tags/lua/</loc>
-    <lastmod>2025-09-01T00:27:09+08:00</lastmod>
-  </url><url>
     <loc>https://www.jinzhi.site/posts/2025-09/luaconcurrency/</loc>
-    <lastmod>2025-09-01T00:27:09+08:00</lastmod>
-  </url><url>
-    <loc>https://www.jinzhi.site/tags/</loc>
     <lastmod>2025-09-01T00:27:09+08:00</lastmod>
   </url><url>
     <loc>https://www.jinzhi.site/posts/2025-08/lua-an-overview/</loc>
