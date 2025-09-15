@@ -2,16 +2,21 @@
 <html lang="en">
 <head>
   
-    <title>EBPF :: chengzhycn&#39;s blog</title>
+    <title>eBPF 全局变量的实现 :: chengzhycn&#39;s blog</title>
   
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="" />
+<meta name="description" content="Linux内核在v5.2支持了eBPF全局变量（见v5.2）。
+全局变量会被Clang编译器放入.bss, .data, .rodata sections。那么支持全局变量即如何把这些sections中的数据加载进内核，并且在relocation时，给访问这些变量的指令正确的地址。
+关于 eBPF 静态变量支持的讨论在Linux Plumbers Conference 2018 由Cilium提出。早期的 workaround 如下：
+#include &lt;linux/bpf.h&gt; typedef unsigned int __u32; typedef long long unsigned int __64; #ifndef __section # define __section(NAME)	\ __attribute__((section(NAME), used)) #endif #ifndef __fetch # define __fetch(x) (__u32)(__u64)(&amp;(x)) #endif __u32 foo = 42; // .data section // __u32 foo; // .bss section // const __u32 foo = 42; // .rodata section int __main(struct __sk_buff *skb) { skb-&gt;mark = __fetch(foo); return 0; } char __license[] __section(&#34;license&#34;) = &#34;&#34;; 编译后，foo变量存储在.data section内。
+# llvm-readelf -S test.o There are 8 section headers, starting at offset 0x148: Section Headers: [Nr] Name Type Address Off Size ES Flg Lk Inf Al [ 0] NULL 0000000000000000 000000 000000 00 0 0 0 [ 1] .strtab STRTAB 0000000000000000 0000fa 00004b 00 0 0 1 [ 2] .text PROGBITS 0000000000000000 000040 000028 00 AX 0 0 8 [ 3] .rel.text REL 0000000000000000 0000e8 000010 10 7 2 8 [ 4] .data PROGBITS 0000000000000000 000068 000004 00 WA 0 0 4 [ 5] license PROGBITS 0000000000000000 00006c 000001 00 WA 0 0 1 [ 6] .llvm_addrsig LLVM_ADDRSIG 0000000000000000 0000f8 000002 00 E 7 0 1 [ 7] .symtab SYMTAB 0000000000000000 000070 000078 18 1 2 8 Key to Flags: W (write), A (alloc), X (execute), M (merge), S (strings), I (info), L (link order), O (extra OS processing required), G (group), T (TLS), C (compressed), x (unknown), o (OS specific), E (exclude), p (processor specific) .rel.text section中也存在foo变量的relocation信息：
+" />
 <meta name="keywords" content="" />
 
   <meta name="robots" content="noodp" />
 
-<link rel="canonical" href="https://www.jinzhi.site/tags/ebpf/" />
+<link rel="canonical" href="https://www.jinzhi.site/posts/2024-01/ebpf-%E5%85%A8%E5%B1%80%E5%8F%98%E9%87%8F%E7%9A%84%E5%AE%9E%E7%8E%B0/" />
 
 
 
@@ -76,10 +81,15 @@
 
 
 <meta property="og:locale" content="en" />
-<meta property="og:type" content="website" />
-<meta property="og:title" content="EBPF">
-<meta property="og:description" content="" />
-<meta property="og:url" content="https://www.jinzhi.site/tags/ebpf/" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="eBPF 全局变量的实现">
+<meta property="og:description" content="Linux内核在v5.2支持了eBPF全局变量（见v5.2）。
+全局变量会被Clang编译器放入.bss, .data, .rodata sections。那么支持全局变量即如何把这些sections中的数据加载进内核，并且在relocation时，给访问这些变量的指令正确的地址。
+关于 eBPF 静态变量支持的讨论在Linux Plumbers Conference 2018 由Cilium提出。早期的 workaround 如下：
+#include &lt;linux/bpf.h&gt; typedef unsigned int __u32; typedef long long unsigned int __64; #ifndef __section # define __section(NAME)	\ __attribute__((section(NAME), used)) #endif #ifndef __fetch # define __fetch(x) (__u32)(__u64)(&amp;(x)) #endif __u32 foo = 42; // .data section // __u32 foo; // .bss section // const __u32 foo = 42; // .rodata section int __main(struct __sk_buff *skb) { skb-&gt;mark = __fetch(foo); return 0; } char __license[] __section(&#34;license&#34;) = &#34;&#34;; 编译后，foo变量存储在.data section内。
+# llvm-readelf -S test.o There are 8 section headers, starting at offset 0x148: Section Headers: [Nr] Name Type Address Off Size ES Flg Lk Inf Al [ 0] NULL 0000000000000000 000000 000000 00 0 0 0 [ 1] .strtab STRTAB 0000000000000000 0000fa 00004b 00 0 0 1 [ 2] .text PROGBITS 0000000000000000 000040 000028 00 AX 0 0 8 [ 3] .rel.text REL 0000000000000000 0000e8 000010 10 7 2 8 [ 4] .data PROGBITS 0000000000000000 000068 000004 00 WA 0 0 4 [ 5] license PROGBITS 0000000000000000 00006c 000001 00 WA 0 0 1 [ 6] .llvm_addrsig LLVM_ADDRSIG 0000000000000000 0000f8 000002 00 E 7 0 1 [ 7] .symtab SYMTAB 0000000000000000 000070 000078 18 1 2 8 Key to Flags: W (write), A (alloc), X (execute), M (merge), S (strings), I (info), L (link order), O (extra OS processing required), G (group), T (TLS), C (compressed), x (unknown), o (OS specific), E (exclude), p (processor specific) .rel.text section中也存在foo变量的relocation信息：
+" />
+<meta property="og:url" content="https://www.jinzhi.site/posts/2024-01/ebpf-%E5%85%A8%E5%B1%80%E5%8F%98%E9%87%8F%E7%9A%84%E5%AE%9E%E7%8E%B0/" />
 <meta property="og:site_name" content="chengzhycn&#39;s blog" />
 
   <meta property="og:image" content="https://www.jinzhi.site/og-image.png">
@@ -87,11 +97,13 @@
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="627">
 
+  <meta property="article:section" content="Learning" />
+
+
+  <meta property="article:published_time" content="2024-01-02 19:46:28 &#43;0800 &#43;0800" />
 
 
 
-
-  <link href="/tags/ebpf/index.xml" rel="alternate" type="application/rss+xml" title="chengzhycn&#39;s blog" />
 
 
 
@@ -201,106 +213,33 @@
 
   <div class="content">
     
-  <h1>Posts for: #EBPF</h1>
+<article class="post">
+  <h1 class="post-title">
+    <a href="https://www.jinzhi.site/posts/2024-01/ebpf-%E5%85%A8%E5%B1%80%E5%8F%98%E9%87%8F%E7%9A%84%E5%AE%9E%E7%8E%B0/">eBPF 全局变量的实现</a>
+  </h1>
+  <div class="post-meta"><time class="post-date">2024-01-02</time><span class="post-reading-time">5 min read (936 words)</span></div>
+
   
-  <div class="posts">
-    
-      <article class="post on-list">
-        <h1 class="post-title">
-          <a href="https://www.jinzhi.site/posts/2024-01/ebpf-%E6%8C%87%E4%BB%A4%E9%9B%86%E8%A7%84%E8%8C%83/">eBPF 指令集规范</a>
-        </h1>
-        <div class="post-meta"><time class="post-date">2024-01-05</time></div>
-
-        
-          <span class="post-tags">
-            
-            #<a href="https://www.jinzhi.site/tags/ebpf/">eBPF</a>&nbsp;
-            
-          </span>
-        
-
-        
+    <span class="post-tags">
+      
+      #<a href="https://www.jinzhi.site/tags/ebpf/">ebpf</a>&nbsp;
+      
+    </span>
+  
+  
 
 
-        <div class="post-content">
-          
-            <p><a href="https://docs.kernel.org/bpf/standardization/instruction-set.html">1 BPF Instruction Set Specification, v1.0 — The Linux Kernel documentation</a></p>
-<h2 id="寄存器和调用约定">寄存器和调用约定</h2>
-<p>eBPF有10个通用寄存器和一个只读的帧指针寄存器，所有的寄存器都是64bits位长。</p>
-<p>eBPF的调用约定如下：</p>
-<ul>
-<li><strong>R0:</strong> 函数调用的返回值和eBPF程序的退出值</li>
-<li><strong>R1 - R5:</strong> 函数调用的参数</li>
-<li><strong>R6 - R9:</strong> callee saved registers，由函数调用负责保存到栈上</li>
-<li><strong>R10:</strong> 只读的帧指针，用于访问栈
-R0 - R5是临时寄存器，eBPF程序在函数调用时如需使用需要将它们保存/填充。</li>
-</ul>
-<h2 id="指令编码">指令编码</h2>
-<p>eBPF使用64bit指令，编码如下：</p>
-<table>
-  <thead>
-      <tr>
-          <th><strong>32位（最高有效位）</strong></th>
-          <th><strong>16位</strong></th>
-          <th><strong>4位</strong></th>
-          <th><strong>4位</strong></th>
-          <th><strong>8位（最低有效位）</strong></th>
-      </tr>
-  </thead>
-  <tbody>
-      <tr>
-          <td>immediate</td>
-          <td>offset</td>
-          <td>source register</td>
-          <td>dest register</td>
-          <td>opcode</td>
-      </tr>
-  </tbody>
-</table>
-<ul>
-<li>imm: 有符号整型立即数</li>
-<li>offset: 有符号整型数，用于指针算术</li>
-<li>src_reg: 除开特殊指令的编码外（如64位立即数指令）指的是源寄存器(R0 - R10)</li>
-<li>dst_reg: 目标寄存器(R0 - R10)</li>
-<li>opcode: 操作码</li>
-</ul>
-<p>绝大多数指令不会使用所有的字段。没有使用的字段应当被置0。多字节的字段（如imm和offset）在大端BPF中以大端字节序存储，小端BPF中以小端字节序存储。</p>
-<pre tabindex="0"><code>opcode                  offset imm          assembly
-       src_reg dst_reg
-07     0       1        00 00  44 33 22 11  r1 += 0x11223344 // little
-       dst_reg src_reg
-07     1       0        00 00  11 22 33 44  r1 += 0x11223344 // big
-</code></pre><p>除了这些基本指令编码外，eBPF还有一种宽指令编码，在基本指令之后使用第2个64位立即数做扩展。第2个立即数包括一个伪指令，和基本指令的格式一样，不过所有的字段（除了imm）都置为0。它的imm作为整个宽指令中的imm64值的高32位：</p>
-          
-        </div>
+  
+    <div class="table-of-contents">
+      <h2>
+        Table of Contents
+      </h2>
+      <nav id="TableOfContents"></nav>
+    </div>
+  
 
-        
-          <div>
-            <a class="read-more button inline" href="/posts/2024-01/ebpf-%E6%8C%87%E4%BB%A4%E9%9B%86%E8%A7%84%E8%8C%83/">[Read more]</a>
-          </div>
-        
-      </article>
-    
-      <article class="post on-list">
-        <h1 class="post-title">
-          <a href="https://www.jinzhi.site/posts/2024-01/ebpf-%E5%85%A8%E5%B1%80%E5%8F%98%E9%87%8F%E7%9A%84%E5%AE%9E%E7%8E%B0/">eBPF 全局变量的实现</a>
-        </h1>
-        <div class="post-meta"><time class="post-date">2024-01-02</time></div>
-
-        
-          <span class="post-tags">
-            
-            #<a href="https://www.jinzhi.site/tags/ebpf/">ebpf</a>&nbsp;
-            
-          </span>
-        
-
-        
-
-
-        <div class="post-content">
-          
-            <p>Linux内核在v5.2支持了eBPF全局变量（见<a href="https://www.yuque.com/chengzhycn/hx665b/cmbgkdheaf0wyqht#vVcxE">v5.2</a>）。</p>
+  <div class="post-content"><div>
+        <p>Linux内核在v5.2支持了eBPF全局变量（见<a href="https://www.yuque.com/chengzhycn/hx665b/cmbgkdheaf0wyqht#vVcxE">v5.2</a>）。</p>
 <p>全局变量会被Clang编译器放入<code>.bss</code>, <code>.data</code>, <code>.rodata</code> sections。那么支持全局变量即如何把这些sections中的数据加载进内核，并且在relocation时，给访问这些变量的指令正确的地址。</p>
 <p>关于 eBPF 静态变量支持的讨论在<a href="https://lpc.events/event/2/contributions/115/">Linux Plumbers Conference 2018</a> 由Cilium提出。早期的 workaround 如下：</p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;linux/bpf.h&gt;</span><span class="cp">
@@ -347,26 +286,190 @@ Key to Flags:
   C (compressed), x (unknown), o (OS specific), E (exclude),
   p (processor specific)
 </code></pre><p><code>.rel.text</code> section中也存在foo变量的relocation信息：</p>
-          
-        </div>
+<pre tabindex="0"><code># llvm-readelf -r test.o
 
-        
-          <div>
-            <a class="read-more button inline" href="/posts/2024-01/ebpf-%E5%85%A8%E5%B1%80%E5%8F%98%E9%87%8F%E7%9A%84%E5%AE%9E%E7%8E%B0/">[Read more]</a>
-          </div>
-        
-      </article>
+Relocation section &#39;.rel.text&#39; at offset 0xe8 contains 1 entries:
+    Offset             Info             Type               Symbol&#39;s Value  Symbol&#39;s Name
+0000000000000000  0000000400000001 R_BPF_64_64            0000000000000000 foo
+
+# llvm-readelf -s test.o
+
+Symbol table &#39;.symtab&#39; contains 5 entries:
+   Num:    Value          Size Type    Bind   Vis       Ndx Name
+     0: 0000000000000000     0 NOTYPE  LOCAL  DEFAULT   UND
+     1: 0000000000000000     0 FILE    LOCAL  DEFAULT   ABS test.c
+     2: 0000000000000000     1 OBJECT  GLOBAL DEFAULT     5 __license
+     3: 0000000000000000    40 FUNC    GLOBAL DEFAULT     2 __main
+     4: 0000000000000000     4 OBJECT  GLOBAL DEFAULT     4 foo
+</code></pre><p>接下来的工作就是让 loader 识别<code>.data</code>, <code>.rodata</code>, <code>.bss</code> sections 中的数据，并完成relocation。Cilium修改了 iproute2 的实现，添加了对<code>.data</code>和<code>.bss</code> sections 中数据的 relocation 支持：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="c1">// https://github.com/isovalent/iproute2/blob/static-data/lib/bpf.c#L2543
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">static</span> <span class="kt">int</span> <span class="nf">bpf_apply_relo_glob</span><span class="p">(</span><span class="k">struct</span> <span class="n">bpf_elf_ctx</span> <span class="o">*</span><span class="n">ctx</span><span class="p">,</span> <span class="k">struct</span> <span class="n">bpf_elf_prog</span> <span class="o">*</span><span class="n">prog</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">			       <span class="n">GElf_Rel</span> <span class="o">*</span><span class="n">relo</span><span class="p">,</span> <span class="n">GElf_Sym</span> <span class="o">*</span><span class="n">sym</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">			       <span class="k">struct</span> <span class="n">bpf_relo_props</span> <span class="o">*</span><span class="n">props</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">unsigned</span> <span class="kt">int</span> <span class="n">insn_off</span> <span class="o">=</span> <span class="n">relo</span><span class="o">-&gt;</span><span class="n">r_offset</span> <span class="o">/</span> <span class="k">sizeof</span><span class="p">(</span><span class="k">struct</span> <span class="n">bpf_insn</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">int</span> <span class="o">*</span><span class="n">data</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="n">insn_off</span> <span class="o">&gt;=</span> <span class="n">prog</span><span class="o">-&gt;</span><span class="n">insns_num</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="o">-</span><span class="n">EINVAL</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="n">data</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">-&gt;</span><span class="n">glo_data</span><span class="o">-&gt;</span><span class="n">d_buf</span> <span class="o">+</span> <span class="n">sym</span><span class="o">-&gt;</span><span class="n">st_value</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="n">prog</span><span class="o">-&gt;</span><span class="n">insns</span><span class="p">[</span><span class="n">insn_off</span><span class="p">].</span><span class="n">imm</span> <span class="o">=</span> <span class="o">*</span><span class="n">data</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">static</span> <span class="kt">int</span> <span class="nf">bpf_apply_relo_bss</span><span class="p">(</span><span class="k">struct</span> <span class="n">bpf_elf_ctx</span> <span class="o">*</span><span class="n">ctx</span><span class="p">,</span> <span class="k">struct</span> <span class="n">bpf_elf_prog</span> <span class="o">*</span><span class="n">prog</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">			      <span class="n">GElf_Rel</span> <span class="o">*</span><span class="n">relo</span><span class="p">,</span> <span class="n">GElf_Sym</span> <span class="o">*</span><span class="n">sym</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">			      <span class="k">struct</span> <span class="n">bpf_relo_props</span> <span class="o">*</span><span class="n">props</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">unsigned</span> <span class="kt">int</span> <span class="n">insn_off</span> <span class="o">=</span> <span class="n">relo</span><span class="o">-&gt;</span><span class="n">r_offset</span> <span class="o">/</span> <span class="k">sizeof</span><span class="p">(</span><span class="k">struct</span> <span class="n">bpf_insn</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="n">insn_off</span> <span class="o">&gt;=</span> <span class="n">prog</span><span class="o">-&gt;</span><span class="n">insns_num</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="o">-</span><span class="n">EINVAL</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="n">prog</span><span class="o">-&gt;</span><span class="n">insns</span><span class="p">[</span><span class="n">insn_off</span><span class="p">].</span><span class="n">imm</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>可以看到，relocation做的操作就是把实际的数据存到imm字段中。imm字段长度为32位，这也是这种方式的限制：**只支持能放入imm字段中的简单数据类型，对复杂的结构体和数组不太适用。**优点是能适用于老内核，只需要修改用户态bpf loader的实现。</p>
+<p>libbpf相应的修改patch：<a href="https://patchwork.ozlabs.org/project/netdev/cover/20190212004729.535-1-joe@wand.net.nz/">https://patchwork.ozlabs.org/project/netdev/cover/20190212004729.535-1-joe@wand.net.nz/</a></p>
+<p>在会上的讨论中，一位参与者提出了利用bpf map来实现eBPF全局变量。这也是现在eBPF全局变量的实现方式。</p>
+<p>patch：<a href="https://lore.kernel.org/bpf/20190228231829.11993-7-daniel@iogearbox.net/t/">[PATCH bpf-next v2 0/7] BPF support for global data</a></p>
+<p>主要的修改也集中在BPF loader，基本思路如下：</p>
+<ol>
+<li><code>bpf_object__elf_collect()</code>收集<code>.data</code>, <code>.rodata</code>和<code>.bss</code>sections的信息</li>
+<li>如果存在上述sections，调用<code>bpf_object__init_global_maps()</code>创建一个section对应的array map。每个array map仅有一个entry，map的value size为对应section的大小。如果是<code>.rodata</code>section，设置map为read-only。创建完成后，对于<code>.data</code>和<code>.rodata</code>section，将section内容通过<code>bpf_map_update_elem()</code>拷贝到map中。因为map本身是0值初始化的，所以<code>.bss</code>不需要拷贝操作。</li>
+<li>在<code>bpf_program__collect_reloc()</code>中，记录全局变量对应的map，insn index和relocation type</li>
+<li>最后在<code>bpf_program__relocate()</code>进行实际的relocation操作时，标记 ldimm64指令（宽指令）：
+<ol>
+<li>src_reg = BPF_PSEUDO_MAP_VALUE，值为0x2</li>
+<li>第一个insn中imm字段存储map的file descriptor</li>
+<li>第二个insn中imm字段存储变量在section中的offset</li>
+<li>指令伪代码为 dst = map_val(map_by_fd(imm)) + next_imm</li>
+</ol>
+</li>
+</ol>
+<p>在内核侧，对于标记了<code>BPF_PSEUDO_MAP_VALUE</code>的load指令，会存储实际的目标地址，以进行一个&rsquo;map-lookup&rsquo;-free访问。也就是用实际的map value的基址+offset访问，无需map查找。</p>
+<p>patch commit message中给出的例子：</p>
+<pre tabindex="0"><code># readelf -a test_global_data.o
+  [...]
+  [ 6] .bss              NOBITS           0000000000000000  00000328
+       0000000000000010  0000000000000000  WA       0     0     8
+  [ 7] .data             PROGBITS         0000000000000000  00000328
+       0000000000000010  0000000000000000  WA       0     0     8
+  [ 8] .rodata           PROGBITS         0000000000000000  00000338
+       0000000000000018  0000000000000000   A       0     0     8
+  [...]
+    95: 0000000000000000     8 OBJECT  LOCAL  DEFAULT    6 static_bss
+    96: 0000000000000008     8 OBJECT  LOCAL  DEFAULT    6 static_bss2
+    97: 0000000000000000     8 OBJECT  LOCAL  DEFAULT    7 static_data
+    98: 0000000000000008     8 OBJECT  LOCAL  DEFAULT    7 static_data2
+    99: 0000000000000000     8 OBJECT  LOCAL  DEFAULT    8 static_rodata
+   100: 0000000000000008     8 OBJECT  LOCAL  DEFAULT    8 static_rodata2
+   101: 0000000000000010     8 OBJECT  LOCAL  DEFAULT    8 static_rodata3
+  [...]
+
+  # bpftool prog
+  103: sched_cls  name load_static_dat  tag 37a8b6822fc39a29  gpl
+       loaded_at 2019-02-28T02:02:35+0000  uid 0
+       xlated 712B  jited 426B  memlock 4096B  map_ids 63,64,65,66
+  # bpftool map show id 63
+  63: array  name .bss  flags 0x0                      &lt;-- .bss area, rw
+      key 4B  value 16B  max_entries 1  memlock 4096B
+  # bpftool map show id 64
+  64: array  name .data  flags 0x0                     &lt;-- .data area, rw
+      key 4B  value 16B  max_entries 1  memlock 4096B
+  # bpftool map show id 65
+  65: array  name .rodata  flags 0x80                  &lt;-- .rodata area, ro
+      key 4B  value 24B  max_entries 1  memlock 4096B
+
+  # bpftool prog dump xlated id 103
+  int load_static_data(struct __sk_buff * skb):
+  ; int load_static_data(struct __sk_buff *skb)
+     0: (b7) r1 = 0
+  ; key = 0;
+     1: (63) *(u32 *)(r10 -4) = r1
+     2: (bf) r6 = r10
+  ; int load_static_data(struct __sk_buff *skb)
+     3: (07) r6 += -4
+  ; bpf_map_update_elem(&amp;result, &amp;key, &amp;static_bss, 0);
+     4: (18) r1 = map[id:66]
+     6: (bf) r2 = r6
+     7: (18) r3 = map[id:63][0]+0         &lt;-- direct static_bss addr in .bss area
+     9: (b7) r4 = 0
+    10: (85) call array_map_update_elem#99888
+    11: (b7) r1 = 1
+  ; key = 1;
+    12: (63) *(u32 *)(r10 -4) = r1
+  ; bpf_map_update_elem(&amp;result, &amp;key, &amp;static_data, 0);
+    13: (18) r1 = map[id:66]
+    15: (bf) r2 = r6
+    16: (18) r3 = map[id:64][0]+0         &lt;-- direct static_data addr in .data area
+    18: (b7) r4 = 0
+    19: (85) call array_map_update_elem#99888
+    20: (b7) r1 = 2
+  ; key = 2;
+    21: (63) *(u32 *)(r10 -4) = r1
+  ; bpf_map_update_elem(&amp;result, &amp;key, &amp;static_rodata, 0);
+    22: (18) r1 = map[id:66]
+    24: (bf) r2 = r6
+    25: (18) r3 = map[id:65][0]+0         &lt;-- direct static_rodata addr in .rodata area
+    27: (b7) r4 = 0
+    28: (85) call array_map_update_elem#99888
+    29: (b7) r1 = 3
+  ; key = 3;
+    30: (63) *(u32 *)(r10 -4) = r1
+  ; bpf_map_update_elem(&amp;result, &amp;key, &amp;static_bss2, 0);
+    31: (18) r7 = map[id:63][0]+8         &lt;--.
+    33: (18) r1 = map[id:66]                 |
+    35: (bf) r2 = r6                         |
+    36: (18) r3 = map[id:63][0]+8         &lt;-- direct static_bss2 addr in .bss area
+    38: (b7) r4 = 0
+    39: (85) call array_map_update_elem#99888
+  [...]
+</code></pre><p>会上提到的另外一种实现思路：</p>
+<ol>
+<li>扩展程序加载流程，BPF loader将全局数据拷贝进内核</li>
+<li>prog-local buffer放在prog结构体中<code>prog-&gt;aux-&gt;global.{data,size}</code>中</li>
+<li>程序load时改写指令中访问全局变量的地址 -&gt; verifier重写特殊的LD_IMM_DW指令</li>
+<li>src_reg = BPF_PSEUDO_PROG_BUFF, imm = sym-&gt;st_value</li>
+<li>Generalizing PTR_TO_MAP_VALUE for generic reuse of size limit</li>
+<li>Buffer could be RO or RW (e.g. in combination with ’BPF spinlocks’)</li>
+</ol>
+
+      </div></div>
+
+  
     
-
-    <div class="pagination">
+<div class="pagination">
+  <div class="pagination__title">
+    <span class="pagination__title-h">Read other posts</span>
+    <hr />
+  </div>
   <div class="pagination__buttons">
     
+      <a href="https://www.jinzhi.site/posts/2024-01/ebpf-%E6%8C%87%E4%BB%A4%E9%9B%86%E8%A7%84%E8%8C%83/" class="button inline prev">
+        &lt; [<span class="button__text">eBPF 指令集规范</span>]
+      </a>
     
+    
+      ::
+    
+    
+      <a href="https://www.jinzhi.site/posts/2022-05/elf-%E6%96%87%E4%BB%B6%E6%A0%BC%E5%BC%8F%E6%B5%85%E6%9E%90/" class="button inline next">
+         [<span class="button__text">ELF 文件格式浅析</span>] &gt;
+      </a>
     
   </div>
 </div>
 
-  </div>
+
+  
+
+  
+    
+
+  
+</article>
 
   </div>
 

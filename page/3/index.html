@@ -413,6 +413,83 @@ R0 - R5是临时寄存器，eBPF程序在函数调用时如需使用需要将它
     
       <article class="post on-list">
         <h2 class="post-title">
+          <a href="https://www.jinzhi.site/posts/2024-01/ebpf-%E5%85%A8%E5%B1%80%E5%8F%98%E9%87%8F%E7%9A%84%E5%AE%9E%E7%8E%B0/">eBPF 全局变量的实现</a>
+        </h2>
+
+        <div class="post-meta"><time class="post-date">2024-01-02</time></div>
+
+        
+          <span class="post-tags">
+            
+            #<a href="https://www.jinzhi.site/tags/ebpf/">ebpf</a>&nbsp;
+            
+          </span>
+        
+
+        
+
+
+        <div class="post-content">
+          
+            <p>Linux内核在v5.2支持了eBPF全局变量（见<a href="https://www.yuque.com/chengzhycn/hx665b/cmbgkdheaf0wyqht#vVcxE">v5.2</a>）。</p>
+<p>全局变量会被Clang编译器放入<code>.bss</code>, <code>.data</code>, <code>.rodata</code> sections。那么支持全局变量即如何把这些sections中的数据加载进内核，并且在relocation时，给访问这些变量的指令正确的地址。</p>
+<p>关于 eBPF 静态变量支持的讨论在<a href="https://lpc.events/event/2/contributions/115/">Linux Plumbers Conference 2018</a> 由Cilium提出。早期的 workaround 如下：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;linux/bpf.h&gt;</span><span class="cp">
+</span></span></span><span class="line"><span class="cl"><span class="cp"></span>
+</span></span><span class="line"><span class="cl"><span class="k">typedef</span> <span class="kt">unsigned</span> <span class="kt">int</span> <span class="n">__u32</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="k">typedef</span> <span class="kt">long</span> <span class="kt">long</span> <span class="kt">unsigned</span> <span class="kt">int</span> <span class="n">__64</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="cp">#ifndef __section
+</span></span></span><span class="line"><span class="cl"><span class="cp"># define __section(NAME)				\
+</span></span></span><span class="line"><span class="cl"><span class="cp">	__attribute__((section(NAME), used))
+</span></span></span><span class="line"><span class="cl"><span class="cp">#endif
+</span></span></span><span class="line"><span class="cl"><span class="cp">#ifndef __fetch
+</span></span></span><span class="line"><span class="cl"><span class="cp"># define __fetch(x) (__u32)(__u64)(&amp;(x))
+</span></span></span><span class="line"><span class="cl"><span class="cp">#endif
+</span></span></span><span class="line"><span class="cl"><span class="cp"></span>
+</span></span><span class="line"><span class="cl"><span class="n">__u32</span> <span class="n">foo</span> <span class="o">=</span> <span class="mi">42</span><span class="p">;</span> 			<span class="c1">// .data section
+</span></span></span><span class="line"><span class="cl"><span class="c1">// __u32 foo;   			// .bss section
+</span></span></span><span class="line"><span class="cl"><span class="c1">// const __u32 foo = 42; 	// .rodata section
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span><span class="line"><span class="cl"><span class="kt">int</span> <span class="nf">__main</span><span class="p">(</span><span class="k">struct</span> <span class="n">__sk_buff</span> <span class="o">*</span><span class="n">skb</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">skb</span><span class="o">-&gt;</span><span class="n">mark</span> <span class="o">=</span> <span class="nf">__fetch</span><span class="p">(</span><span class="n">foo</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kt">char</span> <span class="n">__license</span><span class="p">[]</span> <span class="nf">__section</span><span class="p">(</span><span class="s">&#34;license&#34;</span><span class="p">)</span> <span class="o">=</span> <span class="s">&#34;&#34;</span><span class="p">;</span>
+</span></span></code></pre></div><p>编译后，foo变量存储在<code>.data</code> section内。</p>
+<pre tabindex="0"><code># llvm-readelf -S test.o
+There are 8 section headers, starting at offset 0x148:
+
+Section Headers:
+  [Nr] Name              Type            Address          Off    Size   ES Flg Lk Inf Al
+  [ 0]                   NULL            0000000000000000 000000 000000 00      0   0  0
+  [ 1] .strtab           STRTAB          0000000000000000 0000fa 00004b 00      0   0  1
+  [ 2] .text             PROGBITS        0000000000000000 000040 000028 00  AX  0   0  8
+  [ 3] .rel.text         REL             0000000000000000 0000e8 000010 10      7   2  8
+  [ 4] .data             PROGBITS        0000000000000000 000068 000004 00  WA  0   0  4
+  [ 5] license           PROGBITS        0000000000000000 00006c 000001 00  WA  0   0  1
+  [ 6] .llvm_addrsig     LLVM_ADDRSIG    0000000000000000 0000f8 000002 00   E  7   0  1
+  [ 7] .symtab           SYMTAB          0000000000000000 000070 000078 18      1   2  8
+Key to Flags:
+  W (write), A (alloc), X (execute), M (merge), S (strings), I (info),
+  L (link order), O (extra OS processing required), G (group), T (TLS),
+  C (compressed), x (unknown), o (OS specific), E (exclude),
+  p (processor specific)
+</code></pre><p><code>.rel.text</code> section中也存在foo变量的relocation信息：</p>
+          
+        </div>
+
+        
+          <div>
+            <a class="read-more button inline" href="/posts/2024-01/ebpf-%E5%85%A8%E5%B1%80%E5%8F%98%E9%87%8F%E7%9A%84%E5%AE%9E%E7%8E%B0/">[Read more]</a>
+          </div>
+        
+      </article>
+    
+      <article class="post on-list">
+        <h2 class="post-title">
           <a href="https://www.jinzhi.site/posts/2022-05/elf-%E6%96%87%E4%BB%B6%E6%A0%BC%E5%BC%8F%E6%B5%85%E6%9E%90/">ELF 文件格式浅析</a>
         </h2>
 
@@ -497,105 +574,6 @@ typedef struct {
         
       </article>
     
-      <article class="post on-list">
-        <h2 class="post-title">
-          <a href="https://www.jinzhi.site/posts/2022-03/kaist-cs431-lock/">KAIST-CS431: Lock</a>
-        </h2>
-
-        <div class="post-meta"><time class="post-date">2022-03-08</time></div>
-
-        
-          <span class="post-tags">
-            
-            #<a href="https://www.jinzhi.site/tags/concurrency/">Concurrency</a>&nbsp;
-            
-            #<a href="https://www.jinzhi.site/tags/rust/">Rust</a>&nbsp;
-            
-            #<a href="https://www.jinzhi.site/tags/kaist-cs431/">KAIST-CS431</a>&nbsp;
-            
-          </span>
-        
-
-        
-
-
-        <div class="post-content">
-          
-            <ul>
-<li><strong>Pros &amp; cons:</strong> simple &amp; possibly inefficient</li>
-</ul>
-<h2 id="low-level-lock-api">Low-Level Lock API</h2>
-<p>常用的low-level锁的API有：</p>
-<ul>
-<li><strong>Lock.acquire()</strong>: 阻塞，直到获取到锁</li>
-<li><strong>Lock.try_acquire():</strong> 返回锁是否已经被占用了，如果是，返回false，否，占用锁并返回true。不阻塞</li>
-<li><strong>Lock.release()</strong>: 释放锁</li>
-</ul>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c++" data-lang="c++"><span class="line"><span class="cl"><span class="n">L</span><span class="p">.</span><span class="n">acquire</span><span class="p">();</span>
-</span></span><span class="line"><span class="cl"><span class="n">r1</span> <span class="o">=</span> <span class="n">X</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl"><span class="n">X</span> <span class="o">=</span> <span class="n">r1</span> <span class="o">+</span> <span class="mi">1</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl"><span class="n">L</span><span class="p">.</span><span class="n">release</span><span class="p">();</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl"><span class="n">L</span><span class="p">.</span><span class="n">acquire</span><span class="p">();</span>
-</span></span><span class="line"><span class="cl"><span class="n">r2</span> <span class="o">=</span> <span class="n">X</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl"><span class="n">X</span> <span class="o">=</span> <span class="n">r2</span> <span class="o">+</span> <span class="mi">1</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl"><span class="n">L</span><span class="p">.</span><span class="n">release</span><span class="p">();</span>
-</span></span></code></pre></div><p>但是，这些API给用户在使用时造成了很多挑战（心智负担）：</p>
-<ul>
-<li><strong>Relating lock and resource</strong>: 用户只有在拿到锁时才能访问被保护的变量；</li>
-<li><strong>Matching acquire/release</strong>: 用户只能释放已经拿到的锁。</li>
-</ul>
-<p>如果锁没有得到正确的处理，会造成很多潜在的问题，并且，这些问题很难发现。因此，在并发编程时，low-level的锁API存在如下问题：</p>
-<ul>
-<li><strong>High cost</strong>：程序员需要始终关注API的使用；</li>
-<li><strong>Potential bugs</strong>：不正确的使用容易造成很多潜在的bugs。</li>
-</ul>
-<h2 id="high-level-lock-api">High-Level Lock API</h2>
-<ul>
-<li>想要一个易用地，始终能保证安全地high-level API。
-<ul>
-<li>Acquire/release自动匹配；</li>
-<li>Lock和resource显式关联。</li>
-</ul>
-</li>
-</ul>
-<p>C++中，这种API被称作<strong>RAII</strong>：<strong>Resource Acquisition Is Initialization</strong>。</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c++" data-lang="c++"><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;string&gt;</span><span class="cp">
-</span></span></span><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;mutex&gt;</span><span class="cp">
-</span></span></span><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;iostream&gt;</span><span class="cp">
-</span></span></span><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;fstream&gt;</span><span class="cp">
-</span></span></span><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;stdexcept&gt;</span><span class="cp">
-</span></span></span><span class="line"><span class="cl"><span class="cp"></span>
-</span></span><span class="line"><span class="cl"><span class="kt">void</span> <span class="nf">write_to_file</span><span class="p">(</span><span class="k">const</span> <span class="n">std</span><span class="o">::</span><span class="n">string</span> <span class="o">&amp;</span> <span class="n">message</span><span class="p">)</span>
-</span></span><span class="line"><span class="cl"><span class="p">{</span>
-</span></span><span class="line"><span class="cl">    <span class="c1">// 创建关于文件的互斥锁
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="k">static</span> <span class="n">std</span><span class="o">::</span><span class="n">mutex</span> <span class="n">mutex</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl">    <span class="c1">// 在访问文件前进行加锁
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="n">std</span><span class="o">::</span><span class="n">lock_guard</span><span class="o">&lt;</span><span class="n">std</span><span class="o">::</span><span class="n">mutex</span><span class="o">&gt;</span> <span class="n">lock</span><span class="p">(</span><span class="n">mutex</span><span class="p">);</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl">    <span class="c1">// 尝试打开文件
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="n">std</span><span class="o">::</span><span class="n">ofstream</span> <span class="n">file</span><span class="p">(</span><span class="s">&#34;example.txt&#34;</span><span class="p">);</span>
-</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="n">file</span><span class="p">.</span><span class="n">is_open</span><span class="p">())</span>
-</span></span><span class="line"><span class="cl">        <span class="k">throw</span> <span class="n">std</span><span class="o">::</span><span class="n">runtime_error</span><span class="p">(</span><span class="s">&#34;unable to open file&#34;</span><span class="p">);</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl">    <span class="c1">// 输出文件内容
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="n">file</span> <span class="o">&lt;&lt;</span> <span class="n">message</span> <span class="o">&lt;&lt;</span> <span class="n">std</span><span class="o">::</span><span class="n">endl</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl">    <span class="c1">// 当离开作用域时，文件句柄会被首先析构 (不管是否抛出了异常)
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">// 互斥锁也会被析构 (同样地，不管是否抛出了异常)
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="p">}</span>
-</span></span></code></pre></div><p>RAII要求，资源的有效期与持有资源的<a href="https://zh.wikipedia.org/w/index.php?title=%e5%af%b9%e8%b1%a1%e7%9a%84%e7%94%9f%e5%91%bd%e6%9c%9f&amp;action=edit&amp;redlink=1">对象的生命期</a>严格绑定，即由对象的<a href="https://zh.wikipedia.org/wiki/%E6%9E%84%E9%80%A0%E5%87%BD%E6%95%B0">构造函数</a>完成<a href="https://zh.wikipedia.org/w/index.php?title=%e8%b5%84%e6%ba%90%e7%9a%84%e5%88%86%e9%85%8d&amp;action=edit&amp;redlink=1">资源的分配</a>（获取），同时由<a href="https://zh.wikipedia.org/wiki/%E6%9E%90%E6%9E%84%E5%87%BD%E6%95%B0">析构函数</a>完成资源的释放。在这种要求下，只要对象能正确地析构，就不会出现<a href="https://zh.wikipedia.org/w/index.php?title=%e8%b5%84%e6%ba%90%e6%b3%84%e9%9c%b2&amp;action=edit&amp;redlink=1">资源泄露</a>问题。</p>
-          
-        </div>
-
-        
-          <div>
-            <a class="read-more button inline" href="/posts/2022-03/kaist-cs431-lock/">[Read more]</a>
-          </div>
-        
-      </article>
-    
 
     <div class="pagination">
   <div class="pagination__buttons">
@@ -654,6 +632,10 @@ typedef struct {
     
 
     
+    
+      
+      
+      
     
       
       
@@ -872,7 +854,7 @@ typedef struct {
         <a href="/posts/2024-01/" class="archive-link">
           <span class="archive-date">2024-01</span>
           <span class="archive-month-name">Jan</span>
-          <span class="archive-count">(1)</span>
+          <span class="archive-count">(2)</span>
         </a>
       </div>
     
@@ -1145,11 +1127,7 @@ typedef struct {
       
         
       
-        
-      
     
-      
-        
       
         
       
@@ -1159,7 +1137,7 @@ typedef struct {
       
         
       
-    
+        
       
         
       
@@ -1172,9 +1150,20 @@ typedef struct {
         
       
     
+      
+        
+      
+    
+      
+        
+      
     
     
     
+    
+    
+      
+      
     
       
       
@@ -1390,7 +1379,7 @@ typedef struct {
            class="tag-item" 
            style="font-size: 0.9em;"
            title="1 article">
-          eBPF
+          ebpf
           <span class="tag-count">(1)</span>
         </a>
       
