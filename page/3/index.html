@@ -433,6 +433,7 @@ R0 - R5是临时寄存器，eBPF程序在函数调用时如需使用需要将它
           
             <p>Linux内核在v5.2支持了eBPF全局变量（见<a href="https://www.yuque.com/chengzhycn/hx665b/cmbgkdheaf0wyqht#vVcxE">v5.2</a>）。</p>
 <p>全局变量会被Clang编译器放入<code>.bss</code>, <code>.data</code>, <code>.rodata</code> sections。那么支持全局变量即如何把这些sections中的数据加载进内核，并且在relocation时，给访问这些变量的指令正确的地址。</p>
+<h2 id="早期-workaround">早期 workaround</h2>
 <p>关于 eBPF 静态变量支持的讨论在<a href="https://lpc.events/event/2/contributions/115/">Linux Plumbers Conference 2018</a> 由Cilium提出。早期的 workaround 如下：</p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;linux/bpf.h&gt;</span><span class="cp">
 </span></span></span><span class="line"><span class="cl"><span class="cp"></span>
