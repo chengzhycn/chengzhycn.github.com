@@ -216,6 +216,68 @@
     
       <article class="post on-list">
         <h2 class="post-title">
+          <a href="https://www.jinzhi.site/posts/2025-08/wasm-internals-overview/">Wasm Internals - Overview</a>
+        </h2>
+
+        <div class="post-meta"><time class="post-date">2025-08-26</time></div>
+
+        
+          <span class="post-tags">
+            
+            #<a href="https://www.jinzhi.site/tags/wasm/">Wasm</a>&nbsp;
+            
+          </span>
+        
+
+        
+
+
+        <div class="post-content">
+          
+            <ul>
+<li><a href="https://rsms.me/wasm-intro">https://rsms.me/wasm-intro</a></li>
+<li><a href="https://hacks.mozilla.org/2017/02/a-cartoon-intro-to-webassembly/">https://hacks.mozilla.org/2017/02/a-cartoon-intro-to-webassembly/</a></li>
+</ul>
+<h2 id="wasm-的历史发展">Wasm 的历史发展</h2>
+<h3 id="早期wasm-mvp---2017">早期（Wasm MVP - 2017）</h3>
+<ul>
+<li><strong>诞生背景：</strong> Wasm 的设计目标是为了替代 asm.js，提供更小、更快、更安全的 Web 二进制格式。</li>
+<li><strong>核心模块的初步定义：</strong> MVP（Minimum Viable Product）阶段定义了 Wasm Core Module 的基本结构：函数、内存、表、导入、导出、全局变量等。</li>
+<li><strong>主要用例：</strong> 游戏引擎、音视频编解码、计算密集型任务等。</li>
+<li><strong>限制：</strong>
+<ul>
+<li><strong>没有模块化系统：</strong> 模块之间没有标准的链接机制，只能通过宿主环境（如 JavaScript）进行协调。</li>
+<li><strong>缺乏垃圾回收（GC）：</strong> 需要手动内存管理或使用语言自带的 GC 机制（如 Emscripten 的 mimalloc）。</li>
+<li><strong>没有线程：</strong> 无法直接利用多核 CPU。</li>
+<li><strong>没有宿主 API 标准化：</strong> 模块与宿主环境的交互方式高度依赖宿主（如浏览器），没有统一的接口定义。</li>
+<li><strong>没有组件模型：</strong> 模块重用和组合非常困难。</li>
+</ul>
+</li>
+</ul>
+<h3 id="中期mvp-之后---持续演进">中期（MVP 之后 - 持续演进）</h3>
+<p>Wasm 社区和工作组认识到 MVP 的局限性，并开始着手扩展 Wasm 的能力，这直接影响了 Core Module 的能力：</p>
+<ul>
+<li><strong>多值（Multiple Returns &amp; Parameters）：</strong> 允许函数返回多个值，接收多个参数，提高表达能力。</li>
+<li><strong>引用类型（Reference Types）：</strong> 引入了 <code>externref</code> 和 <code>funcref</code>，允许 Wasm 直接引用宿主对象和函数，而无需通过数字 ID 传递，为未来的 GC 和组件模型打下基础。</li>
+<li><strong>固定大小的 SIMD（Fixed-width SIMD）：</strong> 引入了新的指令集，允许在 Wasm 中进行向量化操作，进一步提升某些计算密集型任务的性能。</li>
+<li><strong>线程（Threads）：</strong> 引入了共享内存和原子操作，允许 Wasm 模块在多线程环境下运行，极大地提升了并行计算能力。</li>
+<li><strong>内存增长和限制（Memory Growth and Limits）：</strong> 提供了更灵活的内存管理机制。</li>
+<li><strong>Tail Calls（尾调用）：</strong> 优化了函数调用的性能。</li>
+</ul>
+<h3 id="近期和未来wasm-component-model">近期和未来（Wasm Component Model）</h3>
+<p>这是 Wasm 发展中最重要的方向之一，旨在解决 Core Module 在模块化和互操作性方面的根本性问题：</p>
+          
+        </div>
+
+        
+          <div>
+            <a class="read-more button inline" href="/posts/2025-08/wasm-internals-overview/">[Read more]</a>
+          </div>
+        
+      </article>
+    
+      <article class="post on-list">
+        <h2 class="post-title">
           <a href="https://www.jinzhi.site/posts/2025-04/vrf-an-overview/">VRF: An Overview</a>
         </h2>
 
@@ -489,92 +551,6 @@ Key to Flags:
         
       </article>
     
-      <article class="post on-list">
-        <h2 class="post-title">
-          <a href="https://www.jinzhi.site/posts/2022-05/elf-%E6%96%87%E4%BB%B6%E6%A0%BC%E5%BC%8F%E6%B5%85%E6%9E%90/">ELF 文件格式浅析</a>
-        </h2>
-
-        <div class="post-meta"><time class="post-date">2022-05-27</time></div>
-
-        
-          <span class="post-tags">
-            
-            #<a href="https://www.jinzhi.site/tags/operatingsystem/">OperatingSystem</a>&nbsp;
-            
-            #<a href="https://www.jinzhi.site/tags/elf/">ELF</a>&nbsp;
-            
-          </span>
-        
-
-        
-
-
-        <div class="post-content">
-          
-            <p>本文是作为 Rust 的练手项目 rself(<a href="https://github.com/chengzhycn/rself">https://github.com/chengzhycn/rself</a>) 的背景知识记录。rself 使用 Rust 重新造了一个 readelf 的轮子。</p>
-<p>ELF全称为<strong>Executable and Linkable Format</strong>，是Linux上可执行文件的通用文件格式。主要有三种类型的ELF文件：</p>
-<ul>
-<li><strong>Relocatable file</strong>: 存储用于和其它对象文件链接的代码和数据，创建一个可执行文件或者共享对象文件</li>
-<li><strong>Executable file</strong>: 存储的是用于执行的程序。它指定了exec如何创建一个程序的进程镜像</li>
-<li><strong>Shared object file</strong>: 存储了在两种语义下用于链接的代码和数据。第一种是让链接器将共享对象文件和其它的可重定位文件/共享对象文件一起创建一个新的对象文件；第二种是动态链接器将它和可执行文件以及其它的共享对象一起创建一个进程镜像。</li>
-</ul>
-<h2 id="elf构成">ELF构成</h2>
-<p>ELF主要由如下几个部分组成：</p>
-<ul>
-<li><strong>ELF Header</strong>: 位于文件的起始，描述了整个文件的组织结构</li>
-<li><strong>Sections/Segments</strong>: 存储了指令、数据、符号表、可重定位信息等。sections 是这段数据在链接时的表现；segments 是数据在执行时的表现。</li>
-<li><strong>Program Header Table</strong>: 用于告诉系统如何创建一个进程镜像。对于可执行程序，Program Header Table是必须的，但是对于可重定位文件就不需要了。</li>
-<li><strong>Section Header Table</strong>: 存储描述文件中sections的信息。每个section都在这个表中有一个条目，存储了如section name, section size等信息。用于链接的文件必须得有Section Header Table，其它的对象文件可有可无。</li>
-</ul>
-<p><img src="/images/notes/elf-%E6%96%87%E4%BB%B6%E6%A0%BC%E5%BC%8F%E6%B5%85%E6%9E%90/d02c13c1fa4bd228f698cf355ec47377_MD5.png" alt="d02c13c1fa4bd228f698cf355ec47377_MD5"></p>
-<p>上面的图中虽然描述文件各个部分的位置，但实际上只有ELF Header的位置是固定的，其它的部分在文件中的位置都在ELF Header中指定。</p>
-<h2 id="elf-header">ELF Header</h2>
-<pre tabindex="0"><code>#define EI_NIDENT 16
-
-typedef struct {
-        unsigned char   e_ident[EI_NIDENT];
-        Elf32_Half      e_type;
-        Elf32_Half      e_machine;
-        Elf32_Word      e_version;
-        Elf32_Addr      e_entry;
-        Elf32_Off       e_phoff;
-        Elf32_Off       e_shoff;
-        Elf32_Word      e_flags;
-        Elf32_Half      e_ehsize;
-        Elf32_Half      e_phentsize;
-        Elf32_Half      e_phnum;
-        Elf32_Half      e_shentsize;
-        Elf32_Half      e_shnum;
-        Elf32_Half      e_shstrndx;
-} Elf32_Ehdr;
-
-typedef struct {
-        unsigned char   e_ident[EI_NIDENT];
-        Elf64_Half      e_type;
-        Elf64_Half      e_machine;
-        Elf64_Word      e_version;
-        Elf64_Addr      e_entry;
-        Elf64_Off       e_phoff;
-        Elf64_Off       e_shoff;
-        Elf64_Word      e_flags;
-        Elf64_Half      e_ehsize;
-        Elf64_Half      e_phentsize;
-        Elf64_Half      e_phnum;
-        Elf64_Half      e_shentsize;
-        Elf64_Half      e_shnum;
-        Elf64_Half      e_shstrndx;
-} Elf64_Ehdr;
-</code></pre><p>ELF header通常由一个Elfxx_Ehdr结构体表示。它存储了当前二进制文件的一些元数据：</p>
-          
-        </div>
-
-        
-          <div>
-            <a class="read-more button inline" href="/posts/2022-05/elf-%E6%96%87%E4%BB%B6%E6%A0%BC%E5%BC%8F%E6%B5%85%E6%9E%90/">[Read more]</a>
-          </div>
-        
-      </article>
-    
 
     <div class="pagination">
   <div class="pagination__buttons">
@@ -714,6 +690,10 @@ typedef struct {
       
       
     
+      
+      
+      
+    
 
     
     
@@ -743,7 +723,7 @@ typedef struct {
         <a href="/posts/2025-09/" class="archive-link">
           <span class="archive-date">2025-09</span>
           <span class="archive-month-name">Sep</span>
-          <span class="archive-count">(2)</span>
+          <span class="archive-count">(3)</span>
         </a>
       </div>
     
@@ -1066,10 +1046,6 @@ typedef struct {
       
         
       
-        
-      
-        
-      
     
       
         
@@ -1114,30 +1090,6 @@ typedef struct {
       
         
       
-    
-      
-        
-      
-    
-      
-    
-      
-        
-      
-    
-      
-        
-      
-    
-      
-        
-      
-        
-      
-    
-      
-        
-      
         
       
         
@@ -1152,6 +1104,26 @@ typedef struct {
       
     
       
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
         
       
     
@@ -1159,24 +1131,21 @@ typedef struct {
         
       
     
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
     
     
     
     
-      
-      
-    
-      
-      
-    
-      
-      
-    
-      
-      
-    
-      
-      
     
       
       
@@ -1265,6 +1234,24 @@ typedef struct {
       
       
     
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
     
     
     
@@ -1300,9 +1287,14 @@ typedef struct {
       
       
     
+      
+      
     
     
     
+    
+    
+      
     
       
     
@@ -1400,6 +1392,25 @@ typedef struct {
            style="font-size: 0.9em;"
            title="1 article">
           ELF
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/go/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Go
           <span class="tag-count">(1)</span>
         </a>
       

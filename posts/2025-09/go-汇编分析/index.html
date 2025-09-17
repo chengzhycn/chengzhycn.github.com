@@ -1,0 +1,1642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  
+    <title>Go 汇编分析 :: chengzhycn&#39;s blog</title>
+  
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Go的汇编不是像 C/C&#43;&#43; 一样，对机器码的直接描述，而是兼容跨平台需求实现的半抽象化的指令集。
+https://go.dev/doc/asm
+汇编分析（Go 1.17） 我们用一个简单的例子来开始汇编分析：
+package main func main() { add(1, 3) } func add(i, j int) int { return i &#43; j } 汇编结果，删去了一些无关的输出：
+# go tool compile -S -l -N main.go &#34;&#34;.main STEXT size=54 args=0x0 locals=0x18 funcid=0x0 0x0000 00000 (main.go:3) TEXT &#34;&#34;.main(SB), ABIInternal, $24-0 0x0000 00000 (main.go:3) CMPQ SP, 16(R14) 0x0004 00004 (main.go:3) PCDATA $0, $-2 0x0004 00004 (main.go:3) JLS 47 0x0006 00006 (main.go:3) PCDATA $0, $-1 0x0006 00006 (main.go:3) SUBQ $24, SP 0x000a 00010 (main.go:3) MOVQ BP, 16(SP) 0x000f 00015 (main.go:3) LEAQ 16(SP), BP 0x0014 00020 (main.go:3) FUNCDATA $0, gclocals·33cdeccccebe80329f1fdbee7f5874cb(SB) 0x0014 00020 (main.go:3) FUNCDATA $1, gclocals·33cdeccccebe80329f1fdbee7f5874cb(SB) 0x0014 00020 (main.go:4) MOVL $1, AX 0x0019 00025 (main.go:4) MOVL $3, BX 0x001e 00030 (main.go:4) PCDATA $1, $0 0x001e 00030 (main.go:4) NOP 0x0020 00032 (main.go:4) CALL &#34;&#34;.add(SB) 0x0025 00037 (main.go:5) MOVQ 16(SP), BP 0x002a 00042 (main.go:5) ADDQ $24, SP 0x002e 00046 (main.go:5) RET 0x002f 00047 (main.go:5) NOP 0x002f 00047 (main.go:3) PCDATA $1, $-1 0x002f 00047 (main.go:3) PCDATA $0, $-2 0x002f 00047 (main.go:3) CALL runtime.morestack_noctxt(SB) 0x0034 00052 (main.go:3) PCDATA $0, $-1 0x0034 00052 (main.go:3) JMP 0 &#34;&#34;.add STEXT nosplit size=56 args=0x10 locals=0x10 funcid=0x0 0x0000 00000 (main.go:7) TEXT &#34;&#34;.add(SB), NOSPLIT|ABIInternal, $16-16 0x0000 00000 (main.go:7) SUBQ $16, SP 0x0004 00004 (main.go:7) MOVQ BP, 8(SP) 0x0009 00009 (main.go:7) LEAQ 8(SP), BP 0x000e 00014 (main.go:7) FUNCDATA $0, gclocals·33cdeccccebe80329f1fdbee7f5874cb(SB) 0x000e 00014 (main.go:7) FUNCDATA $1, gclocals·33cdeccccebe80329f1fdbee7f5874cb(SB) 0x000e 00014 (main.go:7) FUNCDATA $5, &#34;&#34;.add.arginfo1(SB) 0x000e 00014 (main.go:7) MOVQ AX, &#34;&#34;.i&#43;24(SP) 0x0013 00019 (main.go:7) MOVQ BX, &#34;&#34;.j&#43;32(SP) 0x0018 00024 (main.go:7) MOVQ $0, &#34;&#34;.~r2(SP) 0x0020 00032 (main.go:8) MOVQ &#34;&#34;.i&#43;24(SP), AX 0x0025 00037 (main.go:8) ADDQ &#34;&#34;.j&#43;32(SP), AX 0x002a 00042 (main.go:8) MOVQ AX, &#34;&#34;.~r2(SP) 0x002e 00046 (main.go:8) MOVQ 8(SP), BP 0x0033 00051 (main.go:8) ADDQ $16, SP 0x0037 00055 (main.go:8) RET FUNCDATA和PCDATA是由编译器引入的，主要包含垃圾回收时使用的信息，这里略过。
+" />
+<meta name="keywords" content="" />
+
+  <meta name="robots" content="noodp" />
+
+<link rel="canonical" href="https://www.jinzhi.site/posts/2025-09/go-%E6%B1%87%E7%BC%96%E5%88%86%E6%9E%90/" />
+
+
+
+
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/buttons.min.86f6b4c106b6c6eb690ae5203d36b442c1f66f718ff4e8164fa86cf6c61ad641.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/code.min.d529ea4b2fb8d34328d7d31afc5466d5f7bc2f0bc9abdd98b69385335d7baee4.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/fonts.min.5bb7ed13e1d00d8ff39ea84af26737007eb5051b157b86fc24487c94f3dc8bbe.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/footer.min.eb8dfc2c6a7eafa36cd3ba92d63e69e849e2200e0002a228d137f236b09ecd75.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/gist.min.a751e8b0abe1ba8bc53ced52a38b19d8950fe78ca29454ea8c2595cf26aad5c0.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/header.min.75c7eb0e2872d95ff48109c6647d0223a38db52e2561dd87966eb5fc7c6bdac6.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/main.min.7984a754b43b7469d389c539410e90dff2870263de16b008dfc7e8170fcd0f5b.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/menu.min.3c17467ebeb3d38663dce68f71f519901124fa5cbb4519b2fb0667a21e9aca39.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/pagination.min.bbb986dbce00a5ce5aca0504b7925fc1c581992a4bf57f163e5d69cc1db7d836.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/post.min.e6dddd258e64c83e05cec0cd49c05216742d42fc8ecbfbe6b67083412b609bd3.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/syntax.min.a0773cce9310cb6d8ed23e50f005448facf29a53001b57e038828daa466b25c0.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/terminal.min.e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/terms.min.b81791663c3790e738e571cdbf802312390d30e4b1d8dc9d814a5b5454d0ac11.css">
+
+
+
+
+
+
+
+<link rel="shortcut icon" href="https://www.jinzhi.site/favicon.png">
+<link rel="apple-touch-icon" href="https://www.jinzhi.site/apple-touch-icon.png">
+
+
+<meta name="twitter:card" content="summary" />
+
+  
+    <meta name="twitter:site" content="" />
+  
+    <meta name="twitter:creator" content="" />
+
+
+
+<meta property="og:locale" content="en" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="Go 汇编分析">
+<meta property="og:description" content="Go的汇编不是像 C/C&#43;&#43; 一样，对机器码的直接描述，而是兼容跨平台需求实现的半抽象化的指令集。
+https://go.dev/doc/asm
+汇编分析（Go 1.17） 我们用一个简单的例子来开始汇编分析：
+package main func main() { add(1, 3) } func add(i, j int) int { return i &#43; j } 汇编结果，删去了一些无关的输出：
+# go tool compile -S -l -N main.go &#34;&#34;.main STEXT size=54 args=0x0 locals=0x18 funcid=0x0 0x0000 00000 (main.go:3) TEXT &#34;&#34;.main(SB), ABIInternal, $24-0 0x0000 00000 (main.go:3) CMPQ SP, 16(R14) 0x0004 00004 (main.go:3) PCDATA $0, $-2 0x0004 00004 (main.go:3) JLS 47 0x0006 00006 (main.go:3) PCDATA $0, $-1 0x0006 00006 (main.go:3) SUBQ $24, SP 0x000a 00010 (main.go:3) MOVQ BP, 16(SP) 0x000f 00015 (main.go:3) LEAQ 16(SP), BP 0x0014 00020 (main.go:3) FUNCDATA $0, gclocals·33cdeccccebe80329f1fdbee7f5874cb(SB) 0x0014 00020 (main.go:3) FUNCDATA $1, gclocals·33cdeccccebe80329f1fdbee7f5874cb(SB) 0x0014 00020 (main.go:4) MOVL $1, AX 0x0019 00025 (main.go:4) MOVL $3, BX 0x001e 00030 (main.go:4) PCDATA $1, $0 0x001e 00030 (main.go:4) NOP 0x0020 00032 (main.go:4) CALL &#34;&#34;.add(SB) 0x0025 00037 (main.go:5) MOVQ 16(SP), BP 0x002a 00042 (main.go:5) ADDQ $24, SP 0x002e 00046 (main.go:5) RET 0x002f 00047 (main.go:5) NOP 0x002f 00047 (main.go:3) PCDATA $1, $-1 0x002f 00047 (main.go:3) PCDATA $0, $-2 0x002f 00047 (main.go:3) CALL runtime.morestack_noctxt(SB) 0x0034 00052 (main.go:3) PCDATA $0, $-1 0x0034 00052 (main.go:3) JMP 0 &#34;&#34;.add STEXT nosplit size=56 args=0x10 locals=0x10 funcid=0x0 0x0000 00000 (main.go:7) TEXT &#34;&#34;.add(SB), NOSPLIT|ABIInternal, $16-16 0x0000 00000 (main.go:7) SUBQ $16, SP 0x0004 00004 (main.go:7) MOVQ BP, 8(SP) 0x0009 00009 (main.go:7) LEAQ 8(SP), BP 0x000e 00014 (main.go:7) FUNCDATA $0, gclocals·33cdeccccebe80329f1fdbee7f5874cb(SB) 0x000e 00014 (main.go:7) FUNCDATA $1, gclocals·33cdeccccebe80329f1fdbee7f5874cb(SB) 0x000e 00014 (main.go:7) FUNCDATA $5, &#34;&#34;.add.arginfo1(SB) 0x000e 00014 (main.go:7) MOVQ AX, &#34;&#34;.i&#43;24(SP) 0x0013 00019 (main.go:7) MOVQ BX, &#34;&#34;.j&#43;32(SP) 0x0018 00024 (main.go:7) MOVQ $0, &#34;&#34;.~r2(SP) 0x0020 00032 (main.go:8) MOVQ &#34;&#34;.i&#43;24(SP), AX 0x0025 00037 (main.go:8) ADDQ &#34;&#34;.j&#43;32(SP), AX 0x002a 00042 (main.go:8) MOVQ AX, &#34;&#34;.~r2(SP) 0x002e 00046 (main.go:8) MOVQ 8(SP), BP 0x0033 00051 (main.go:8) ADDQ $16, SP 0x0037 00055 (main.go:8) RET FUNCDATA和PCDATA是由编译器引入的，主要包含垃圾回收时使用的信息，这里略过。
+" />
+<meta property="og:url" content="https://www.jinzhi.site/posts/2025-09/go-%E6%B1%87%E7%BC%96%E5%88%86%E6%9E%90/" />
+<meta property="og:site_name" content="chengzhycn&#39;s blog" />
+
+  <meta property="og:image" content="https://www.jinzhi.site/og-image.png">
+
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="627">
+
+  <meta property="article:section" content="Learning" />
+
+
+  <meta property="article:published_time" content="2025-09-17 21:45:28 &#43;0800 &#43;0800" />
+
+
+
+
+
+
+
+
+
+<html>
+<head>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-screen-web/style.css" />
+  <style>
+    body {
+      font-family: "LXGW WenKai Screen";
+      font-weight: normal;
+    }
+  </style>
+</head>
+<body>
+
+</body>
+</html>
+
+
+</head>
+<body>
+
+
+<div class="page-wrapper">
+  <div class="container center">
+
+  <header class="header">
+  <div class="header__inner">
+    <div class="header__logo">
+      <a href="/">
+  <div class="logo">
+    chengzhycn&#39;s blog
+  </div>
+</a>
+
+    </div>
+    
+      <ul class="menu menu--mobile">
+  <li class="menu__trigger">Menu&nbsp;▾</li>
+  <li>
+    <ul class="menu__dropdown">
+      
+        
+          <li><a href="/">Home</a></li>
+        
+      
+        
+          <li><a href="/about">About</a></li>
+        
+      
+        
+          <li><a href="/categories/">Categories</a></li>
+        
+      
+        
+          <li><a href="/tags/">Tags</a></li>
+        
+      
+        
+          <li><a href="/archives/">Archives</a></li>
+        
+      
+      
+    </ul>
+  </li>
+</ul>
+
+    
+    
+  </div>
+  
+    <nav class="navigation-menu">
+  <ul class="navigation-menu__inner menu--desktop">
+    
+      
+        
+          <li><a href="/" >Home</a></li>
+        
+      
+        
+          <li><a href="/about" >About</a></li>
+        
+      
+        
+          <li><a href="/categories/" >Categories</a></li>
+        
+      
+        
+          <li><a href="/tags/" >Tags</a></li>
+        
+      
+        
+          <li><a href="/archives/" >Archives</a></li>
+        
+      
+      
+    
+  </ul>
+</nav>
+
+  
+</header>
+
+
+  <div class="content">
+    
+<article class="post">
+  <h1 class="post-title">
+    <a href="https://www.jinzhi.site/posts/2025-09/go-%E6%B1%87%E7%BC%96%E5%88%86%E6%9E%90/">Go 汇编分析</a>
+  </h1>
+  <div class="post-meta"><time class="post-date">2025-09-17</time><span class="post-reading-time">7 min read (1317 words)</span></div>
+
+  
+    <span class="post-tags">
+      
+      #<a href="https://www.jinzhi.site/tags/go/">Go</a>&nbsp;
+      
+    </span>
+  
+  
+
+
+  
+    <div class="table-of-contents">
+      <h2>
+        Table of Contents
+      </h2>
+      <nav id="TableOfContents">
+  <ul>
+    <li><a href="#汇编分析go-117">汇编分析（Go 1.17）</a>
+      <ul>
+        <li><a href="#stack-split">Stack-Split</a></li>
+      </ul>
+    </li>
+    <li><a href="#基于栈帧的调用惯例go-117-before">基于栈帧的调用惯例(Go 1.17 before)</a></li>
+    <li><a href="#多返回值的实现">多返回值的实现</a></li>
+    <li><a href="#总结">总结</a></li>
+    <li><a href="#reference">Reference</a></li>
+  </ul>
+</nav>
+    </div>
+  
+
+  <div class="post-content"><div>
+        <p>Go的汇编不是像 C/C++ 一样，对机器码的直接描述，而是兼容跨平台需求实现的半抽象化的指令集。</p>
+<p><a href="https://go.dev/doc/asm">https://go.dev/doc/asm</a></p>
+<h2 id="汇编分析go-117">汇编分析（Go 1.17）<a href="#汇编分析go-117" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>我们用一个简单的例子来开始汇编分析：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kn">package</span><span class="w"> </span><span class="nx">main</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="kd">func</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">	</span><span class="nf">add</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">)</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="p">}</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="kd">func</span><span class="w"> </span><span class="nf">add</span><span class="p">(</span><span class="nx">i</span><span class="p">,</span><span class="w"> </span><span class="nx">j</span><span class="w"> </span><span class="kt">int</span><span class="p">)</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">	</span><span class="k">return</span><span class="w"> </span><span class="nx">i</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">j</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="p">}</span><span class="w">
+</span></span></span></code></pre></div><p>汇编结果，删去了一些无关的输出：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl"><span class="c1"># go tool compile -S -l -N main.go</span>
+</span></span><span class="line"><span class="cl"><span class="s2">&#34;&#34;</span>.main STEXT <span class="nv">size</span><span class="o">=</span><span class="m">54</span> <span class="nv">args</span><span class="o">=</span>0x0 <span class="nv">locals</span><span class="o">=</span>0x18 <span class="nv">funcid</span><span class="o">=</span>0x0
+</span></span><span class="line"><span class="cl">        0x0000 <span class="m">00000</span> <span class="o">(</span>main.go:3<span class="o">)</span>        TEXT    <span class="s2">&#34;&#34;</span>.main<span class="o">(</span>SB<span class="o">)</span>, ABIInternal, <span class="nv">$24</span>-0
+</span></span><span class="line"><span class="cl">        0x0000 <span class="m">00000</span> <span class="o">(</span>main.go:3<span class="o">)</span>        CMPQ    SP, 16<span class="o">(</span>R14<span class="o">)</span>
+</span></span><span class="line"><span class="cl">        0x0004 <span class="m">00004</span> <span class="o">(</span>main.go:3<span class="o">)</span>        PCDATA  <span class="nv">$0</span>, <span class="nv">$-</span><span class="m">2</span>
+</span></span><span class="line"><span class="cl">        0x0004 <span class="m">00004</span> <span class="o">(</span>main.go:3<span class="o">)</span>        JLS     <span class="m">47</span>
+</span></span><span class="line"><span class="cl">        0x0006 <span class="m">00006</span> <span class="o">(</span>main.go:3<span class="o">)</span>        PCDATA  <span class="nv">$0</span>, <span class="nv">$-</span><span class="m">1</span>
+</span></span><span class="line"><span class="cl">        0x0006 <span class="m">00006</span> <span class="o">(</span>main.go:3<span class="o">)</span>        SUBQ    <span class="nv">$24</span>, SP
+</span></span><span class="line"><span class="cl">        0x000a <span class="m">00010</span> <span class="o">(</span>main.go:3<span class="o">)</span>        MOVQ    BP, 16<span class="o">(</span>SP<span class="o">)</span>
+</span></span><span class="line"><span class="cl">        0x000f <span class="m">00015</span> <span class="o">(</span>main.go:3<span class="o">)</span>        LEAQ    16<span class="o">(</span>SP<span class="o">)</span>, BP
+</span></span><span class="line"><span class="cl">        0x0014 <span class="m">00020</span> <span class="o">(</span>main.go:3<span class="o">)</span>        FUNCDATA        <span class="nv">$0</span>, gclocals·33cdeccccebe80329f1fdbee7f5874cb<span class="o">(</span>SB<span class="o">)</span>
+</span></span><span class="line"><span class="cl">        0x0014 <span class="m">00020</span> <span class="o">(</span>main.go:3<span class="o">)</span>        FUNCDATA        <span class="nv">$1</span>, gclocals·33cdeccccebe80329f1fdbee7f5874cb<span class="o">(</span>SB<span class="o">)</span>
+</span></span><span class="line"><span class="cl">        0x0014 <span class="m">00020</span> <span class="o">(</span>main.go:4<span class="o">)</span>        MOVL    <span class="nv">$1</span>, AX
+</span></span><span class="line"><span class="cl">        0x0019 <span class="m">00025</span> <span class="o">(</span>main.go:4<span class="o">)</span>        MOVL    <span class="nv">$3</span>, BX
+</span></span><span class="line"><span class="cl">        0x001e <span class="m">00030</span> <span class="o">(</span>main.go:4<span class="o">)</span>        PCDATA  <span class="nv">$1</span>, <span class="nv">$0</span>
+</span></span><span class="line"><span class="cl">        0x001e <span class="m">00030</span> <span class="o">(</span>main.go:4<span class="o">)</span>        NOP
+</span></span><span class="line"><span class="cl">        0x0020 <span class="m">00032</span> <span class="o">(</span>main.go:4<span class="o">)</span>        CALL    <span class="s2">&#34;&#34;</span>.add<span class="o">(</span>SB<span class="o">)</span>
+</span></span><span class="line"><span class="cl">        0x0025 <span class="m">00037</span> <span class="o">(</span>main.go:5<span class="o">)</span>        MOVQ    16<span class="o">(</span>SP<span class="o">)</span>, BP
+</span></span><span class="line"><span class="cl">        0x002a <span class="m">00042</span> <span class="o">(</span>main.go:5<span class="o">)</span>        ADDQ    <span class="nv">$24</span>, SP
+</span></span><span class="line"><span class="cl">        0x002e <span class="m">00046</span> <span class="o">(</span>main.go:5<span class="o">)</span>        RET
+</span></span><span class="line"><span class="cl">        0x002f <span class="m">00047</span> <span class="o">(</span>main.go:5<span class="o">)</span>        NOP
+</span></span><span class="line"><span class="cl">        0x002f <span class="m">00047</span> <span class="o">(</span>main.go:3<span class="o">)</span>        PCDATA  <span class="nv">$1</span>, <span class="nv">$-</span><span class="m">1</span>
+</span></span><span class="line"><span class="cl">        0x002f <span class="m">00047</span> <span class="o">(</span>main.go:3<span class="o">)</span>        PCDATA  <span class="nv">$0</span>, <span class="nv">$-</span><span class="m">2</span>
+</span></span><span class="line"><span class="cl">        0x002f <span class="m">00047</span> <span class="o">(</span>main.go:3<span class="o">)</span>        CALL    runtime.morestack_noctxt<span class="o">(</span>SB<span class="o">)</span>
+</span></span><span class="line"><span class="cl">        0x0034 <span class="m">00052</span> <span class="o">(</span>main.go:3<span class="o">)</span>        PCDATA  <span class="nv">$0</span>, <span class="nv">$-</span><span class="m">1</span>
+</span></span><span class="line"><span class="cl">        0x0034 <span class="m">00052</span> <span class="o">(</span>main.go:3<span class="o">)</span>        JMP     <span class="m">0</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="s2">&#34;&#34;</span>.add STEXT nosplit <span class="nv">size</span><span class="o">=</span><span class="m">56</span> <span class="nv">args</span><span class="o">=</span>0x10 <span class="nv">locals</span><span class="o">=</span>0x10 <span class="nv">funcid</span><span class="o">=</span>0x0
+</span></span><span class="line"><span class="cl">        0x0000 <span class="m">00000</span> <span class="o">(</span>main.go:7<span class="o">)</span>        TEXT    <span class="s2">&#34;&#34;</span>.add<span class="o">(</span>SB<span class="o">)</span>, NOSPLIT<span class="p">|</span>ABIInternal, <span class="nv">$16</span>-16
+</span></span><span class="line"><span class="cl">        0x0000 <span class="m">00000</span> <span class="o">(</span>main.go:7<span class="o">)</span>        SUBQ    <span class="nv">$16</span>, SP
+</span></span><span class="line"><span class="cl">        0x0004 <span class="m">00004</span> <span class="o">(</span>main.go:7<span class="o">)</span>        MOVQ    BP, 8<span class="o">(</span>SP<span class="o">)</span>
+</span></span><span class="line"><span class="cl">        0x0009 <span class="m">00009</span> <span class="o">(</span>main.go:7<span class="o">)</span>        LEAQ    8<span class="o">(</span>SP<span class="o">)</span>, BP
+</span></span><span class="line"><span class="cl">        0x000e <span class="m">00014</span> <span class="o">(</span>main.go:7<span class="o">)</span>        FUNCDATA        <span class="nv">$0</span>, gclocals·33cdeccccebe80329f1fdbee7f5874cb<span class="o">(</span>SB<span class="o">)</span>
+</span></span><span class="line"><span class="cl">        0x000e <span class="m">00014</span> <span class="o">(</span>main.go:7<span class="o">)</span>        FUNCDATA        <span class="nv">$1</span>, gclocals·33cdeccccebe80329f1fdbee7f5874cb<span class="o">(</span>SB<span class="o">)</span>
+</span></span><span class="line"><span class="cl">        0x000e <span class="m">00014</span> <span class="o">(</span>main.go:7<span class="o">)</span>        FUNCDATA        <span class="nv">$5</span>, <span class="s2">&#34;&#34;</span>.add.arginfo1<span class="o">(</span>SB<span class="o">)</span>
+</span></span><span class="line"><span class="cl">        0x000e <span class="m">00014</span> <span class="o">(</span>main.go:7<span class="o">)</span>        MOVQ    AX, <span class="s2">&#34;&#34;</span>.i+24<span class="o">(</span>SP<span class="o">)</span>
+</span></span><span class="line"><span class="cl">        0x0013 <span class="m">00019</span> <span class="o">(</span>main.go:7<span class="o">)</span>        MOVQ    BX, <span class="s2">&#34;&#34;</span>.j+32<span class="o">(</span>SP<span class="o">)</span>
+</span></span><span class="line"><span class="cl">        0x0018 <span class="m">00024</span> <span class="o">(</span>main.go:7<span class="o">)</span>        MOVQ    <span class="nv">$0</span>, <span class="s2">&#34;&#34;</span>.~r2<span class="o">(</span>SP<span class="o">)</span>
+</span></span><span class="line"><span class="cl">        0x0020 <span class="m">00032</span> <span class="o">(</span>main.go:8<span class="o">)</span>        MOVQ    <span class="s2">&#34;&#34;</span>.i+24<span class="o">(</span>SP<span class="o">)</span>, AX
+</span></span><span class="line"><span class="cl">        0x0025 <span class="m">00037</span> <span class="o">(</span>main.go:8<span class="o">)</span>        ADDQ    <span class="s2">&#34;&#34;</span>.j+32<span class="o">(</span>SP<span class="o">)</span>, AX
+</span></span><span class="line"><span class="cl">        0x002a <span class="m">00042</span> <span class="o">(</span>main.go:8<span class="o">)</span>        MOVQ    AX, <span class="s2">&#34;&#34;</span>.~r2<span class="o">(</span>SP<span class="o">)</span>
+</span></span><span class="line"><span class="cl">        0x002e <span class="m">00046</span> <span class="o">(</span>main.go:8<span class="o">)</span>        MOVQ    8<span class="o">(</span>SP<span class="o">)</span>, BP
+</span></span><span class="line"><span class="cl">        0x0033 <span class="m">00051</span> <span class="o">(</span>main.go:8<span class="o">)</span>        ADDQ    <span class="nv">$16</span>, SP
+</span></span><span class="line"><span class="cl">        0x0037 <span class="m">00055</span> <span class="o">(</span>main.go:8<span class="o">)</span>        RET
+</span></span></code></pre></div><p><code>FUNCDATA</code>和<code>PCDATA</code>是由编译器引入的，主要包含垃圾回收时使用的信息，这里略过。</p>
+<p>先看main函数的汇编：</p>
+<pre tabindex="0"><code>        0x0000 00000 (main.go:3)        TEXT    &#34;&#34;.main(SB), ABIInternal, $24-0
+</code></pre><p>首先，<code>TEXT</code>声明了<code>&quot;&quot;.main(SB)</code>是.text代码段的一部分，并表示声明后的是函数的函数体。在链接阶段，<code>&quot;&quot;</code>会替换成当前的包名，即<code>main.add</code>。</p>
+<p><code>$24-0</code>需要从两部分解释：</p>
+<ul>
+<li><code>-</code>前面部分表示当前函数的帧大小，这个也可以从后面<code>SUBQ    $24, SP</code>指令看出；</li>
+<li><code>-</code>后半部分表示调用方传入的参数的大小，位于调用者的帧上。
+所以，<code>$24-0</code>表示main函数帧大小为24字节，调用者没有传参。<strong>==TODO: 24字节是怎么组成的==</strong></li>
+</ul>
+<pre tabindex="0"><code>        0x0006 00006 (main.go:3)        SUBQ    $24, SP
+        0x000a 00010 (main.go:3)        MOVQ    BP, 16(SP)
+        0x000f 00015 (main.go:3)        LEAQ    16(SP), BP
+</code></pre><p><strong>==TODO: 这里是干嘛用的？==</strong></p>
+<pre tabindex="0"><code>        0x0014 00020 (main.go:4)        MOVL    $1, AX
+        0x0019 00025 (main.go:4)        MOVL    $3, BX
+        0x001e 00030 (main.go:4)        PCDATA  $1, $0
+        0x001e 00030 (main.go:4)        NOP
+        0x0020 00032 (main.go:4)        CALL    &#34;&#34;.add(SB)
+</code></pre><p>接下来main函数就开始执行add函数了。可以看到，汇编将值1和3分别放入了<code>AX</code>和<code>BX</code>寄存器中，在x86_64中，对应的就是<code>rax</code>和<code>rbx</code>。然后用<code>CALL</code>指令跳转到<code>&quot;&quot;.add(SB)</code>。<strong>需要注意的是，这里之所以会将参数放到寄存器里，是因为Go 1.17引入了基于寄存器的调用惯例，区别于之前版本的基于堆栈的调用惯例。具体区别稍后在后文解释。</strong></p>
+<pre tabindex="0"><code>        0x0025 00037 (main.go:5)        MOVQ    16(SP), BP
+        0x002a 00042 (main.go:5)        ADDQ    $24, SP
+        0x002e 00046 (main.go:5)        RET
+        0x002f 00047 (main.go:5)        NOP
+</code></pre><p>因为main函数中没有执行其它的操作，汇编在将栈释放后，执行<code>RET</code>返回。</p>
+<p>接下来，我们看看add函数的汇编：</p>
+<pre tabindex="0"><code>        0x0000 00000 (main.go:7)        TEXT    &#34;&#34;.add(SB), NOSPLIT|ABIInternal, $16-16
+</code></pre><p>同样，第一行声明函数，相比于main函数，多了一个<code>NOSPLIT</code>参数。</p>
+<p><code>$16-16</code>表示当前函数帧大小为16字节，调用者传了16字节的参数(<code>int </code> + <code>int</code>)。</p>
+<pre tabindex="0"><code>        0x0000 00000 (main.go:7)        SUBQ    $16, SP
+        0x0004 00004 (main.go:7)        MOVQ    BP, 8(SP)
+        0x0009 00009 (main.go:7)        LEAQ    8(SP), BP
+</code></pre><p>和main函数一样。</p>
+<pre tabindex="0"><code>        0x000e 00014 (main.go:7)        MOVQ    AX, &#34;&#34;.i+24(SP)
+        0x0013 00019 (main.go:7)        MOVQ    BX, &#34;&#34;.j+32(SP)
+        0x0018 00024 (main.go:7)        MOVQ    $0, &#34;&#34;.~r2(SP)
+</code></pre><p>可以看到，汇编将寄存器里面的参数值放到了caller帧中参数位置。之所以如此多此一举，猜测是为了保证兼容性。Go 1.17基于寄存器的调用惯例目前还只在amd64架构上实现。如果我们打开优化，是没有这一步的。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl"><span class="c1"># go tool compile -S -l main.go</span>
+</span></span><span class="line"><span class="cl"><span class="s2">&#34;&#34;</span>.add STEXT nosplit <span class="nv">size</span><span class="o">=</span><span class="m">4</span> <span class="nv">args</span><span class="o">=</span>0x10 <span class="nv">locals</span><span class="o">=</span>0x0 <span class="nv">funcid</span><span class="o">=</span>0x0
+</span></span><span class="line"><span class="cl">        0x0000 <span class="m">00000</span> <span class="o">(</span>main.go:7<span class="o">)</span>        TEXT    <span class="s2">&#34;&#34;</span>.add<span class="o">(</span>SB<span class="o">)</span>, NOSPLIT<span class="p">|</span>ABIInternal, <span class="nv">$0</span>-16
+</span></span><span class="line"><span class="cl">        0x0000 <span class="m">00000</span> <span class="o">(</span>main.go:7<span class="o">)</span>        FUNCDATA        <span class="nv">$0</span>, gclocals·33cdeccccebe80329f1fdbee7f5874cb<span class="o">(</span>SB<span class="o">)</span>
+</span></span><span class="line"><span class="cl">        0x0000 <span class="m">00000</span> <span class="o">(</span>main.go:7<span class="o">)</span>        FUNCDATA        <span class="nv">$1</span>, gclocals·33cdeccccebe80329f1fdbee7f5874cb<span class="o">(</span>SB<span class="o">)</span>
+</span></span><span class="line"><span class="cl">        0x0000 <span class="m">00000</span> <span class="o">(</span>main.go:7<span class="o">)</span>        FUNCDATA        <span class="nv">$5</span>, <span class="s2">&#34;&#34;</span>.add.arginfo1<span class="o">(</span>SB<span class="o">)</span>
+</span></span><span class="line"><span class="cl">        0x0000 <span class="m">00000</span> <span class="o">(</span>main.go:8<span class="o">)</span>        ADDQ    BX, AX
+</span></span><span class="line"><span class="cl">        0x0003 <span class="m">00003</span> <span class="o">(</span>main.go:8<span class="o">)</span>        RET
+</span></span></code></pre></div><p>除此之外，<code>MOVQ    $0, &quot;&quot;.~r2(SP)</code>将<code>&quot;&quot;.~r2(SP)</code>初始化为0。</p>
+<pre tabindex="0"><code class="language-assembly" data-lang="assembly">        0x0020 00032 (main.go:8)        MOVQ    &#34;&#34;.i+24(SP), AX
+        0x0025 00037 (main.go:8)        ADDQ    &#34;&#34;.j+32(SP), AX
+        0x002a 00042 (main.go:8)        MOVQ    AX, &#34;&#34;.~r2(SP)
+</code></pre><p>进行加法操作。</p>
+<pre tabindex="0"><code class="language-assembly" data-lang="assembly">        0x002e 00046 (main.go:8)        MOVQ    8(SP), BP
+        0x0033 00051 (main.go:8)        ADDQ    $16, SP
+        0x0037 00055 (main.go:8)        RET
+</code></pre><p>返回。</p>
+<h3 id="stack-split">Stack-Split<a href="#stack-split" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>前面的分析还留了一个小问题，<strong>main函数收尾几条指令是干嘛用的？</strong>
+初始状态下，<strong>runtime会给每个 goroutine 分配 2KB 的栈大小</strong>。随着函数调用，栈空间可能超过2KB。所以，在每次函数调用之前，runtime需要检查栈大小，如果超过了分配空间，就需要分配一个更大的栈（2倍大小），并将原始栈内的内容拷贝到新栈中。这个过程被称作 stack-split。</p>
+<p>stack-split分为两个部分：</p>
+<ul>
+<li>函数前面的指令（prologue）检查当前goroutine是否超出了栈空间，如果是，跳到函数尾部；</li>
+<li>函数尾部的指令（epilogue）调用<code>runtime.morestack_noctxt(SB)</code>来触发stack-growth流程，然后跳回prologue。</li>
+</ul>
+<pre tabindex="0"><code class="language-assembly" data-lang="assembly">		;; stack-split prologue
+		0x0000 00000 (main.go:3)        CMPQ    SP, 16(R14)
+        0x0004 00004 (main.go:3)        JLS     47
+        ;; ...
+        ;; stack-split epilogue
+        0x002f 00047 (main.go:5)        NOP
+        0x002f 00047 (main.go:3)        CALL    runtime.morestack_noctxt(SB)
+        0x0034 00052 (main.go:3)        JMP     0
+</code></pre><p><code>R14</code>内存放的是指向当前<code>g</code>的指针：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="c1">// https://github.com/golang/go/blob/master/src/runtime/runtime2.go#L405</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="kd">type</span><span class="w"> </span><span class="nx">g</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">	</span><span class="c1">// Stack parameters.</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">	</span><span class="c1">// stack describes the actual stack memory: [stack.lo, stack.hi).</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">	</span><span class="c1">// stackguard0 is the stack pointer compared in the Go stack growth prologue.</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">	</span><span class="c1">// It is stack.lo+StackGuard normally, but can be StackPreempt to trigger a preemption.</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">	</span><span class="c1">// stackguard1 is the stack pointer compared in the C stack growth prologue.</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">	</span><span class="c1">// It is stack.lo+StackGuard on g0 and gsignal stacks.</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">	</span><span class="c1">// It is ~0 on other goroutine stacks, to trigger a call to morestackc (and crash).</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">	</span><span class="nx">stack</span><span class="w">       </span><span class="nx">stack</span><span class="w">   </span><span class="c1">// offset known to runtime/cgo</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">	</span><span class="nx">stackguard0</span><span class="w"> </span><span class="kt">uintptr</span><span class="w"> </span><span class="c1">// offset known to liblink</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">	</span><span class="nx">stackguard1</span><span class="w"> </span><span class="kt">uintptr</span><span class="w"> </span><span class="c1">// offset known to liblink</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="cm">/* ... */</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="p">}</span><span class="w">
+</span></span></span></code></pre></div><p><code>stack</code>大小为16字节，所以<code>16(R14)</code>指向的是<code>stackguard0</code>。从注释也可以看出，<code>stackguard0</code>用于Go栈的growth prologue。所以，prologue对比当前<code>SP</code>的值和<code>stackguard0</code>，如果小于或等于<code>stackguard0</code>，跳转到47，也就是epilogue。</p>
+<p>epilogue指令就很简单了，调用<code>runtime.morestack_noctxt(SB)</code>，跳回0。</p>
+<p>如果每调用一次函数，都需要检查一下栈大小，这额外的开销是很恐怖的。所以，对于一些足够小的栈帧，如果不可能触发栈增长，就不需要这些额外的检查指令了。如在add函数的第一条TEXT指令中，添加了<code>NOSPLIT</code>，就表示编译器不需要插入stack-split先导指令。</p>
+<h2 id="基于栈帧的调用惯例go-117-before">基于栈帧的调用惯例(Go 1.17 before)<a href="#基于栈帧的调用惯例go-117-before" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>官方的Release Note关于此次变更的描述：</p>
+<blockquote>
+<p>Go 1.17 implements a new way of passing function arguments and results using registers instead of the stack. Benchmarks for a representative set of Go packages and programs show performance improvements of about 5%, and a typical reduction in binary size of about 2%. This is currently enabled for Linux, macOS, and Windows on the 64-bit x86 architecture (the <code>linux/amd64</code>, <code>darwin/amd64</code>, and <code>windows/amd64</code> ports).</p>
+<p>This change does not affect the functionality of any safe Go code and is designed to have no impact on most assembly code. It may affect code that violates the <a href="https://go.dev/pkg/unsafe#Pointer"><code>unsafe.Pointer</code></a> rules when accessing function arguments, or that depends on undocumented behavior involving comparing function code pointers. To maintain compatibility with existing assembly functions, the compiler generates adapter functions that convert between the new register-based calling convention and the previous stack-based calling convention. These adapters are typically invisible to users, except that taking the address of a Go function in assembly code or taking the address of an assembly function in Go code using <code>reflect.ValueOf(fn).Pointer()</code> or <code>unsafe.Pointer</code> will now return the address of the adapter. Code that depends on the value of these code pointers may no longer behave as expected. Adapters also may cause a very small performance overhead in two cases: calling an assembly function indirectly from Go via a <code>func</code> value, and calling Go functions from assembly.</p></blockquote>
+<p>我们来看看如果用Go 1.16.7来编译，汇编是怎样的：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl"><span class="c1"># go tool compile -N -S -l test.go</span>
+</span></span><span class="line"><span class="cl"><span class="s2">&#34;&#34;</span>.main STEXT <span class="nv">size</span><span class="o">=</span><span class="m">71</span> <span class="nv">args</span><span class="o">=</span>0x0 <span class="nv">locals</span><span class="o">=</span>0x20 <span class="nv">funcid</span><span class="o">=</span>0x0
+</span></span><span class="line"><span class="cl">	0x0000 <span class="m">00000</span> <span class="o">(</span>test.go:4<span class="o">)</span>	TEXT	<span class="s2">&#34;&#34;</span>.main<span class="o">(</span>SB<span class="o">)</span>, ABIInternal, <span class="nv">$32</span>-0
+</span></span><span class="line"><span class="cl">	0x0000 <span class="m">00000</span> <span class="o">(</span>test.go:4<span class="o">)</span>	MOVQ	<span class="o">(</span>TLS<span class="o">)</span>, CX
+</span></span><span class="line"><span class="cl">	0x0009 <span class="m">00009</span> <span class="o">(</span>test.go:4<span class="o">)</span>	CMPQ	SP, 16<span class="o">(</span>CX<span class="o">)</span>
+</span></span><span class="line"><span class="cl">	0x000d <span class="m">00013</span> <span class="o">(</span>test.go:4<span class="o">)</span>	PCDATA	<span class="nv">$0</span>, <span class="nv">$-</span><span class="m">2</span>
+</span></span><span class="line"><span class="cl">	0x000d <span class="m">00013</span> <span class="o">(</span>test.go:4<span class="o">)</span>	JLS	<span class="m">64</span>
+</span></span><span class="line"><span class="cl">	0x000f <span class="m">00015</span> <span class="o">(</span>test.go:4<span class="o">)</span>	PCDATA	<span class="nv">$0</span>, <span class="nv">$-</span><span class="m">1</span>
+</span></span><span class="line"><span class="cl">	0x000f <span class="m">00015</span> <span class="o">(</span>test.go:4<span class="o">)</span>	SUBQ	<span class="nv">$32</span>, SP
+</span></span><span class="line"><span class="cl">	0x0013 <span class="m">00019</span> <span class="o">(</span>test.go:4<span class="o">)</span>	MOVQ	BP, 24<span class="o">(</span>SP<span class="o">)</span>
+</span></span><span class="line"><span class="cl">	0x0018 <span class="m">00024</span> <span class="o">(</span>test.go:4<span class="o">)</span>	LEAQ	24<span class="o">(</span>SP<span class="o">)</span>, BP
+</span></span><span class="line"><span class="cl">	0x001d <span class="m">00029</span> <span class="o">(</span>test.go:4<span class="o">)</span>	FUNCDATA	<span class="nv">$0</span>, gclocals·33cdeccccebe80329f1fdbee7f5874cb<span class="o">(</span>SB<span class="o">)</span>
+</span></span><span class="line"><span class="cl">	0x001d <span class="m">00029</span> <span class="o">(</span>test.go:4<span class="o">)</span>	FUNCDATA	<span class="nv">$1</span>, gclocals·33cdeccccebe80329f1fdbee7f5874cb<span class="o">(</span>SB<span class="o">)</span>
+</span></span><span class="line"><span class="cl">	0x001d <span class="m">00029</span> <span class="o">(</span>test.go:5<span class="o">)</span>	MOVQ	<span class="nv">$1</span>, <span class="o">(</span>SP<span class="o">)</span>
+</span></span><span class="line"><span class="cl">	0x0025 <span class="m">00037</span> <span class="o">(</span>test.go:5<span class="o">)</span>	MOVQ	<span class="nv">$3</span>, 8<span class="o">(</span>SP<span class="o">)</span>
+</span></span><span class="line"><span class="cl">	0x002e <span class="m">00046</span> <span class="o">(</span>test.go:5<span class="o">)</span>	PCDATA	<span class="nv">$1</span>, <span class="nv">$0</span>
+</span></span><span class="line"><span class="cl">	0x002e <span class="m">00046</span> <span class="o">(</span>test.go:5<span class="o">)</span>	CALL	<span class="s2">&#34;&#34;</span>.add<span class="o">(</span>SB<span class="o">)</span>
+</span></span><span class="line"><span class="cl">	0x0033 <span class="m">00051</span> <span class="o">(</span>test.go:6<span class="o">)</span>	MOVQ	24<span class="o">(</span>SP<span class="o">)</span>, BP
+</span></span><span class="line"><span class="cl">	0x0038 <span class="m">00056</span> <span class="o">(</span>test.go:6<span class="o">)</span>	ADDQ	<span class="nv">$32</span>, SP
+</span></span><span class="line"><span class="cl">	0x003c <span class="m">00060</span> <span class="o">(</span>test.go:6<span class="o">)</span>	RET
+</span></span><span class="line"><span class="cl">	0x003d <span class="m">00061</span> <span class="o">(</span>test.go:6<span class="o">)</span>	NOP
+</span></span><span class="line"><span class="cl">	0x003d <span class="m">00061</span> <span class="o">(</span>test.go:4<span class="o">)</span>	PCDATA	<span class="nv">$1</span>, <span class="nv">$-</span><span class="m">1</span>
+</span></span><span class="line"><span class="cl">	0x003d <span class="m">00061</span> <span class="o">(</span>test.go:4<span class="o">)</span>	PCDATA	<span class="nv">$0</span>, <span class="nv">$-</span><span class="m">2</span>
+</span></span><span class="line"><span class="cl">	0x003d <span class="m">00061</span> <span class="o">(</span>test.go:4<span class="o">)</span>	NOP
+</span></span><span class="line"><span class="cl">	0x0040 <span class="m">00064</span> <span class="o">(</span>test.go:4<span class="o">)</span>	CALL	runtime.morestack_noctxt<span class="o">(</span>SB<span class="o">)</span>
+</span></span><span class="line"><span class="cl">	0x0045 <span class="m">00069</span> <span class="o">(</span>test.go:4<span class="o">)</span>	PCDATA	<span class="nv">$0</span>, <span class="nv">$-</span><span class="m">1</span>
+</span></span><span class="line"><span class="cl">	0x0045 <span class="m">00069</span> <span class="o">(</span>test.go:4<span class="o">)</span>	JMP	<span class="m">0</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="s2">&#34;&#34;</span>.add STEXT nosplit <span class="nv">size</span><span class="o">=</span><span class="m">25</span> <span class="nv">args</span><span class="o">=</span>0x18 <span class="nv">locals</span><span class="o">=</span>0x0 <span class="nv">funcid</span><span class="o">=</span>0x0
+</span></span><span class="line"><span class="cl">	0x0000 <span class="m">00000</span> <span class="o">(</span>test.go:8<span class="o">)</span>	TEXT	<span class="s2">&#34;&#34;</span>.add<span class="o">(</span>SB<span class="o">)</span>, NOSPLIT<span class="p">|</span>ABIInternal, <span class="nv">$0</span>-24
+</span></span><span class="line"><span class="cl">	0x0000 <span class="m">00000</span> <span class="o">(</span>test.go:8<span class="o">)</span>	FUNCDATA	<span class="nv">$0</span>, gclocals·33cdeccccebe80329f1fdbee7f5874cb<span class="o">(</span>SB<span class="o">)</span>
+</span></span><span class="line"><span class="cl">	0x0000 <span class="m">00000</span> <span class="o">(</span>test.go:8<span class="o">)</span>	FUNCDATA	<span class="nv">$1</span>, gclocals·33cdeccccebe80329f1fdbee7f5874cb<span class="o">(</span>SB<span class="o">)</span>
+</span></span><span class="line"><span class="cl">	0x0000 <span class="m">00000</span> <span class="o">(</span>test.go:8<span class="o">)</span>	MOVQ	<span class="nv">$0</span>, <span class="s2">&#34;&#34;</span>.~r2+24<span class="o">(</span>SP<span class="o">)</span>
+</span></span><span class="line"><span class="cl">	0x0009 <span class="m">00009</span> <span class="o">(</span>test.go:9<span class="o">)</span>	MOVQ	<span class="s2">&#34;&#34;</span>.i+8<span class="o">(</span>SP<span class="o">)</span>, AX
+</span></span><span class="line"><span class="cl">	0x000e <span class="m">00014</span> <span class="o">(</span>test.go:9<span class="o">)</span>	ADDQ	<span class="s2">&#34;&#34;</span>.j+16<span class="o">(</span>SP<span class="o">)</span>, AX
+</span></span><span class="line"><span class="cl">	0x0013 <span class="m">00019</span> <span class="o">(</span>test.go:9<span class="o">)</span>	MOVQ	AX, <span class="s2">&#34;&#34;</span>.~r2+24<span class="o">(</span>SP<span class="o">)</span>
+</span></span><span class="line"><span class="cl">	0x0018 <span class="m">00024</span> <span class="o">(</span>test.go:9<span class="o">)</span>	RET
+</span></span></code></pre></div><p>可以看到，汇编主要有几个变化：</p>
+<ul>
+<li>
+<p>帧大小发生了变化。main函数由24字节（1.17）增大到32字节（1.16.7），而add函数两者大小一致（1.17开启优化后也是0字节）。这也匹配官方文档中“升级到1.17后，二进制大小缩小了2%的描述”；</p>
+</li>
+<li>
+<p>传参值没有放到寄存器内，放到了栈上，同时，add函数的返回值也直接放在了栈上。</p>
+<pre tabindex="0"><code>	0x001d 00029 (test.go:5)	MOVQ	$1, (SP)
+	0x0025 00037 (test.go:5)	MOVQ	$3, 8(SP)
+
+    0x0013 00019 (test.go:9)	MOVQ	AX, &#34;&#34;.~r2+24(SP)
+</code></pre></li>
+</ul>
+<p>Go 1.17版本之前，Go采用基于栈的调用约定，即函数的参数与返回值都通过栈来传递，这种方式的优点是实现简单，不用担心底层cpu架构寄存器的差异，适合跨平台；但缺点就是牺牲了一些性能，我们都知道寄存器的访问速度要远高于内存。</p>
+<h2 id="多返回值的实现">多返回值的实现<a href="#多返回值的实现" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>如果有多个返回值，那汇编是怎样的呢？</p>
+<p>我们修改一下样例程序：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kn">package</span><span class="w"> </span><span class="nx">main</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="kd">func</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">	</span><span class="nf">add</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">)</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="p">}</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="kd">func</span><span class="w"> </span><span class="nf">add</span><span class="p">(</span><span class="nx">i</span><span class="p">,</span><span class="w"> </span><span class="nx">j</span><span class="w"> </span><span class="kt">int</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">	</span><span class="k">return</span><span class="w"> </span><span class="nx">i</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">j</span><span class="p">,</span><span class="w"> </span><span class="nx">i</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="nx">j</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="p">}</span><span class="w">
+</span></span></span></code></pre></div><p>重新汇编：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl"><span class="s2">&#34;&#34;</span>.add STEXT nosplit <span class="nv">size</span><span class="o">=</span><span class="m">85</span> <span class="nv">args</span><span class="o">=</span>0x10 <span class="nv">locals</span><span class="o">=</span>0x18 <span class="nv">funcid</span><span class="o">=</span>0x0
+</span></span><span class="line"><span class="cl">	0x0000 <span class="m">00000</span> <span class="o">(</span>main.go:7<span class="o">)</span>	TEXT	<span class="s2">&#34;&#34;</span>.add<span class="o">(</span>SB<span class="o">)</span>, NOSPLIT<span class="p">|</span>ABIInternal, <span class="nv">$24</span>-16
+</span></span><span class="line"><span class="cl">	0x0000 <span class="m">00000</span> <span class="o">(</span>main.go:7<span class="o">)</span>	SUBQ	<span class="nv">$24</span>, SP
+</span></span><span class="line"><span class="cl">	0x0004 <span class="m">00004</span> <span class="o">(</span>main.go:7<span class="o">)</span>	MOVQ	BP, 16<span class="o">(</span>SP<span class="o">)</span>
+</span></span><span class="line"><span class="cl">	0x0009 <span class="m">00009</span> <span class="o">(</span>main.go:7<span class="o">)</span>	LEAQ	16<span class="o">(</span>SP<span class="o">)</span>, BP
+</span></span><span class="line"><span class="cl">	0x000e <span class="m">00014</span> <span class="o">(</span>main.go:7<span class="o">)</span>	FUNCDATA	<span class="nv">$0</span>, gclocals·33cdeccccebe80329f1fdbee7f5874cb<span class="o">(</span>SB<span class="o">)</span>
+</span></span><span class="line"><span class="cl">	0x000e <span class="m">00014</span> <span class="o">(</span>main.go:7<span class="o">)</span>	FUNCDATA	<span class="nv">$1</span>, gclocals·33cdeccccebe80329f1fdbee7f5874cb<span class="o">(</span>SB<span class="o">)</span>
+</span></span><span class="line"><span class="cl">	0x000e <span class="m">00014</span> <span class="o">(</span>main.go:7<span class="o">)</span>	FUNCDATA	<span class="nv">$5</span>, <span class="s2">&#34;&#34;</span>.add.arginfo1<span class="o">(</span>SB<span class="o">)</span>
+</span></span><span class="line"><span class="cl">	0x000e <span class="m">00014</span> <span class="o">(</span>main.go:7<span class="o">)</span>	MOVQ	AX, <span class="s2">&#34;&#34;</span>.i+32<span class="o">(</span>SP<span class="o">)</span>
+</span></span><span class="line"><span class="cl">	0x0013 <span class="m">00019</span> <span class="o">(</span>main.go:7<span class="o">)</span>	MOVQ	BX, <span class="s2">&#34;&#34;</span>.j+40<span class="o">(</span>SP<span class="o">)</span>
+</span></span><span class="line"><span class="cl">	0x0018 <span class="m">00024</span> <span class="o">(</span>main.go:7<span class="o">)</span>	MOVQ	<span class="nv">$0</span>, <span class="s2">&#34;&#34;</span>.~r2+8<span class="o">(</span>SP<span class="o">)</span>
+</span></span><span class="line"><span class="cl">	0x0021 <span class="m">00033</span> <span class="o">(</span>main.go:7<span class="o">)</span>	MOVQ	<span class="nv">$0</span>, <span class="s2">&#34;&#34;</span>.~r3<span class="o">(</span>SP<span class="o">)</span>
+</span></span><span class="line"><span class="cl">	0x0029 <span class="m">00041</span> <span class="o">(</span>main.go:8<span class="o">)</span>	MOVQ	<span class="s2">&#34;&#34;</span>.i+32<span class="o">(</span>SP<span class="o">)</span>, CX
+</span></span><span class="line"><span class="cl">	0x002e <span class="m">00046</span> <span class="o">(</span>main.go:8<span class="o">)</span>	ADDQ	<span class="s2">&#34;&#34;</span>.j+40<span class="o">(</span>SP<span class="o">)</span>, CX
+</span></span><span class="line"><span class="cl">	0x0033 <span class="m">00051</span> <span class="o">(</span>main.go:8<span class="o">)</span>	MOVQ	CX, <span class="s2">&#34;&#34;</span>.~r2+8<span class="o">(</span>SP<span class="o">)</span>
+</span></span><span class="line"><span class="cl">	0x0038 <span class="m">00056</span> <span class="o">(</span>main.go:8<span class="o">)</span>	MOVQ	<span class="s2">&#34;&#34;</span>.i+32<span class="o">(</span>SP<span class="o">)</span>, BX
+</span></span><span class="line"><span class="cl">	0x003d <span class="m">00061</span> <span class="o">(</span>main.go:8<span class="o">)</span>	SUBQ	<span class="s2">&#34;&#34;</span>.j+40<span class="o">(</span>SP<span class="o">)</span>, BX
+</span></span><span class="line"><span class="cl">	0x0042 <span class="m">00066</span> <span class="o">(</span>main.go:8<span class="o">)</span>	MOVQ	BX, <span class="s2">&#34;&#34;</span>.~r3<span class="o">(</span>SP<span class="o">)</span>
+</span></span><span class="line"><span class="cl">	0x0046 <span class="m">00070</span> <span class="o">(</span>main.go:8<span class="o">)</span>	MOVQ	<span class="s2">&#34;&#34;</span>.~r2+8<span class="o">(</span>SP<span class="o">)</span>, AX
+</span></span><span class="line"><span class="cl">	0x004b <span class="m">00075</span> <span class="o">(</span>main.go:8<span class="o">)</span>	MOVQ	16<span class="o">(</span>SP<span class="o">)</span>, BP
+</span></span><span class="line"><span class="cl">	0x0050 <span class="m">00080</span> <span class="o">(</span>main.go:8<span class="o">)</span>	ADDQ	<span class="nv">$24</span>, SP
+</span></span><span class="line"><span class="cl">	0x0054 <span class="m">00084</span> <span class="o">(</span>main.go:8<span class="o">)</span>	RET
+</span></span></code></pre></div><p>可以看到，第二个返回值放到了<code>BX</code>寄存器内。</p>
+<h2 id="总结">总结<a href="#总结" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<ul>
+<li>函数调用时，会从左到右扫描参数。</li>
+<li>遇到整型或指针参数，就按顺序从 <code>RAX</code>, <code>RBX</code>, &hellip; 中取一个寄存器使用。</li>
+<li>遇到浮点型参数，就按顺序从 <code>XMM0</code>, <code>XMM1</code>, &hellip; 中取一个寄存器使用。</li>
+<li>如果相应类型的寄存器已经用完，那么这个参数以及后续的所有参数都将通过<strong>栈</strong>来传递。</li>
+<li><strong>返回值</strong>也遵循类似的规则，按顺序使用相同的寄存器列表。</li>
+<li>对于 arm 来说，规则与 amd64 类似，只不过使用的寄存器不同：整型/指针参数使用 <code>R0-R7</code>，浮点参数使用 <code>F0-F7</code>。</li>
+</ul>
+<h2 id="reference">Reference<a href="#reference" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<ul>
+<li><a href="https://go.googlesource.com/proposal/&#43;/refs/changes/78/248178/1/design/40724-register-calling.md#:~:text=We%20propose%20switching%20the%20Go%20ABI%20to%20a%20register%2Dbased,rather%20than%20using%20platform%20ABIs.">Proposal: Register-based Go calling convention</a></li>
+<li><a href="https://github.com/teh-cmc/go-internals/blob/master/chapter1_assembly_primer/README.md">Chapter I: A Primer on Go Assembly</a></li>
+</ul>
+
+      </div></div>
+
+  
+    
+<div class="pagination">
+  <div class="pagination__title">
+    <span class="pagination__title-h">Read other posts</span>
+    <hr />
+  </div>
+  <div class="pagination__buttons">
+    
+    
+    
+      <a href="https://www.jinzhi.site/posts/2025-09/luatable-%E6%B5%85%E6%9E%90/" class="button inline next">
+         [<span class="button__text">Lua：Table 浅析</span>] &gt;
+      </a>
+    
+  </div>
+</div>
+
+
+  
+
+  
+    
+
+  
+</article>
+
+  </div>
+
+  
+    <footer class="footer">
+  <div class="footer__inner">
+    
+      <div class="copyright">
+        <span>© 2025 Powered by <a href="https://gohugo.io">Hugo</a></span>
+    
+      <span>:: <a href="https://github.com/panr/hugo-theme-terminal" target="_blank">Theme</a> made by <a href="https://github.com/panr" target="_blank">panr</a></span>
+      </div>
+  </div>
+</footer>
+
+
+
+
+
+
+<script type="text/javascript" src="/bundle.min.js"></script>
+
+
+
+
+
+  
+  </div>
+
+  <aside class="floating-sidebar">
+    
+<div class="sidebar time-archive">
+  <h3>Time Archives</h3>
+  <div class="archive-list">
+    
+    
+
+    
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+
+    
+    
+
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-09/" class="archive-link">
+          <span class="archive-date">2025-09</span>
+          <span class="archive-month-name">Sep</span>
+          <span class="archive-count">(3)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-08/" class="archive-link">
+          <span class="archive-date">2025-08</span>
+          <span class="archive-month-name">Aug</span>
+          <span class="archive-count">(8)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-04/" class="archive-link">
+          <span class="archive-date">2025-04</span>
+          <span class="archive-month-name">Apr</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-03/" class="archive-link">
+          <span class="archive-date">2025-03</span>
+          <span class="archive-month-name">Mar</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2024-01/" class="archive-link">
+          <span class="archive-date">2024-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(2)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-05/" class="archive-link">
+          <span class="archive-date">2022-05</span>
+          <span class="archive-month-name">May</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-03/" class="archive-link">
+          <span class="archive-date">2022-03</span>
+          <span class="archive-month-name">Mar</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-06/" class="archive-link">
+          <span class="archive-date">2021-06</span>
+          <span class="archive-month-name">Jun</span>
+          <span class="archive-count">(3)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-01/" class="archive-link">
+          <span class="archive-date">2021-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+  </div>
+</div>
+
+<style>
+.sidebar.time-archive {
+  background: rgba(26, 23, 15, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--accent, #FFA86B);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+  max-width: var(--sidebar-component-width, 240px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.sidebar.time-archive h3 {
+  margin: 0 0 1rem 0;
+  color: var(--accent, #FFA86B);
+  font-size: 1.2rem;
+  border-bottom: 1px solid var(--accent-alpha-70, rgba(255, 168, 107, 0.7));
+  padding-bottom: 0.5rem;
+}
+
+
+.archive-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.archive-item {
+  display: block;
+}
+
+.archive-link {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  text-decoration: none;
+  color: var(--color, inherit);
+  padding: 0.5rem;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+}
+
+.archive-link:hover {
+  background-color: var(--accent-alpha-20, rgba(255, 168, 107, 0.2));
+  color: var(--accent, #FFA86B);
+}
+
+.archive-date {
+  font-family: var(--code-font-family, 'Fira Code', monospace);
+  font-weight: bold;
+  min-width: 60px;
+}
+
+.archive-month-name {
+  flex: 1;
+  margin-left: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.archive-count {
+  color: var(--accent, #FFA86B);
+  font-weight: bold;
+  font-size: 0.9rem;
+}
+
+ 
+</style>
+
+    
+<div class="sidebar tags-cloud">
+  <h3>Tags Cloud</h3>
+  <div class="tags-container">
+    
+    
+    
+    
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+    
+    
+    
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+    
+    
+    
+    
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+    
+    
+    
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+    
+    
+    
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/concurrency/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="7 articles">
+          Concurrency
+          <span class="tag-count">(7)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/dns/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          dns
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/ebpf/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          ebpf
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/elf/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          ELF
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/go/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Go
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/kaist-cs431/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="7 articles">
+          KAIST-CS431
+          <span class="tag-count">(7)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/lua/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="3 articles">
+          Lua
+          <span class="tag-count">(3)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/network/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Network
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/operatingsystem/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          OperatingSystem
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/rust/" 
+           class="tag-item" 
+           style="font-size: 1.5em;"
+           title="10 articles">
+          Rust
+          <span class="tag-count">(10)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/wasm/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Wasm
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+  </div>
+</div>
+
+<style>
+.sidebar.tags-cloud {
+  background: rgba(26, 23, 15, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--accent, #FFA86B);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+  max-width: var(--sidebar-component-width, 240px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.sidebar.tags-cloud h3 {
+  margin: 0 0 1rem 0;
+  color: var(--accent, #FFA86B);
+  font-size: 1.2rem;
+  border-bottom: 1px solid var(--accent-alpha-70, rgba(255, 168, 107, 0.7));
+  padding-bottom: 0.5rem;
+}
+
+.tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  line-height: 1.6;
+}
+
+.tag-item {
+  display: inline-flex;
+  align-items: baseline;
+  text-decoration: none;
+  color: var(--color, inherit);
+  padding: 0.3rem 0.6rem;
+  border-radius: 16px;
+  background: rgba(255, 168, 107, 0.1);
+  border: 1px solid transparent;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.tag-item:hover {
+  background: rgba(255, 168, 107, 0.25);
+  border-color: var(--accent-alpha-50, rgba(255, 168, 107, 0.5));
+  color: var(--accent, #FFA86B);
+  transform: translateY(-1px);
+}
+
+.tag-count {
+  font-size: 0.75em;
+  margin-left: 0.3rem;
+  opacity: 0.7;
+  font-weight: normal;
+}
+
+.tag-item:hover .tag-count {
+  opacity: 1;
+}
+
+ 
+
+ 
+.tag-item {
+  font-weight: 400;
+}
+
+ 
+.tag-item[style*="1.5"], 
+.tag-item[style*="1.4"],
+.tag-item[style*="1.3"] {
+  font-weight: 600;
+}
+
+ 
+.tag-item[style*="1.2"],
+.tag-item[style*="1.1"] {
+  font-weight: 500;
+}
+
+ 
+.tag-item[style*="1.5"]:hover,
+.tag-item[style*="1.4"]:hover,
+.tag-item[style*="1.3"]:hover {
+  box-shadow: 0 3px 10px rgba(255, 168, 107, 0.4);
+  transform: translateY(-2px);
+}
+
+</style>
+
+  </aside>
+</div>
+
+<style>
+ 
+.page-wrapper {
+  position: relative;
+  width: 100%;
+  max-width: none;
+  --sidebar-top-offset: 150px;  
+  --sidebar-component-width: 240px;  
+}
+
+   
+.floating-sidebar {
+  position: absolute;
+   
+  top: var(--sidebar-top-offset, 175px);
+   
+  right: max(20px, calc((100vw - 864px) / 2 - 330px));
+  width: 300px;
+  z-index: 100;
+  opacity: 0.96;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+ 
+.floating-sidebar:hover {
+  opacity: 1;
+  transform: translateX(-5px);
+}
+
+ 
+.floating-sidebar {
+  display: none;
+}
+
+ 
+@media (min-width: 1524px) {
+  .floating-sidebar {
+    display: block;
+    position: absolute;
+    right: max(20px, calc((100vw - 864px) / 2 - 330px));
+  }
+}
+
+ 
+@media (max-width: 1523px) {
+  .floating-sidebar {
+    display: none !important;
+  }
+}
+
+</style>
+
+</body>
+</html>

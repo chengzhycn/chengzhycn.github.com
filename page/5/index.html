@@ -1,17 +1,18 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+	<meta name="generator" content="Hugo 0.150.0">
   
-    <title>Archive for 2025-08 :: chengzhycn&#39;s blog</title>
+    <title>chengzhycn&#39;s blog</title>
   
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="" />
+<meta name="description" content="Better work, better life" />
 <meta name="keywords" content="" />
 
   <meta name="robots" content="noodp" />
 
-<link rel="canonical" href="https://www.jinzhi.site/posts/2025-08/" />
+<link rel="canonical" href="https://www.jinzhi.site/" />
 
 
 
@@ -77,9 +78,9 @@
 
 <meta property="og:locale" content="en" />
 <meta property="og:type" content="website" />
-<meta property="og:title" content="Archive for 2025-08">
-<meta property="og:description" content="" />
-<meta property="og:url" content="https://www.jinzhi.site/posts/2025-08/" />
+<meta property="og:title" content="chengzhycn&#39;s blog">
+<meta property="og:description" content="Better work, better life" />
+<meta property="og:url" content="https://www.jinzhi.site/" />
 <meta property="og:site_name" content="chengzhycn&#39;s blog" />
 
   <meta property="og:image" content="https://www.jinzhi.site/og-image.png">
@@ -88,12 +89,10 @@
 <meta property="og:image:height" content="627">
 
 
-  <meta property="article:published_time" content="2025-08-01 00:00:00 &#43;0000 UTC" />
 
 
 
-
-  <link href="/posts/2025-08/index.xml" rel="alternate" type="application/rss+xml" title="chengzhycn&#39;s blog" />
+  <link href="/index.xml" rel="alternate" type="application/rss+xml" title="chengzhycn&#39;s blog" />
 
 
 
@@ -203,421 +202,90 @@
 
   <div class="content">
     
-<main class="post-list" role="main">
   
-  
-  
-  
-  
-  
+  <div class="posts">
     
     
+
     
-      <header class="archive-header">
-        <h1>
-          
-          
-          
-          
-          
+    
+      
+    
+    
+
+    
+      <article class="post on-list">
+        <h2 class="post-title">
+          <a href="https://www.jinzhi.site/posts/2021-01/dns-zone-files/">Dns Zone Files</a>
+        </h2>
+
+        <div class="post-meta"><time class="post-date">2021-01-03</time></div>
+
+        
+          <span class="post-tags">
             
-              
+            #<a href="https://www.jinzhi.site/tags/dns/">dns</a>&nbsp;
             
+          </span>
+        
+
+        
+
+
+        <div class="post-content">
           
-          
-          
-          Archive: August 2025
-        </h1>
-        <p class="archive-description">
-          Posts published in August 2025
-        </p>
-      </header>
-      
-      
-      
-      
-      
-      
-      
-        <div class="posts">
-          
-            <article class="post on-list" itemscope itemtype="http://schema.org/BlogPosting">
-              <header class="post-header">
-                <h2 class="post-title">
-                  <a href="/posts/2025-08/lua-an-overview/">Lua - An Overview</a>
-                </h2>
-              </header>
+            <h2 id="cname-记录">CNAME 记录</h2>
+<h3 id="记录格式">记录格式</h3>
+<pre tabindex="0"><code>bar.example.com.	CNAME	foo.example.com.
+foo.example.com.	A		192.168.0.1
+</code></pre><h3 id="cname-记录的限制">CNAME 记录的限制</h3>
+<ol>
+<li>如果一个 domain name 有了一个 CNAME 记录，那么它不能再拥有其它类型的记录</li>
+<li>CNAME 记录必须指向另外一个 domain name，而不是一个 IP</li>
+<li>CNAME 记录最好不要指向另外一个 CNAME 记录</li>
+<li>MX 和 NS 记录不能指向一个 CNAME 记录</li>
+</ol>
+<h2 id="srv-记录">SRV 记录</h2>
+<p>type code：33</p>
+<h3 id="记录格式-1">记录格式</h3>
+<pre tabindex="0"><code>_service._protocol.name. TTL class SRV priority weight port target.
 
-              <div class="post-content">
-                
-              </div>
-
-              <footer class="post-footer">
-                <div class="post-date">
-                  2025-08-31
-                </div>
-                
-                
-                  <div class="post-tags">
-                    
-                      <span class="tag">
-                        <a href="https://www.jinzhi.site/tags/lua/">#Lua</a>
-                      </span>
-                    
-                  </div>
-                
-
-                <div class="post-read-more">
-                  <a href="/posts/2025-08/lua-an-overview/">Read more →</a>
-                </div>
-              </footer>
-            </article>
-          
-            <article class="post on-list" itemscope itemtype="http://schema.org/BlogPosting">
-              <header class="post-header">
-                <h2 class="post-title">
-                  <a href="/posts/2025-08/kaist-cs431-safe-memory-reclamation/">KAIST-CS431: Safe Memory Reclamation</a>
-                </h2>
-              </header>
-
-              <div class="post-content">
-                
-              </div>
-
-              <footer class="post-footer">
-                <div class="post-date">
-                  2025-08-28
-                </div>
-                
-                
-                  <div class="post-tags">
-                    
-                      <span class="tag">
-                        <a href="https://www.jinzhi.site/tags/rust/">#Rust</a>
-                      </span>
-                    
-                      <span class="tag">
-                        <a href="https://www.jinzhi.site/tags/concurrency/">#Concurrency</a>
-                      </span>
-                    
-                      <span class="tag">
-                        <a href="https://www.jinzhi.site/tags/kaist-cs431/">#KAIST-CS431</a>
-                      </span>
-                    
-                  </div>
-                
-
-                <div class="post-read-more">
-                  <a href="/posts/2025-08/kaist-cs431-safe-memory-reclamation/">Read more →</a>
-                </div>
-              </footer>
-            </article>
-          
-            <article class="post on-list" itemscope itemtype="http://schema.org/BlogPosting">
-              <header class="post-header">
-                <h2 class="post-title">
-                  <a href="/posts/2025-08/kaist-cs431-concurrent-data-structure/">KAIST-CS431: Concurrent Data Structure</a>
-                </h2>
-              </header>
-
-              <div class="post-content">
-                
-              </div>
-
-              <footer class="post-footer">
-                <div class="post-date">
-                  2025-08-28
-                </div>
-                
-                
-                  <div class="post-tags">
-                    
-                      <span class="tag">
-                        <a href="https://www.jinzhi.site/tags/rust/">#Rust</a>
-                      </span>
-                    
-                      <span class="tag">
-                        <a href="https://www.jinzhi.site/tags/concurrency/">#Concurrency</a>
-                      </span>
-                    
-                      <span class="tag">
-                        <a href="https://www.jinzhi.site/tags/kaist-cs431/">#KAIST-CS431</a>
-                      </span>
-                    
-                  </div>
-                
-
-                <div class="post-read-more">
-                  <a href="/posts/2025-08/kaist-cs431-concurrent-data-structure/">Read more →</a>
-                </div>
-              </footer>
-            </article>
-          
-            <article class="post on-list" itemscope itemtype="http://schema.org/BlogPosting">
-              <header class="post-header">
-                <h2 class="post-title">
-                  <a href="/posts/2025-08/kaist-cs431-lock-implementations/">KAIST-CS431: Lock Implementations</a>
-                </h2>
-              </header>
-
-              <div class="post-content">
-                
-              </div>
-
-              <footer class="post-footer">
-                <div class="post-date">
-                  2025-08-28
-                </div>
-                
-                
-                  <div class="post-tags">
-                    
-                      <span class="tag">
-                        <a href="https://www.jinzhi.site/tags/rust/">#Rust</a>
-                      </span>
-                    
-                      <span class="tag">
-                        <a href="https://www.jinzhi.site/tags/concurrency/">#Concurrency</a>
-                      </span>
-                    
-                      <span class="tag">
-                        <a href="https://www.jinzhi.site/tags/kaist-cs431/">#KAIST-CS431</a>
-                      </span>
-                    
-                  </div>
-                
-
-                <div class="post-read-more">
-                  <a href="/posts/2025-08/kaist-cs431-lock-implementations/">Read more →</a>
-                </div>
-              </footer>
-            </article>
-          
-            <article class="post on-list" itemscope itemtype="http://schema.org/BlogPosting">
-              <header class="post-header">
-                <h2 class="post-title">
-                  <a href="/posts/2025-08/kaist-cs431-promising-semantics/">KAIST-CS431: Promising Semantics</a>
-                </h2>
-              </header>
-
-              <div class="post-content">
-                
-              </div>
-
-              <footer class="post-footer">
-                <div class="post-date">
-                  2025-08-27
-                </div>
-                
-                
-                  <div class="post-tags">
-                    
-                      <span class="tag">
-                        <a href="https://www.jinzhi.site/tags/rust/">#Rust</a>
-                      </span>
-                    
-                      <span class="tag">
-                        <a href="https://www.jinzhi.site/tags/concurrency/">#Concurrency</a>
-                      </span>
-                    
-                      <span class="tag">
-                        <a href="https://www.jinzhi.site/tags/kaist-cs431/">#KAIST-CS431</a>
-                      </span>
-                    
-                  </div>
-                
-
-                <div class="post-read-more">
-                  <a href="/posts/2025-08/kaist-cs431-promising-semantics/">Read more →</a>
-                </div>
-              </footer>
-            </article>
-          
-            <article class="post on-list" itemscope itemtype="http://schema.org/BlogPosting">
-              <header class="post-header">
-                <h2 class="post-title">
-                  <a href="/posts/2025-08/kaist-cs431-nondeterminisms-of-shared-memory-concurrency/">KAIST-CS431: Nondeterminisms of Shared-memory Concurrency</a>
-                </h2>
-              </header>
-
-              <div class="post-content">
-                
-              </div>
-
-              <footer class="post-footer">
-                <div class="post-date">
-                  2025-08-27
-                </div>
-                
-                
-                  <div class="post-tags">
-                    
-                      <span class="tag">
-                        <a href="https://www.jinzhi.site/tags/rust/">#Rust</a>
-                      </span>
-                    
-                      <span class="tag">
-                        <a href="https://www.jinzhi.site/tags/concurrency/">#Concurrency</a>
-                      </span>
-                    
-                      <span class="tag">
-                        <a href="https://www.jinzhi.site/tags/kaist-cs431/">#KAIST-CS431</a>
-                      </span>
-                    
-                  </div>
-                
-
-                <div class="post-read-more">
-                  <a href="/posts/2025-08/kaist-cs431-nondeterminisms-of-shared-memory-concurrency/">Read more →</a>
-                </div>
-              </footer>
-            </article>
-          
-            <article class="post on-list" itemscope itemtype="http://schema.org/BlogPosting">
-              <header class="post-header">
-                <h2 class="post-title">
-                  <a href="/posts/2025-08/kaist-cs431-lock-based-api/">KAIST-CS431: Lock Based API</a>
-                </h2>
-              </header>
-
-              <div class="post-content">
-                
-              </div>
-
-              <footer class="post-footer">
-                <div class="post-date">
-                  2025-08-27
-                </div>
-                
-                
-                  <div class="post-tags">
-                    
-                      <span class="tag">
-                        <a href="https://www.jinzhi.site/tags/rust/">#Rust</a>
-                      </span>
-                    
-                      <span class="tag">
-                        <a href="https://www.jinzhi.site/tags/concurrency/">#Concurrency</a>
-                      </span>
-                    
-                      <span class="tag">
-                        <a href="https://www.jinzhi.site/tags/kaist-cs431/">#KAIST-CS431</a>
-                      </span>
-                    
-                  </div>
-                
-
-                <div class="post-read-more">
-                  <a href="/posts/2025-08/kaist-cs431-lock-based-api/">Read more →</a>
-                </div>
-              </footer>
-            </article>
-          
-            <article class="post on-list" itemscope itemtype="http://schema.org/BlogPosting">
-              <header class="post-header">
-                <h2 class="post-title">
-                  <a href="/posts/2025-08/wasm-internals-overview/">Wasm Internals - Overview</a>
-                </h2>
-              </header>
-
-              <div class="post-content">
-                
-              </div>
-
-              <footer class="post-footer">
-                <div class="post-date">
-                  2025-08-26
-                </div>
-                
-                
-                  <div class="post-tags">
-                    
-                      <span class="tag">
-                        <a href="https://www.jinzhi.site/tags/wasm/">#Wasm</a>
-                      </span>
-                    
-                  </div>
-                
-
-                <div class="post-read-more">
-                  <a href="/posts/2025-08/wasm-internals-overview/">Read more →</a>
-                </div>
-              </footer>
-            </article>
+_sip._tcp.example.com. 86400 IN SRV 0 5 5060 sipserver.example.com.
+</code></pre><ul>
+<li>_service: 服务名称 symbolic name</li>
+<li>protocol: 协议</li>
+<li>name: domain name，以 . 结束</li>
+<li>priority: 条目优先级, 值越低优先级越高</li>
+<li>weight: 同样优先级内不同条目的权重</li>
+<li>target: canonical hostname，以 . 结束
+如果是一个 MX 记录，那么 target 需要是一个 IP 地址（A 或者 AAAA）而不是 CNAME</li>
+</ul>
+<h2 id="soa-记录">SOA 记录</h2>
+<p>start of authority, 一个权威的起始</p>
           
         </div>
-      
-      
+
+        
+          <div>
+            <a class="read-more button inline" href="/posts/2021-01/dns-zone-files/">[Read more]</a>
+          </div>
+        
+      </article>
     
-  
-</main>
 
-<style>
-.archive-header {
-  margin-bottom: 2rem;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid var(--accent-alpha-20, rgba(255, 168, 107, 0.2));
-}
+    <div class="pagination">
+  <div class="pagination__buttons">
+    
+      <a href="/page/4/" class="button inline prev">
+        &lt; [<span class="button__text">Newer posts</span>]
+      </a>
+    
+    
+    
+  </div>
+</div>
 
-.archive-header h1 {
-  color: var(--accent, #FFA86B);
-  margin-bottom: 0.5rem;
-}
-
-.archive-description {
-  color: var(--color-secondary, #999);
-  font-style: italic;
-}
-
-.no-posts {
-  text-align: center;
-  padding: 2rem;
-  color: var(--color-secondary, #999);
-}
-
-.post-footer {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-  align-items: center;
-  margin-top: 1rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--accent-alpha-20, rgba(255, 168, 107, 0.2));
-}
-
-.post-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.post-tags .tag a {
-  background: var(--accent-alpha-20, rgba(255, 168, 107, 0.2));
-  padding: 0.2rem 0.5rem;
-  border-radius: 3px;
-  font-size: 0.8rem;
-  text-decoration: none;
-  color: var(--accent, #FFA86B);
-}
-
-.post-tags .tag a:hover {
-  background: var(--accent-alpha-70, rgba(255, 168, 107, 0.7));
-}
-
-.post-read-more {
-  margin-left: auto;
-}
-
-.post-read-more a {
-  color: var(--accent, #FFA86B);
-  text-decoration: none;
-  font-weight: bold;
-}
-
-.post-read-more a:hover {
-  text-decoration: underline;
-}
-</style>
+  </div>
 
   </div>
 

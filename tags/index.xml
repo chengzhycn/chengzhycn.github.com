@@ -6,8 +6,15 @@
     <description>Recent content in Tags on chengzhycn&#39;s blog</description>
     <generator>Hugo</generator>
     <language>en</language>
-    <lastBuildDate>Sun, 14 Sep 2025 23:45:28 +0800</lastBuildDate>
+    <lastBuildDate>Wed, 17 Sep 2025 21:45:28 +0800</lastBuildDate>
     <atom:link href="https://www.jinzhi.site/tags/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Go</title>
+      <link>https://www.jinzhi.site/tags/go/</link>
+      <pubDate>Wed, 17 Sep 2025 21:45:28 +0800</pubDate>
+      <guid>https://www.jinzhi.site/tags/go/</guid>
+      <description></description>
+    </item>
     <item>
       <title>Lua</title>
       <link>https://www.jinzhi.site/tags/lua/</link>
