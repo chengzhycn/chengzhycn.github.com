@@ -93,6 +93,13 @@
       <description></description>
     </item>
     <item>
+      <title>Kubernetes CSI 简介</title>
+      <link>https://www.jinzhi.site/posts/2025-06/kubernetes-csi-%E7%AE%80%E4%BB%8B/</link>
+      <pubDate>Tue, 24 Jun 2025 09:57:28 +0800</pubDate>
+      <guid>https://www.jinzhi.site/posts/2025-06/kubernetes-csi-%E7%AE%80%E4%BB%8B/</guid>
+      <description>&lt;p&gt;K8s CSI 是 Kubernetes 中非常重要的一个组件，它解决了存储与计算分离的复杂性，并为容器化应用提供了持久化存储的能力。&lt;/p&gt;&#xA;&lt;h2 id=&#34;1-基本概念&#34;&gt;1. 基本概念&lt;/h2&gt;&#xA;&lt;p&gt;&lt;strong&gt;CSI (Container Storage Interface)&lt;/strong&gt; 译为 &lt;strong&gt;容器存储接口&lt;/strong&gt;。它是由 Kubernetes 社区与存储厂商共同制定的一套标准接口规范。&lt;/p&gt;&#xA;&lt;p&gt;在 CSI 出现之前，Kubernetes 存储插件的开发和管理存在以下痛点：&lt;/p&gt;&#xA;&lt;ul&gt;&#xA;&lt;li&gt;&lt;strong&gt;紧耦合问题：&lt;/strong&gt; Kubernetes 内部集成了大量的存储驱动（In-tree 存储插件），例如 AWS EBS、GCE PD、Azure Disk、Ceph RBD 等。这意味着每当存储厂商需要支持 Kubernetes 时，他们都必须将其存储驱动代码提交到 Kubernetes 的核心代码库中。这种方式导致了：&#xA;&lt;ul&gt;&#xA;&lt;li&gt;&lt;strong&gt;Kubernetes 代码库臃肿：&lt;/strong&gt; 集成了大量存储逻辑，增加了核心代码的复杂性和维护难度。&lt;/li&gt;&#xA;&lt;li&gt;&lt;strong&gt;发布周期长：&lt;/strong&gt; 存储驱动的更新需要跟随 Kubernetes 的发布周期，新功能和 bug 修复不能及时推送到用户。&lt;/li&gt;&#xA;&lt;li&gt;&lt;strong&gt;存储厂商开发受限：&lt;/strong&gt; 每次更新都需要与 Kubernetes 社区协调，开发和测试流程繁琐。&lt;/li&gt;&#xA;&lt;/ul&gt;&#xA;&lt;/li&gt;&#xA;&lt;li&gt;&lt;strong&gt;兼容性问题：&lt;/strong&gt; 不同存储厂商的存储系统差异巨大，缺乏统一的接口规范，导致存储系统与 Kubernetes 之间的集成困难。&lt;/li&gt;&#xA;&lt;/ul&gt;&#xA;&lt;p&gt;&lt;strong&gt;CSI 的目标就是解决这些问题，实现存储系统与 Kubernetes 的解耦。&lt;/strong&gt; 它定义了一套通用的接口，允许任何存储厂商开发自己的 CSI 驱动，然后通过这些驱动来与 Kubernetes 进行交互，从而为容器提供存储服务。&lt;/p&gt;&#xA;&lt;h3 id=&#34;11-资源定义&#34;&gt;1.1. 资源定义&lt;/h3&gt;&#xA;&lt;h3 id=&#34;111-volumes&#34;&gt;1.1.1. Volumes&lt;/h3&gt;&#xA;&lt;p&gt;Volumes 是 Kubernetes 中 Pod 通过文件系统访问和共享数据的抽象。它主要提供了如下功能：&lt;/p&gt;&#xA;&lt;ul&gt;&#xA;&lt;li&gt;通过 ConfigMap 或者 Secret 共享配置；&lt;/li&gt;&#xA;&lt;li&gt;跨容器、跨 Pod 甚至跨 Node 共享数据；&lt;/li&gt;&#xA;&lt;li&gt;数据持久化。在 Pod 销毁之后仍能继续访问数据。&#xA;对于 Pod 来说，Volumes 通过 &lt;code&gt;.spec.volumes&lt;/code&gt; 提供给 Pod，容器通过 &lt;code&gt;.spec.containers[*].volumeMounts&lt;/code&gt; 来将指定 Volumes 挂载到指定目录。&lt;/li&gt;&#xA;&lt;/ul&gt;&#xA;&lt;h3 id=&#34;112-persistent-volumes-和-persistent-volumes-claim&#34;&gt;1.1.2. Persistent Volumes 和 Persistent Volumes Claim&lt;/h3&gt;&#xA;&lt;p&gt;PV 和 PVC 提供了两套 API 将存储的提供和消费分离。&lt;/p&gt;</description>
+    </item>
+    <item>
       <title>VRF: An Overview</title>
       <link>https://www.jinzhi.site/posts/2025-04/vrf-an-overview/</link>
       <pubDate>Fri, 25 Apr 2025 20:30:28 +0800</pubDate>
