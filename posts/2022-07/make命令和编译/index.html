@@ -1,0 +1,1915 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  
+    <title>make命令和编译 :: chengzhycn&#39;s blog</title>
+  
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Makefile 标准格式 target：dependencies1 dependencies2 ... recipe .PHONY: clean clean: -rm ... 注意事项 运行make时如果没有指定target，那么make会构建Makefile中的第一个target 通常情况下，目标名即生成的文件名。如果一条规则的目标文件存在并且该文件比它所有的依赖都要新，那么make会跳过recipe；如果目标文件不存在，那么目标文件的 timestamp 为开始的时间；否则timestamp为相应文件的修改时间。 每次运行 make clean，”clean“中的recipe都会被执行，因为clean文件永远都不会被创建。（可以使用 .PHONY 创建伪目标使Makefile可读性更高） recipes必须用tab缩进 可以通过并行的方式运行recipes：make -j 4（指定并行的任务数） 如果没有指定规则，Make会自动化创建规则。例如，本地有一个C文件”program.c“，当运行 make program时，Make会自动编译生成 program 变量 $@ 目标文件 $^ 所有的依赖文件 $&lt; 第一个依赖 头文件 环境变量 C_INCLUDE_PATH C语言头文件路径 CPLUS_INCLUDE_PATH C&#43;&#43; 头文件路径 搜索路径 #include&lt;&gt; 先搜索 -I 指定的目录 然后搜索gcc的环境变量 CPLUS_INCLUDE_PATH 最后搜索gcc的内定目录 /usr/include /usr/local/include /usr/lib/gcc/x86_64-redhat-linux/4.1.1/include #include &quot;&quot; 搜索当前目录，#include&lt;&gt;方式不会搜索当前目录 动态库 环境变量 LD_LIBRARY_PATH 动态链接库搜索路径 PKG_CONFIG_PATH .pc文件（package config）文件搜索路径 搜索路径 首先在环境变量 LD_LIBRARY_PATH 所记录的路径中查找 在程序链接时指定的 rpath 中查找，可以 readelf binfile | grep RPATH 然后从缓存文件/etc/ld.so.cache中查找。这个缓存文件由/sbin/ldconfig命令读取配置文件/etc/ld.so.conf 之后生成（也可以在 ld.so.conf.d 目录下增加 .conf 文件，里面写入库路径，在 ld.so.conf 中 include ld.so.conf.d/.conf ） 如果上述步骤都找不到，则到默认的系统路径中查找，先是/usr/lib然后是/lib https://www.cnblogs.com/masterpanda/p/5700446.html 编译参数 -shared 指定生成动态连接库
+" />
+<meta name="keywords" content="" />
+
+  <meta name="robots" content="noodp" />
+
+<link rel="canonical" href="https://www.jinzhi.site/posts/2022-07/make%E5%91%BD%E4%BB%A4%E5%92%8C%E7%BC%96%E8%AF%91/" />
+
+
+
+
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/buttons.min.86f6b4c106b6c6eb690ae5203d36b442c1f66f718ff4e8164fa86cf6c61ad641.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/code.min.d529ea4b2fb8d34328d7d31afc5466d5f7bc2f0bc9abdd98b69385335d7baee4.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/fonts.min.5bb7ed13e1d00d8ff39ea84af26737007eb5051b157b86fc24487c94f3dc8bbe.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/footer.min.eb8dfc2c6a7eafa36cd3ba92d63e69e849e2200e0002a228d137f236b09ecd75.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/gist.min.a751e8b0abe1ba8bc53ced52a38b19d8950fe78ca29454ea8c2595cf26aad5c0.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/header.min.75c7eb0e2872d95ff48109c6647d0223a38db52e2561dd87966eb5fc7c6bdac6.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/main.min.7984a754b43b7469d389c539410e90dff2870263de16b008dfc7e8170fcd0f5b.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/menu.min.3c17467ebeb3d38663dce68f71f519901124fa5cbb4519b2fb0667a21e9aca39.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/pagination.min.bbb986dbce00a5ce5aca0504b7925fc1c581992a4bf57f163e5d69cc1db7d836.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/post.min.e6dddd258e64c83e05cec0cd49c05216742d42fc8ecbfbe6b67083412b609bd3.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/syntax.min.a0773cce9310cb6d8ed23e50f005448facf29a53001b57e038828daa466b25c0.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/terminal.min.e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/terms.min.b81791663c3790e738e571cdbf802312390d30e4b1d8dc9d814a5b5454d0ac11.css">
+
+
+
+
+
+
+
+<link rel="shortcut icon" href="https://www.jinzhi.site/favicon.png">
+<link rel="apple-touch-icon" href="https://www.jinzhi.site/apple-touch-icon.png">
+
+
+<meta name="twitter:card" content="summary" />
+
+  
+    <meta name="twitter:site" content="" />
+  
+    <meta name="twitter:creator" content="" />
+
+
+
+<meta property="og:locale" content="en" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="make命令和编译">
+<meta property="og:description" content="Makefile 标准格式 target：dependencies1 dependencies2 ... recipe .PHONY: clean clean: -rm ... 注意事项 运行make时如果没有指定target，那么make会构建Makefile中的第一个target 通常情况下，目标名即生成的文件名。如果一条规则的目标文件存在并且该文件比它所有的依赖都要新，那么make会跳过recipe；如果目标文件不存在，那么目标文件的 timestamp 为开始的时间；否则timestamp为相应文件的修改时间。 每次运行 make clean，”clean“中的recipe都会被执行，因为clean文件永远都不会被创建。（可以使用 .PHONY 创建伪目标使Makefile可读性更高） recipes必须用tab缩进 可以通过并行的方式运行recipes：make -j 4（指定并行的任务数） 如果没有指定规则，Make会自动化创建规则。例如，本地有一个C文件”program.c“，当运行 make program时，Make会自动编译生成 program 变量 $@ 目标文件 $^ 所有的依赖文件 $&lt; 第一个依赖 头文件 环境变量 C_INCLUDE_PATH C语言头文件路径 CPLUS_INCLUDE_PATH C&#43;&#43; 头文件路径 搜索路径 #include&lt;&gt; 先搜索 -I 指定的目录 然后搜索gcc的环境变量 CPLUS_INCLUDE_PATH 最后搜索gcc的内定目录 /usr/include /usr/local/include /usr/lib/gcc/x86_64-redhat-linux/4.1.1/include #include &quot;&quot; 搜索当前目录，#include&lt;&gt;方式不会搜索当前目录 动态库 环境变量 LD_LIBRARY_PATH 动态链接库搜索路径 PKG_CONFIG_PATH .pc文件（package config）文件搜索路径 搜索路径 首先在环境变量 LD_LIBRARY_PATH 所记录的路径中查找 在程序链接时指定的 rpath 中查找，可以 readelf binfile | grep RPATH 然后从缓存文件/etc/ld.so.cache中查找。这个缓存文件由/sbin/ldconfig命令读取配置文件/etc/ld.so.conf 之后生成（也可以在 ld.so.conf.d 目录下增加 .conf 文件，里面写入库路径，在 ld.so.conf 中 include ld.so.conf.d/.conf ） 如果上述步骤都找不到，则到默认的系统路径中查找，先是/usr/lib然后是/lib https://www.cnblogs.com/masterpanda/p/5700446.html 编译参数 -shared 指定生成动态连接库
+" />
+<meta property="og:url" content="https://www.jinzhi.site/posts/2022-07/make%E5%91%BD%E4%BB%A4%E5%92%8C%E7%BC%96%E8%AF%91/" />
+<meta property="og:site_name" content="chengzhycn&#39;s blog" />
+
+  <meta property="og:image" content="https://www.jinzhi.site/og-image.png">
+
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="627">
+
+  <meta property="article:section" content="Learning" />
+
+
+  <meta property="article:published_time" content="2022-07-26 14:30:28 &#43;0800 &#43;0800" />
+
+
+
+
+
+
+
+
+
+<html>
+<head>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-screen-web/style.css" />
+  <style>
+    body {
+      font-family: "LXGW WenKai Screen";
+      font-weight: normal;
+    }
+  </style>
+</head>
+<body>
+
+</body>
+</html>
+
+
+</head>
+<body>
+
+
+<div class="page-wrapper">
+  <div class="container center">
+
+  <header class="header">
+  <div class="header__inner">
+    <div class="header__logo">
+      <a href="/">
+  <div class="logo">
+    chengzhycn&#39;s blog
+  </div>
+</a>
+
+    </div>
+    
+      <ul class="menu menu--mobile">
+  <li class="menu__trigger">Menu&nbsp;▾</li>
+  <li>
+    <ul class="menu__dropdown">
+      
+        
+          <li><a href="/">Home</a></li>
+        
+      
+        
+          <li><a href="/about">About</a></li>
+        
+      
+        
+          <li><a href="/categories/">Categories</a></li>
+        
+      
+        
+          <li><a href="/tags/">Tags</a></li>
+        
+      
+        
+          <li><a href="/archives/">Archives</a></li>
+        
+      
+      
+    </ul>
+  </li>
+</ul>
+
+    
+    
+  </div>
+  
+    <nav class="navigation-menu">
+  <ul class="navigation-menu__inner menu--desktop">
+    
+      
+        
+          <li><a href="/" >Home</a></li>
+        
+      
+        
+          <li><a href="/about" >About</a></li>
+        
+      
+        
+          <li><a href="/categories/" >Categories</a></li>
+        
+      
+        
+          <li><a href="/tags/" >Tags</a></li>
+        
+      
+        
+          <li><a href="/archives/" >Archives</a></li>
+        
+      
+      
+    
+  </ul>
+</nav>
+
+  
+</header>
+
+
+  <div class="content">
+    
+<article class="post">
+  <h1 class="post-title">
+    <a href="https://www.jinzhi.site/posts/2022-07/make%E5%91%BD%E4%BB%A4%E5%92%8C%E7%BC%96%E8%AF%91/">make命令和编译</a>
+  </h1>
+  <div class="post-meta"><time class="post-date">2022-07-26</time><span class="post-reading-time">4 min read (667 words)</span></div>
+
+  
+    <span class="post-tags">
+      
+      #<a href="https://www.jinzhi.site/tags/makefile/">makefile</a>&nbsp;
+      
+      #<a href="https://www.jinzhi.site/tags/compile/">compile</a>&nbsp;
+      
+    </span>
+  
+  
+
+
+  
+    <div class="table-of-contents">
+      <h2>
+        Table of Contents
+      </h2>
+      <nav id="TableOfContents">
+  <ul>
+    <li><a href="#makefile">Makefile</a>
+      <ul>
+        <li><a href="#标准格式">标准格式</a></li>
+        <li><a href="#变量">变量</a></li>
+      </ul>
+    </li>
+    <li><a href="#头文件">头文件</a>
+      <ul>
+        <li><a href="#环境变量">环境变量</a></li>
+        <li><a href="#搜索路径">搜索路径</a></li>
+      </ul>
+    </li>
+    <li><a href="#动态库">动态库</a>
+      <ul>
+        <li><a href="#环境变量-1">环境变量</a></li>
+        <li><a href="#搜索路径-1">搜索路径</a></li>
+        <li><a href="#编译参数">编译参数</a></li>
+        <li><a href="#命令">命令</a></li>
+      </ul>
+    </li>
+    <li><a href="#静态库">静态库</a>
+      <ul>
+        <li><a href="#环境变量-2">环境变量</a></li>
+        <li><a href="#命令-1">命令</a></li>
+      </ul>
+    </li>
+    <li><a href="#q--a">Q &amp; A</a></li>
+    <li><a href="#reference">Reference</a></li>
+  </ul>
+</nav>
+    </div>
+  
+
+  <div class="post-content"><div>
+        <h2 id="makefile">Makefile<a href="#makefile" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<h3 id="标准格式">标准格式<a href="#标准格式" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<pre tabindex="0"><code>target：dependencies1 dependencies2 ...
+   recipe
+
+.PHONY: clean
+clean:
+   -rm ...
+</code></pre><h4 id="注意事项">注意事项<a href="#注意事项" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<ul>
+<li>运行make时如果没有指定target，那么make会构建Makefile中的第一个target</li>
+<li>通常情况下，目标名即生成的文件名。如果一条规则的目标文件存在并且该文件比它所有的依赖都要新，那么make会跳过recipe；如果目标文件不存在，那么目标文件的 <strong>timestamp</strong> 为开始的时间；否则timestamp为相应文件的修改时间。</li>
+<li>每次运行 <code>make clean</code>，”clean“中的recipe都会被执行，因为clean文件永远都不会被创建。（可以使用 <strong>.PHONY</strong> 创建伪目标使Makefile可读性更高）</li>
+<li>recipes必须用tab缩进</li>
+<li>可以通过并行的方式运行recipes：<code>make -j 4</code>（指定并行的任务数）</li>
+<li>如果没有指定规则，Make会自动化创建规则。例如，本地有一个C文件”program.c“，当运行 <code>make program</code>时，Make会自动编译生成 program</li>
+</ul>
+<h3 id="变量">变量<a href="#变量" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<ul>
+<li><code>$@</code> 目标文件</li>
+<li><code>$^</code> 所有的依赖文件</li>
+<li><code>$&lt;</code> 第一个依赖</li>
+</ul>
+<h2 id="头文件">头文件<a href="#头文件" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<h3 id="环境变量">环境变量<a href="#环境变量" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<ul>
+<li><code>C_INCLUDE_PATH</code> C语言头文件路径</li>
+<li><code>CPLUS_INCLUDE_PATH</code> C++ 头文件路径</li>
+</ul>
+<h3 id="搜索路径">搜索路径<a href="#搜索路径" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<h4 id="include">#include&lt;&gt;<a href="#include" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<ol>
+<li>先搜索 <code>-I</code> 指定的目录</li>
+<li>然后搜索gcc的环境变量 <code>CPLUS_INCLUDE_PATH</code></li>
+<li>最后搜索gcc的内定目录
+<ol>
+<li><code>/usr/include</code></li>
+<li><code>/usr/local/include</code></li>
+<li><code>/usr/lib/gcc/x86_64-redhat-linux/4.1.1/include</code></li>
+</ol>
+</li>
+</ol>
+<h4 id="include-">#include &quot;&quot;<a href="#include-" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<ul>
+<li>搜索当前目录，#include&lt;&gt;方式不会搜索当前目录</li>
+</ul>
+<h2 id="动态库">动态库<a href="#动态库" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<h3 id="环境变量-1">环境变量<a href="#环境变量-1" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<ul>
+<li><code>LD_LIBRARY_PATH</code>  动态链接库搜索路径</li>
+<li><code>PKG_CONFIG_PATH</code> .pc文件（package config）文件搜索路径</li>
+</ul>
+<h3 id="搜索路径-1">搜索路径<a href="#搜索路径-1" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<ol>
+<li>首先在环境变量 <code>LD_LIBRARY_PATH</code> 所记录的路径中查找</li>
+<li>在程序链接时指定的 rpath 中查找，可以  <code>readelf binfile | grep RPATH</code></li>
+<li>然后从缓存文件/etc/ld.so.cache中查找。这个缓存文件由/sbin/ldconfig命令读取配置文件/etc/ld.so.conf 之后生成（也可以在 ld.so.conf.d 目录下增加 <em>.conf 文件，里面写入库路径，在 ld.so.conf 中 include ld.so.conf.d/</em>.conf ）</li>
+<li>如果上述步骤都找不到，则到默认的系统路径中查找，先是/usr/lib然后是/lib</li>
+</ol>
+<ul>
+<li><a href="https://www.cnblogs.com/masterpanda/p/5700446.html">https://www.cnblogs.com/masterpanda/p/5700446.html</a></li>
+</ul>
+<h3 id="编译参数">编译参数<a href="#编译参数" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<h4 id="-shared">-shared<a href="#-shared" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<p>指定生成动态连接库</p>
+<h4 id="-fpic">-fPIC<a href="#-fpic" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<blockquote>
+<p><strong>ppc_85xx-gcc -shared -fPIC liberr.c -o liberr.so</strong></p>
+<p>-fPIC 作用于编译阶段，告诉编译器产生与位置无关代码(Position-Independent Code)，<br>
+位置，都可以正确的执行。</p>
+<p>gcc -shared -fPIC -o 1.so 1.c</p>
+<p>这里有一个-fPIC参数</p>
+<p>PIC就是position independent code</p>
+<p>PIC使.so文件的代码段变为真正意义上的共享</p>
+<p>如果不加-fPIC,则加载.so文件的代码段时,代码段引用的数据对象需要重定位, 重定位会修改代码段的内容,这就造成每个使用这个.so文件代码段的进程在内核里都会生成这个.so文件代码段的copy.每个copy都不一样,取决于 这个.so文件代码段和数据段内存映射的位置.</p>
+<p>**不加fPIC编译出来的so,是要再加载时根据加载到的位置再次重定位的.(因为它里面的代码并不是位置无关代码)**如果被多个应用程序共同使用,那么它们必须每个程序维护一份so的代码副本了.(因为so被每个程序加载的位置都不同,显然这些重定位后的代码也不同,当然不能共享)我们总是用fPIC来生成so,也从来不用fPIC来生成a.fPIC与动态链接可以说基本没有关系,libc.so一样可以不用fPIC编译,只是这样的so必须要在加载到用户程序的地址空间时重定向所有表目.
+因此,不用fPIC编译so并不总是不好.如果你满足以下4个需求/条件:1.该库可能需要经常更新2.该库需要非常高的效率(尤其是有很多全局量的使用时)3.该库并不很大.4.该库基本不需要被多个应用程序共享
+如果用没有加这个参数的编译后的共享库，也可以使用的话，可能是两个原因：1：gcc默认开启-fPIC选项2：loader使你的代码位置无关
+从GCC来看，shared应该是包含fPIC选项的，但似乎不是所以系统都支持，所以最好显式加上fPIC选项。参见如下</p>
+<p>`-shared'
+Produce a shared object which can then be linked with other
+objects to form an executable.  Not all systems support this
+option.  For predictable results, you must also specify the same
+set of options that were used to generate code (`-fpic&rsquo;, `-fPIC&rsquo;,
+or model suboptions) when you specify this option.(1)</p>
+<p>-fPIC 的使用，会生成 PIC 代码，.so 要求为 PIC，以达到动态链接的目的，否则，无法实现动态链接。
+<strong>non-PIC 与 PIC 代码的区别主要在于 access global data, jump label 的不同。<strong>比如一条 access global data 的指令，non-PIC 的形势是：ld r3, var1PIC 的形式则是：ld r3,<a href="mailto:var1-offset@GOT">var1-offset@GOT</a>
+指示的地址处装载一个值,即</strong>处的4个 byte 其实就是 var1 的地址</strong>。这个地址只有在运行的时候才知道，是由 dynamic-loader(ld-linux.so) 填进去的。
+再比如 jump label 指令non-PIC 的形势是：jump printf ，意思是调用 printf。PIC 的形式则是：jump<a href="mailto:printf-offset@GOT">printf-offset@GOT</a>
+同时执行这个函数。这样，第2次呼叫 printf 的时候，就会直接跳到 printf 的地址，而不必再查找了。
+**GOT 是 data section, 是一个 table, 除专用的几个 entry，每个 entry 的内容可以再执行的时候修改；****PLT 是 text section, 是一段一段的 code，执行中不需要修改。**每个 target 实现 PIC 的机制不同，但大同小异。比如 MIPS 没有 .plt, 而是叫 .stub，功能和 .plt 一样。
+可见，动态链接执行很复杂，比静态链接执行时间长;但是，极大的节省了 size，PIC 和动态链接技术是计算机发展史上非常重要的一个</p>
+<p>gcc mauall上面有说-fpic</p>
+<p>If the GOT size for the linked executable exceeds a machine-specific maximum size, you get an error message from the linker indicating that -fpic does not work; in that case, recompile with -fPIC instead. (These maximums are 8k on the SPARC and 32k on the m68k and RS/6000. The 386 has no such limit.)
+-fPIC       If supported for the target machine, emit position-independent code, suitable for dynamic linking and avoiding any limit on the size of the global offset table. This option makes a difference on the m68k, PowerPC and SPARC. Position-independent code requires special support, and therefore works only on certain machines.
+关键在于GOT全局偏移量表里面的跳转项大小。intel处理器应该是统一4字节，没有问题。powerpc上由于汇编码或者机器码的特殊要求，所以跳转项分为短、长两种。
+-fpic为了节约内存，在GOT里面预留了“短”长度。而-fPIC则采用了更大的跳转项。</p></blockquote>
+<h3 id="命令">命令<a href="#命令" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<h4 id="ldd查看依赖的动态库">ldd：查看依赖的动态库<a href="#ldd查看依赖的动态库" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<pre tabindex="0"><code>┌─[root@develop] - [/usr/local/nginx] - [Fri Jul 19, 10:10]
+└─[$] &lt;&gt; ldd nginx
+        linux-vdso.so.1 =&gt;  (0x00007fffcf8fc000)
+        libdl.so.2 =&gt; /lib64/libdl.so.2 (0x00007f4d1ea02000)
+        libpthread.so.0 =&gt; /lib64/libpthread.so.0 (0x00007f4d1e7e5000)
+        libcrypt.so.1 =&gt; /lib64/libcrypt.so.1 (0x00007f4d1e5ae000)
+        libssl.so.10 =&gt; /lib64/libssl.so.10 (0x00007f4d1e33c000)
+        libcrypto.so.10 =&gt; /lib64/libcrypto.so.10 (0x00007f4d1deda000)
+        libc.so.6 =&gt; /lib64/libc.so.6 (0x00007f4d1db19000)
+        /lib64/ld-linux-x86-64.so.2 (0x000055743612e000)
+        libfreebl3.so =&gt; /lib64/libfreebl3.so (0x00007f4d1d916000)
+        libgssapi_krb5.so.2 =&gt; /lib64/libgssapi_krb5.so.2 (0x00007f4d1d6c8000)
+        libkrb5.so.3 =&gt; /lib64/libkrb5.so.3 (0x00007f4d1d3e0000)
+        libcom_err.so.2 =&gt; /lib64/libcom_err.so.2 (0x00007f4d1d1dc000)
+        libk5crypto.so.3 =&gt; /lib64/libk5crypto.so.3 (0x00007f4d1cfa8000)
+        libz.so.1 =&gt; /lib64/libz.so.1 (0x00007f4d1cd92000)
+        libkrb5support.so.0 =&gt; /lib64/libkrb5support.so.0 (0x00007f4d1cb84000)
+        libkeyutils.so.1 =&gt; /lib64/libkeyutils.so.1 (0x00007f4d1c97f000)
+        libresolv.so.2 =&gt; /lib64/libresolv.so.2 (0x00007f4d1c765000)
+        libselinux.so.1 =&gt; /lib64/libselinux.so.1 (0x00007f4d1c53d000)
+        libpcre.so.1 =&gt; /lib64/libpcre.so.1 (0x00007f4d1c2dc000)
+</code></pre><h4 id="ldconfig配置动态库路径">ldconfig：配置动态库路径<a href="#ldconfig配置动态库路径" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<p>读取配置文件/etc/ld.so.conf 之后生成 <code>/etc/ld.so.cache</code> 文件</p>
+<pre tabindex="0"><code>┌─[root@develop] - [/usr/local/nginx] - [Fri Jul 19, 10:13]
+└─[$] &lt;&gt; strings /etc/ld.so.cache |head
+ld.so-1.7.0
+glibc-ld.so.cache1.1
+p11-kit-trust.so
+/lib64/p11-kit-trust.so
+libzmq.so.3
+/lib64/libzmq.so.3
+libz.so.1
+/lib64/libz.so.1
+libz.so
+/lib64/libz.so
+</code></pre><h4 id="pkg-config软件包信息查看">pkg-config：软件包信息查看<a href="#pkg-config软件包信息查看" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<pre tabindex="0"><code>[root@localhost ~]# pkg-config --cflags librtmp
+-I/usr/local/include
+[root@localhost ~]# pkg-config --libs librtmp
+-L/usr/local/lib -lrtmp -lz -lssl -lcrypto
+</code></pre><h4 id="strings从可执行文件中提取文本信息">strings：从可执行文件中提取文本信息<a href="#strings从可执行文件中提取文本信息" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<pre tabindex="0"><code>┌─[root@develop] - [/usr/local/nginx] - [Fri Jul 19, 10:13]
+└─[$] &lt;&gt; strings /usr/local/lib64/libstdc++.so.6 |grep GLIBCXX
+GLIBCXX_3.4
+GLIBCXX_3.4.1
+GLIBCXX_3.4.2
+GLIBCXX_3.4.3
+GLIBCXX_3.4.4
+GLIBCXX_3.4.5
+GLIBCXX_3.4.6
+GLIBCXX_3.4.7
+GLIBCXX_3.4.8
+GLIBCXX_3.4.9
+GLIBCXX_3.4.10
+GLIBCXX_3.4.11
+GLIBCXX_3.4.12
+GLIBCXX_3.4.13
+GLIBCXX_3.4.14
+GLIBCXX_3.4.15
+GLIBCXX_3.4.16
+GLIBCXX_3.4.17
+GLIBCXX_3.4.18
+GLIBCXX_3.4.19
+GLIBCXX_3.4.20
+GLIBCXX_3.4.21
+GLIBCXX_3.4.22
+GLIBCXX_3.4.23
+GLIBCXX_3.4.24
+GLIBCXX_3.4.25
+</code></pre><h4 id="nm查看可执行文件中的符号">nm：查看可执行文件中的符号<a href="#nm查看可执行文件中的符号" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<pre tabindex="0"><code>┌─[root@develop] - [/usr/local/nginx] - [Fri Jul 19, 10:14]
+└─[$] &lt;&gt; nm nginx
+                 U abort@@GLIBC_2.2.5
+                 U accept4@@GLIBC_2.10
+                 U accept@@GLIBC_2.2.5
+00000000004114b7 t add_list_to_class.isra.9.constprop.12
+0000000000411430 t add_not_list_to_class.isra.10
+00000000004af2c0 t add_to_class.isra.8
+00000000004af120 t adjust_recurse.isra.5
+00000000004c6580 T adler32
+00000000004c6590 T adler32_combine
+00000000004c65b0 T adler32_combine64
+00000000004c5fe0 t adler32_combine_.part.0
+00000000004c60d0 T adler32_z
+00000000006fc160 d args.26303
+00000000004c9820 r argument_number
+                 U ASN1_d2i_bio@@libcrypto.so.10
+                 U ASN1_GENERALIZEDTIME_print@@libcrypto.so.10
+                 U ASN1_TIME_print@@libcrypto.so.10
+00000000004dbe80 r autoposstab
+00000000004e18c0 r base_dist
+00000000004e1940 r base_length
+00000000006fc460 d basis64.26215
+00000000006fc400 d basis64.26220
+00000000006fc300 d basis64.26237
+00000000006fc200 d basis64.26242
+00000000004c54c0 t bi_flush
+                 U bind@@GLIBC_2.2.5
+                 U BIO_ctrl@@libcrypto.so.10
+                 U BIO_free@@libcrypto.so.10
+                 U BIO_int_ctrl@@libcrypto.so.10
+                 U BIO_new_file@@libcrypto.so.10
+</code></pre><h2 id="静态库">静态库<a href="#静态库" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<h3 id="环境变量-2">环境变量<a href="#环境变量-2" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<ul>
+<li><code>LIBRARY_PATH</code> 静态链接库搜索路径</li>
+</ul>
+<h3 id="命令-1">命令<a href="#命令-1" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<h4 id="ar创建或操作静态库">ar：创建或操作静态库<a href="#ar创建或操作静态库" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<pre tabindex="0"><code>-r 将objfile文件插入静态库尾或者替换静态库中同名文件
+
+-x 从静态库文件中抽取文件objfile
+
+-t 打印静态库的成员文件列表
+
+-d 从静态库中删除文件objfile
+
+-s 重置静态库文件索引
+
+-v 创建文件冗余信息
+
+-c 创建静态库文件
+</code></pre><h2 id="q--a">Q &amp; A<a href="#q--a" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<ol>
+<li>
+<p><strong>程序运行时出现libxxx.so.y =&gt; not found</strong></p>
+<blockquote>
+<p>a</p></blockquote>
+</li>
+<li>
+<p>/usr/bin/ld: /usr/local/openssl-1.0.2s/lib//libcrypto.a(cryptlib.o): relocation R_X86_64_32 against `OPENSSL_ia32cap_P&rsquo; can not be used when making a shared object; recompile with -fPIC</p>
+</li>
+</ol>
+<h2 id="reference">Reference<a href="#reference" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<ul>
+<li><a href="https://www.cnblogs.com/masterpanda/p/5700446.html">谈谈Linux下动态库查找路径的问题</a></li>
+</ul>
+
+      </div></div>
+
+  
+    
+
+  
+
+  
+    
+
+  
+</article>
+
+  </div>
+
+  
+    <footer class="footer">
+  <div class="footer__inner">
+    
+      <div class="copyright">
+        <span>© 2025 Powered by <a href="https://gohugo.io">Hugo</a></span>
+    
+      <span>:: <a href="https://github.com/panr/hugo-theme-terminal" target="_blank">Theme</a> made by <a href="https://github.com/panr" target="_blank">panr</a></span>
+      </div>
+  </div>
+</footer>
+
+
+
+
+
+
+<script type="text/javascript" src="/bundle.min.js"></script>
+
+
+
+
+
+  
+  </div>
+
+  <aside class="floating-sidebar">
+    
+<div class="sidebar time-archive">
+  <h3>Time Archives</h3>
+  <div class="archive-list">
+    
+    
+
+    
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+
+    
+    
+
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-09/" class="archive-link">
+          <span class="archive-date">2025-09</span>
+          <span class="archive-month-name">Sep</span>
+          <span class="archive-count">(3)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-08/" class="archive-link">
+          <span class="archive-date">2025-08</span>
+          <span class="archive-month-name">Aug</span>
+          <span class="archive-count">(8)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-06/" class="archive-link">
+          <span class="archive-date">2025-06</span>
+          <span class="archive-month-name">Jun</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-04/" class="archive-link">
+          <span class="archive-date">2025-04</span>
+          <span class="archive-month-name">Apr</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-03/" class="archive-link">
+          <span class="archive-date">2025-03</span>
+          <span class="archive-month-name">Mar</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2024-01/" class="archive-link">
+          <span class="archive-date">2024-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(2)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-07/" class="archive-link">
+          <span class="archive-date">2022-07</span>
+          <span class="archive-month-name">Jul</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-05/" class="archive-link">
+          <span class="archive-date">2022-05</span>
+          <span class="archive-month-name">May</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-03/" class="archive-link">
+          <span class="archive-date">2022-03</span>
+          <span class="archive-month-name">Mar</span>
+          <span class="archive-count">(3)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-11/" class="archive-link">
+          <span class="archive-date">2021-11</span>
+          <span class="archive-month-name">Nov</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-06/" class="archive-link">
+          <span class="archive-date">2021-06</span>
+          <span class="archive-month-name">Jun</span>
+          <span class="archive-count">(3)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-01/" class="archive-link">
+          <span class="archive-date">2021-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+  </div>
+</div>
+
+<style>
+.sidebar.time-archive {
+  background: rgba(26, 23, 15, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--accent, #FFA86B);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+  max-width: var(--sidebar-component-width, 240px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.sidebar.time-archive h3 {
+  margin: 0 0 1rem 0;
+  color: var(--accent, #FFA86B);
+  font-size: 1.2rem;
+  border-bottom: 1px solid var(--accent-alpha-70, rgba(255, 168, 107, 0.7));
+  padding-bottom: 0.5rem;
+}
+
+
+.archive-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.archive-item {
+  display: block;
+}
+
+.archive-link {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  text-decoration: none;
+  color: var(--color, inherit);
+  padding: 0.5rem;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+}
+
+.archive-link:hover {
+  background-color: var(--accent-alpha-20, rgba(255, 168, 107, 0.2));
+  color: var(--accent, #FFA86B);
+}
+
+.archive-date {
+  font-family: var(--code-font-family, 'Fira Code', monospace);
+  font-weight: bold;
+  min-width: 60px;
+}
+
+.archive-month-name {
+  flex: 1;
+  margin-left: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.archive-count {
+  color: var(--accent, #FFA86B);
+  font-weight: bold;
+  font-size: 0.9rem;
+}
+
+ 
+</style>
+
+    
+<div class="sidebar tags-cloud">
+  <h3>Tags Cloud</h3>
+  <div class="tags-container">
+    
+    
+    
+    
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+    
+    
+    
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+    
+    
+    
+    
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+    
+    
+    
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+    
+    
+    
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/compile/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          compile
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/concurrency/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="7 articles">
+          Concurrency
+          <span class="tag-count">(7)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/csi/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          csi
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/dns/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          dns
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/ebpf/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          ebpf
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/elf/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          ELF
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/go/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Go
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/kaist-cs431/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="7 articles">
+          KAIST-CS431
+          <span class="tag-count">(7)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/kubernetes/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          kubernetes
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/lua/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="3 articles">
+          Lua
+          <span class="tag-count">(3)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/makefile/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          makefile
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/mindfulness/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          mindfulness
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/network/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Network
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/nonfiction/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          nonfiction
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/operatingsystem/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          OperatingSystem
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/rust/" 
+           class="tag-item" 
+           style="font-size: 1.5em;"
+           title="10 articles">
+          Rust
+          <span class="tag-count">(10)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/wasm/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Wasm
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+  </div>
+</div>
+
+<style>
+.sidebar.tags-cloud {
+  background: rgba(26, 23, 15, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--accent, #FFA86B);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+  max-width: var(--sidebar-component-width, 240px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.sidebar.tags-cloud h3 {
+  margin: 0 0 1rem 0;
+  color: var(--accent, #FFA86B);
+  font-size: 1.2rem;
+  border-bottom: 1px solid var(--accent-alpha-70, rgba(255, 168, 107, 0.7));
+  padding-bottom: 0.5rem;
+}
+
+.tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  line-height: 1.6;
+}
+
+.tag-item {
+  display: inline-flex;
+  align-items: baseline;
+  text-decoration: none;
+  color: var(--color, inherit);
+  padding: 0.3rem 0.6rem;
+  border-radius: 16px;
+  background: rgba(255, 168, 107, 0.1);
+  border: 1px solid transparent;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.tag-item:hover {
+  background: rgba(255, 168, 107, 0.25);
+  border-color: var(--accent-alpha-50, rgba(255, 168, 107, 0.5));
+  color: var(--accent, #FFA86B);
+  transform: translateY(-1px);
+}
+
+.tag-count {
+  font-size: 0.75em;
+  margin-left: 0.3rem;
+  opacity: 0.7;
+  font-weight: normal;
+}
+
+.tag-item:hover .tag-count {
+  opacity: 1;
+}
+
+ 
+
+ 
+.tag-item {
+  font-weight: 400;
+}
+
+ 
+.tag-item[style*="1.5"], 
+.tag-item[style*="1.4"],
+.tag-item[style*="1.3"] {
+  font-weight: 600;
+}
+
+ 
+.tag-item[style*="1.2"],
+.tag-item[style*="1.1"] {
+  font-weight: 500;
+}
+
+ 
+.tag-item[style*="1.5"]:hover,
+.tag-item[style*="1.4"]:hover,
+.tag-item[style*="1.3"]:hover {
+  box-shadow: 0 3px 10px rgba(255, 168, 107, 0.4);
+  transform: translateY(-2px);
+}
+
+</style>
+
+  </aside>
+</div>
+
+<style>
+ 
+.page-wrapper {
+  position: relative;
+  width: 100%;
+  max-width: none;
+  --sidebar-top-offset: 150px;  
+  --sidebar-component-width: 240px;  
+}
+
+   
+.floating-sidebar {
+  position: absolute;
+   
+  top: var(--sidebar-top-offset, 175px);
+   
+  right: max(20px, calc((100vw - 864px) / 2 - 330px));
+  width: 300px;
+  z-index: 100;
+  opacity: 0.96;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+ 
+.floating-sidebar:hover {
+  opacity: 1;
+  transform: translateX(-5px);
+}
+
+ 
+.floating-sidebar {
+  display: none;
+}
+
+ 
+@media (min-width: 1524px) {
+  .floating-sidebar {
+    display: block;
+    position: absolute;
+    right: max(20px, calc((100vw - 864px) / 2 - 330px));
+  }
+}
+
+ 
+@media (max-width: 1523px) {
+  .floating-sidebar {
+    display: none !important;
+  }
+}
+
+</style>
+
+</body>
+</html>
