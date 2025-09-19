@@ -267,6 +267,71 @@ $$</p>
     
       <article class="post on-list">
         <h1 class="post-title">
+          <a href="https://www.jinzhi.site/posts/2021-11/linux-%E8%BF%9B%E7%A8%8B/">Linux 进程</a>
+        </h1>
+        <div class="post-meta"><time class="post-date">2021-11-30</time></div>
+
+        
+          <span class="post-tags">
+            
+            #<a href="https://www.jinzhi.site/tags/linux/">Linux</a>&nbsp;
+            
+          </span>
+        
+
+        
+
+
+        <div class="post-content">
+          
+            <h2 id="进程和轻量级进程">进程和轻量级进程</h2>
+<p><img src="/images/notes/linux-%E8%BF%9B%E7%A8%8B/image-20211112165309944.png" alt="image-20211112165309944"></p>
+<p>在Linux内核中，进程/线程对应的数据结构是<code>task_struct</code>，定义在<code>include/linux/sched.h</code>中。</p>
+<p>线程在Linux中的实现是 <strong><a href="https://en.wikipedia.org/wiki/Native_POSIX_Thread_Library">Naive POSIX Thread Library</a></strong> 。在内核眼中，Linux的线程实际上也是一个进程（<code>task_struct</code>），区别是线程的“进程”共享了地址空间、文件描述符等，称作==<strong>轻量级进程</strong>==。因此，Linux的线程也是独立的调度单元，是可以分别在不同的CPU上同时运行的。原生的Linux 线程（2.6版本内核之前）因为只实现在了用户态，所以，即使是一个多线程程序，对于内核来说只能看到一个进程，这些线程就只能在一个CPU上运行，对于多核多线程来说是很致命的。</p>
+<p>从实现的角度，Linux的线程（LWP）是通过pthread库创建/使用的。而进程和线程的创建都调用了<code>clone()</code>系统调用（<code>kernel/fork.c</code> ）。区别是两者使用了不同的flags。</p>
+<h2 id="进程管理">进程管理</h2>
+<h3 id="进程状态">进程状态</h3>
+<ul>
+<li><strong>TASK_RUNNING</strong>: The process is either executing on a CPU or waiting to be executed</li>
+<li><strong>TASK_INTERRUPTIBLE</strong>: The process is suspended (sleeping) until some condition becomes true.</li>
+<li><strong>TASK_UNINTERRUPTIBLE</strong>: Like TASK_INTERRUPTIBLE, except that delivering a signal to the sleeping process leaves its state unchanged.</li>
+</ul>
+<h3 id="pid">PID</h3>
+<p>PID用来区分不同的进程结构体。Linux中最大PID数目可以在<code>/proc/sys/kernel/pid_max</code>中查看。</p>
+<p>每个进程/轻量级进程都分配有一个唯一的PID。但是对于同一进程中的线程来说，我们拿到的是进程ID确是相同的，这是怎么实现的呢？</p>
+<p>Linux为了兼容POSIX标准，利用了线程组（thread group）这一概念。所有的线程都会把线程组里面第一个线程的PID存在tgid字段内。==getpid()系统调用返回的实际上是tgid的值。==</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="cm">/**
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * sys_getpid - return the thread group id of the current process
+</span></span></span><span class="line"><span class="cl"><span class="cm"> *
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * Note, despite the name, this returns the tgid not the pid.  The tgid and
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * the pid are identical unless CLONE_THREAD was specified on clone() in
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * which case the tgid is the same in all threads of the same group.
+</span></span></span><span class="line"><span class="cl"><span class="cm"> *
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * This is SMP safe as current-&gt;tgid does not change.
+</span></span></span><span class="line"><span class="cl"><span class="cm"> */</span>
+</span></span><span class="line"><span class="cl"><span class="nf">SYSCALL_DEFINE0</span><span class="p">(</span><span class="n">getpid</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nf">task_tgid_vnr</span><span class="p">(</span><span class="n">current</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><h4 id="bitmap管理pid">bitmap管理PID</h4>
+<h4 id="idr管理pid">IDR管理PID</h4>
+<ul>
+<li>PID: replace pid bitmap implementation with IDR API <a href="https://git.kernel.org/linus/95846ecf9dac5089aed4b144d912225f8ef86ae4">commit</a>, <a href="https://git.kernel.org/linus/e8cfbc245e24887e3c30235f71e9e9405e0cfc39">commit</a></li>
+</ul>
+<h2 id="进程切换">进程切换</h2>
+<p>==<strong>TLDR</strong>：进程在调用<code>schedule()</code>方法时，将当前进程运行的寄存器信息保存在<code>task_struct-&gt;thread_info</code>内，同时从进程B中的<code>task_struct-&gt;thread_info</code>中加载B运行时的寄存器信息。==</p>
+          
+        </div>
+
+        
+          <div>
+            <a class="read-more button inline" href="/posts/2021-11/linux-%E8%BF%9B%E7%A8%8B/">[Read more]</a>
+          </div>
+        
+      </article>
+    
+      <article class="post on-list">
+        <h1 class="post-title">
           <a href="https://www.jinzhi.site/posts/2021-06/rust-concurrency/">Rust: Concurrency</a>
         </h1>
         <div class="post-meta"><time class="post-date">2021-06-27</time></div>
@@ -513,6 +578,10 @@ $$</p>
     
 
     
+    
+      
+      
+      
     
       
       
@@ -931,7 +1000,7 @@ $$</p>
         <a href="/posts/2021-11/" class="archive-link">
           <span class="archive-date">2021-11</span>
           <span class="archive-month-name">Nov</span>
-          <span class="archive-count">(1)</span>
+          <span class="archive-count">(2)</span>
         </a>
       </div>
     
@@ -1213,9 +1282,16 @@ $$</p>
         
       
     
+      
+        
+      
     
     
     
+    
+    
+      
+      
     
       
       
@@ -1641,9 +1717,9 @@ $$</p>
         <a href="https://www.jinzhi.site/tags/linux/" 
            class="tag-item" 
            style="font-size: 0.9em;"
-           title="1 article">
+           title="2 articles">
           Linux
-          <span class="tag-count">(1)</span>
+          <span class="tag-count">(2)</span>
         </a>
       
     

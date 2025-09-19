@@ -2,16 +2,23 @@
 <html lang="en">
 <head>
   
-    <title>Archive for 2022-03 :: chengzhycn&#39;s blog</title>
+    <title>Linux 进程 :: chengzhycn&#39;s blog</title>
   
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="" />
+<meta name="description" content="进程和轻量级进程 在Linux内核中，进程/线程对应的数据结构是task_struct，定义在include/linux/sched.h中。
+线程在Linux中的实现是 Naive POSIX Thread Library 。在内核眼中，Linux的线程实际上也是一个进程（task_struct），区别是线程的“进程”共享了地址空间、文件描述符等，称作==轻量级进程==。因此，Linux的线程也是独立的调度单元，是可以分别在不同的CPU上同时运行的。原生的Linux 线程（2.6版本内核之前）因为只实现在了用户态，所以，即使是一个多线程程序，对于内核来说只能看到一个进程，这些线程就只能在一个CPU上运行，对于多核多线程来说是很致命的。
+从实现的角度，Linux的线程（LWP）是通过pthread库创建/使用的。而进程和线程的创建都调用了clone()系统调用（kernel/fork.c ）。区别是两者使用了不同的flags。
+进程管理 进程状态 TASK_RUNNING: The process is either executing on a CPU or waiting to be executed TASK_INTERRUPTIBLE: The process is suspended (sleeping) until some condition becomes true. TASK_UNINTERRUPTIBLE: Like TASK_INTERRUPTIBLE, except that delivering a signal to the sleeping process leaves its state unchanged. PID PID用来区分不同的进程结构体。Linux中最大PID数目可以在/proc/sys/kernel/pid_max中查看。
+每个进程/轻量级进程都分配有一个唯一的PID。但是对于同一进程中的线程来说，我们拿到的是进程ID确是相同的，这是怎么实现的呢？
+Linux为了兼容POSIX标准，利用了线程组（thread group）这一概念。所有的线程都会把线程组里面第一个线程的PID存在tgid字段内。==getpid()系统调用返回的实际上是tgid的值。==
+/** * sys_getpid - return the thread group id of the current process * * Note, despite the name, this returns the tgid not the pid. The tgid and * the pid are identical unless CLONE_THREAD was specified on clone() in * which case the tgid is the same in all threads of the same group. * * This is SMP safe as current-&gt;tgid does not change. */ SYSCALL_DEFINE0(getpid) { return task_tgid_vnr(current); } bitmap管理PID IDR管理PID PID: replace pid bitmap implementation with IDR API commit, commit 进程切换 ==TLDR：进程在调用schedule()方法时，将当前进程运行的寄存器信息保存在task_struct-&gt;thread_info内，同时从进程B中的task_struct-&gt;thread_info中加载B运行时的寄存器信息。==
+" />
 <meta name="keywords" content="" />
 
   <meta name="robots" content="noodp" />
 
-<link rel="canonical" href="https://www.jinzhi.site/posts/2022-03/" />
+<link rel="canonical" href="https://www.jinzhi.site/posts/2021-11/linux-%E8%BF%9B%E7%A8%8B/" />
 
 
 
@@ -76,10 +83,17 @@
 
 
 <meta property="og:locale" content="en" />
-<meta property="og:type" content="website" />
-<meta property="og:title" content="Archive for 2022-03">
-<meta property="og:description" content="" />
-<meta property="og:url" content="https://www.jinzhi.site/posts/2022-03/" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="Linux 进程">
+<meta property="og:description" content="进程和轻量级进程 在Linux内核中，进程/线程对应的数据结构是task_struct，定义在include/linux/sched.h中。
+线程在Linux中的实现是 Naive POSIX Thread Library 。在内核眼中，Linux的线程实际上也是一个进程（task_struct），区别是线程的“进程”共享了地址空间、文件描述符等，称作==轻量级进程==。因此，Linux的线程也是独立的调度单元，是可以分别在不同的CPU上同时运行的。原生的Linux 线程（2.6版本内核之前）因为只实现在了用户态，所以，即使是一个多线程程序，对于内核来说只能看到一个进程，这些线程就只能在一个CPU上运行，对于多核多线程来说是很致命的。
+从实现的角度，Linux的线程（LWP）是通过pthread库创建/使用的。而进程和线程的创建都调用了clone()系统调用（kernel/fork.c ）。区别是两者使用了不同的flags。
+进程管理 进程状态 TASK_RUNNING: The process is either executing on a CPU or waiting to be executed TASK_INTERRUPTIBLE: The process is suspended (sleeping) until some condition becomes true. TASK_UNINTERRUPTIBLE: Like TASK_INTERRUPTIBLE, except that delivering a signal to the sleeping process leaves its state unchanged. PID PID用来区分不同的进程结构体。Linux中最大PID数目可以在/proc/sys/kernel/pid_max中查看。
+每个进程/轻量级进程都分配有一个唯一的PID。但是对于同一进程中的线程来说，我们拿到的是进程ID确是相同的，这是怎么实现的呢？
+Linux为了兼容POSIX标准，利用了线程组（thread group）这一概念。所有的线程都会把线程组里面第一个线程的PID存在tgid字段内。==getpid()系统调用返回的实际上是tgid的值。==
+/** * sys_getpid - return the thread group id of the current process * * Note, despite the name, this returns the tgid not the pid. The tgid and * the pid are identical unless CLONE_THREAD was specified on clone() in * which case the tgid is the same in all threads of the same group. * * This is SMP safe as current-&gt;tgid does not change. */ SYSCALL_DEFINE0(getpid) { return task_tgid_vnr(current); } bitmap管理PID IDR管理PID PID: replace pid bitmap implementation with IDR API commit, commit 进程切换 ==TLDR：进程在调用schedule()方法时，将当前进程运行的寄存器信息保存在task_struct-&gt;thread_info内，同时从进程B中的task_struct-&gt;thread_info中加载B运行时的寄存器信息。==
+" />
+<meta property="og:url" content="https://www.jinzhi.site/posts/2021-11/linux-%E8%BF%9B%E7%A8%8B/" />
 <meta property="og:site_name" content="chengzhycn&#39;s blog" />
 
   <meta property="og:image" content="https://www.jinzhi.site/og-image.png">
@@ -87,13 +101,13 @@
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="627">
 
-
-  <meta property="article:published_time" content="2022-03-01 00:00:00 &#43;0000 UTC" />
-
+  <meta property="article:section" content="Learning" />
 
 
+  <meta property="article:published_time" content="2021-11-30 08:30:28 &#43;0800 &#43;0800" />
 
-  <link href="/posts/2022-03/index.xml" rel="alternate" type="application/rss+xml" title="chengzhycn&#39;s blog" />
+
+
 
 
 
@@ -203,221 +217,149 @@
 
   <div class="content">
     
-<main class="post-list" role="main">
+<article class="post">
+  <h1 class="post-title">
+    <a href="https://www.jinzhi.site/posts/2021-11/linux-%E8%BF%9B%E7%A8%8B/">Linux 进程</a>
+  </h1>
+  <div class="post-meta"><time class="post-date">2021-11-30</time><span class="post-reading-time">1 min read (211 words)</span></div>
+
+  
+    <span class="post-tags">
+      
+      #<a href="https://www.jinzhi.site/tags/linux/">Linux</a>&nbsp;
+      
+    </span>
   
   
+
+
   
+    <div class="table-of-contents">
+      <h2>
+        Table of Contents
+      </h2>
+      <nav id="TableOfContents">
+  <ul>
+    <li><a href="#进程和轻量级进程">进程和轻量级进程</a></li>
+    <li><a href="#进程管理">进程管理</a>
+      <ul>
+        <li><a href="#进程状态">进程状态</a></li>
+        <li><a href="#pid">PID</a></li>
+      </ul>
+    </li>
+    <li><a href="#进程切换">进程切换</a>
+      <ul>
+        <li><a href="#关键结构体">关键结构体</a></li>
+        <li><a href="#进程切换流程">进程切换流程</a></li>
+      </ul>
+    </li>
+    <li><a href="#进程创建">进程创建</a>
+      <ul>
+        <li><a href="#内核线程">内核线程</a></li>
+      </ul>
+    </li>
+  </ul>
+</nav>
+    </div>
   
+
+  <div class="post-content"><div>
+        <h2 id="进程和轻量级进程">进程和轻量级进程<a href="#进程和轻量级进程" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p><img src="/images/notes/linux-%E8%BF%9B%E7%A8%8B/image-20211112165309944.png" alt="image-20211112165309944"></p>
+<p>在Linux内核中，进程/线程对应的数据结构是<code>task_struct</code>，定义在<code>include/linux/sched.h</code>中。</p>
+<p>线程在Linux中的实现是 <strong><a href="https://en.wikipedia.org/wiki/Native_POSIX_Thread_Library">Naive POSIX Thread Library</a></strong> 。在内核眼中，Linux的线程实际上也是一个进程（<code>task_struct</code>），区别是线程的“进程”共享了地址空间、文件描述符等，称作==<strong>轻量级进程</strong>==。因此，Linux的线程也是独立的调度单元，是可以分别在不同的CPU上同时运行的。原生的Linux 线程（2.6版本内核之前）因为只实现在了用户态，所以，即使是一个多线程程序，对于内核来说只能看到一个进程，这些线程就只能在一个CPU上运行，对于多核多线程来说是很致命的。</p>
+<p>从实现的角度，Linux的线程（LWP）是通过pthread库创建/使用的。而进程和线程的创建都调用了<code>clone()</code>系统调用（<code>kernel/fork.c</code> ）。区别是两者使用了不同的flags。</p>
+<h2 id="进程管理">进程管理<a href="#进程管理" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<h3 id="进程状态">进程状态<a href="#进程状态" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<ul>
+<li><strong>TASK_RUNNING</strong>: The process is either executing on a CPU or waiting to be executed</li>
+<li><strong>TASK_INTERRUPTIBLE</strong>: The process is suspended (sleeping) until some condition becomes true.</li>
+<li><strong>TASK_UNINTERRUPTIBLE</strong>: Like TASK_INTERRUPTIBLE, except that delivering a signal to the sleeping process leaves its state unchanged.</li>
+</ul>
+<h3 id="pid">PID<a href="#pid" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>PID用来区分不同的进程结构体。Linux中最大PID数目可以在<code>/proc/sys/kernel/pid_max</code>中查看。</p>
+<p>每个进程/轻量级进程都分配有一个唯一的PID。但是对于同一进程中的线程来说，我们拿到的是进程ID确是相同的，这是怎么实现的呢？</p>
+<p>Linux为了兼容POSIX标准，利用了线程组（thread group）这一概念。所有的线程都会把线程组里面第一个线程的PID存在tgid字段内。==getpid()系统调用返回的实际上是tgid的值。==</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="cm">/**
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * sys_getpid - return the thread group id of the current process
+</span></span></span><span class="line"><span class="cl"><span class="cm"> *
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * Note, despite the name, this returns the tgid not the pid.  The tgid and
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * the pid are identical unless CLONE_THREAD was specified on clone() in
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * which case the tgid is the same in all threads of the same group.
+</span></span></span><span class="line"><span class="cl"><span class="cm"> *
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * This is SMP safe as current-&gt;tgid does not change.
+</span></span></span><span class="line"><span class="cl"><span class="cm"> */</span>
+</span></span><span class="line"><span class="cl"><span class="nf">SYSCALL_DEFINE0</span><span class="p">(</span><span class="n">getpid</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nf">task_tgid_vnr</span><span class="p">(</span><span class="n">current</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><h4 id="bitmap管理pid">bitmap管理PID<a href="#bitmap管理pid" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<h4 id="idr管理pid">IDR管理PID<a href="#idr管理pid" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<ul>
+<li>PID: replace pid bitmap implementation with IDR API <a href="https://git.kernel.org/linus/95846ecf9dac5089aed4b144d912225f8ef86ae4">commit</a>, <a href="https://git.kernel.org/linus/e8cfbc245e24887e3c30235f71e9e9405e0cfc39">commit</a></li>
+</ul>
+<h2 id="进程切换">进程切换<a href="#进程切换" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>==<strong>TLDR</strong>：进程在调用<code>schedule()</code>方法时，将当前进程运行的寄存器信息保存在<code>task_struct-&gt;thread_info</code>内，同时从进程B中的<code>task_struct-&gt;thread_info</code>中加载B运行时的寄存器信息。==</p>
+<p>关键函数调用链：<code>schedule()</code> -&gt; <code>context_switch(rq, prev, next)</code> -&gt; <code>switch_to(prev, next, prev)</code> -&gt; <code>__switch_to()</code></p>
+<ul>
+<li><code>schedule()</code>: <code>kernel/sched.c</code></li>
+<li><code>context_switch()</code>: <code>kernel/sched.c</code></li>
+<li><code>switch_to()</code>: <code>include/asm-x86_64/system.h</code></li>
+<li><code>__switch_to()</code>: <code>arch/x86_64/kernel/process.c</code></li>
+<li><code>include/asm-x86_64/processor.h</code></li>
+</ul>
+<h3 id="关键结构体">关键结构体<a href="#关键结构体" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<h4 id="struct-tss_struct"><code>struct tss_struct</code><a href="#struct-tss_struct" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<p>存储了IO Permission Bitmap，进程是否允许访问某个地址或者IO端口。</p>
+<p>TSS是per cpu的，因此，进程的hardware context不能存储在TSS内。实际上，==除了通用目的寄存器以外的大部分的寄存器信息都存储在<strong>Kernel Mode Stack</strong>内。==</p>
+<h3 id="进程切换流程">进程切换流程<a href="#进程切换流程" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>进程切换分为两步：</p>
+<ol>
+<li>切换<strong>Page Global Directory</strong>来使用新的地址空间；</li>
+<li>切换<strong>Kernel Mode Stack</strong>和<strong>hardware conext</strong>，包含了一个进程运行所需的所有信息。</li>
+</ol>
+<h2 id="进程创建">进程创建<a href="#进程创建" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<h3 id="内核线程">内核线程<a href="#内核线程" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>所谓的内核线程，就是只运行在内核态的线程。相比之下，正常的线程既可以运行在用户态，也可以运行在内核态。==<strong>因为内核线程只运行在内核态，它只会使用大于PAGE_OFFSET的线性地址。正常线程会在用户态或者内核态使用全部的4GB线性地址(32位系统)</strong>==</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="c1">// include/asm-x86_64/page.h
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span><span class="line"><span class="cl"><span class="cp">#define __PAGE_OFFSET           0xffff810000000000UL
+</span></span></span><span class="line"><span class="cl"><span class="cp">#define PAGE_OFFSET		((unsigned long)__PAGE_OFFSET)
+</span></span></span></code></pre></div><p>创建内核线程的函数<code>create_thread()</code>是一段汇编语言，它基本上实现了下面的调用：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="nf">do_fork</span><span class="p">(</span><span class="n">flags</span><span class="o">|</span><span class="n">CLONE_VM</span><span class="o">|</span><span class="n">CLONE_UNTRACED</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">pregs</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">);</span>
+</span></span></code></pre></div><p><code>CLONE_VM</code>避免拷贝调用进程的page tables，因为内核线程不使用用户态的内存空间，所以拷贝page tables纯属浪费时间和空间。<code>CLONE_UNTRACED</code>保证内核线程不被其它进程追踪，即使调用进程已经被追踪了。</p>
+<p>pregs参数用来给新的内核线程找到</p>
+<h4 id="0号进程">0号进程<a href="#0号进程" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<p>多核系统中，每个CPU都有一个0号进程。</p>
+
+      </div></div>
+
   
-  
+    
+<div class="pagination">
+  <div class="pagination__title">
+    <span class="pagination__title-h">Read other posts</span>
+    <hr />
+  </div>
+  <div class="pagination__buttons">
     
     
     
-      <header class="archive-header">
-        <h1>
-          
-          
-          
-          
-          
-            
-              
-            
-          
-          
-          
-          Archive: March 2022
-        </h1>
-        <p class="archive-description">
-          Posts published in March 2022
-        </p>
-      </header>
-      
-      
-      
-      
-      
-      
-      
-        <div class="posts">
-          
-            <article class="post on-list" itemscope itemtype="http://schema.org/BlogPosting">
-              <header class="post-header">
-                <h2 class="post-title">
-                  <a href="/posts/2022-03/%E7%BD%AE%E8%BA%AB%E4%BA%8B%E5%86%85/">置身事内</a>
-                </h2>
-              </header>
-
-              <div class="post-content">
-                
-              </div>
-
-              <footer class="post-footer">
-                <div class="post-date">
-                  2022-03-09
-                </div>
-                
-                
-                  <div class="post-tags">
-                    
-                      <span class="tag">
-                        <a href="https://www.jinzhi.site/tags/nonfiction/">#nonfiction</a>
-                      </span>
-                    
-                  </div>
-                
-
-                <div class="post-read-more">
-                  <a href="/posts/2022-03/%E7%BD%AE%E8%BA%AB%E4%BA%8B%E5%86%85/">Read more →</a>
-                </div>
-              </footer>
-            </article>
-          
-            <article class="post on-list" itemscope itemtype="http://schema.org/BlogPosting">
-              <header class="post-header">
-                <h2 class="post-title">
-                  <a href="/posts/2022-03/kaist-cs431-lock/">KAIST-CS431: Lock</a>
-                </h2>
-              </header>
-
-              <div class="post-content">
-                
-              </div>
-
-              <footer class="post-footer">
-                <div class="post-date">
-                  2022-03-08
-                </div>
-                
-                
-                  <div class="post-tags">
-                    
-                      <span class="tag">
-                        <a href="https://www.jinzhi.site/tags/concurrency/">#Concurrency</a>
-                      </span>
-                    
-                      <span class="tag">
-                        <a href="https://www.jinzhi.site/tags/rust/">#Rust</a>
-                      </span>
-                    
-                      <span class="tag">
-                        <a href="https://www.jinzhi.site/tags/kaist-cs431/">#KAIST-CS431</a>
-                      </span>
-                    
-                  </div>
-                
-
-                <div class="post-read-more">
-                  <a href="/posts/2022-03/kaist-cs431-lock/">Read more →</a>
-                </div>
-              </footer>
-            </article>
-          
-            <article class="post on-list" itemscope itemtype="http://schema.org/BlogPosting">
-              <header class="post-header">
-                <h2 class="post-title">
-                  <a href="/posts/2022-03/%E6%9E%AA%E7%82%AE%E7%97%85%E8%8F%8C%E4%B8%8E%E9%92%A2%E9%93%81/">枪炮、病菌与钢铁</a>
-                </h2>
-              </header>
-
-              <div class="post-content">
-                
-              </div>
-
-              <footer class="post-footer">
-                <div class="post-date">
-                  2022-03-07
-                </div>
-                
-                
-                  <div class="post-tags">
-                    
-                      <span class="tag">
-                        <a href="https://www.jinzhi.site/tags/nonfiction/">#nonfiction</a>
-                      </span>
-                    
-                  </div>
-                
-
-                <div class="post-read-more">
-                  <a href="/posts/2022-03/%E6%9E%AA%E7%82%AE%E7%97%85%E8%8F%8C%E4%B8%8E%E9%92%A2%E9%93%81/">Read more →</a>
-                </div>
-              </footer>
-            </article>
-          
-        </div>
-      
-      
+      <a href="https://www.jinzhi.site/posts/2021-11/%E6%AD%A3%E5%BF%B5%E5%86%A5%E6%83%B3/" class="button inline next">
+         [<span class="button__text">正念冥想</span>] &gt;
+      </a>
     
+  </div>
+</div>
+
+
   
-</main>
 
-<style>
-.archive-header {
-  margin-bottom: 2rem;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid var(--accent-alpha-20, rgba(255, 168, 107, 0.2));
-}
+  
+    
 
-.archive-header h1 {
-  color: var(--accent, #FFA86B);
-  margin-bottom: 0.5rem;
-}
-
-.archive-description {
-  color: var(--color-secondary, #999);
-  font-style: italic;
-}
-
-.no-posts {
-  text-align: center;
-  padding: 2rem;
-  color: var(--color-secondary, #999);
-}
-
-.post-footer {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-  align-items: center;
-  margin-top: 1rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--accent-alpha-20, rgba(255, 168, 107, 0.2));
-}
-
-.post-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.post-tags .tag a {
-  background: var(--accent-alpha-20, rgba(255, 168, 107, 0.2));
-  padding: 0.2rem 0.5rem;
-  border-radius: 3px;
-  font-size: 0.8rem;
-  text-decoration: none;
-  color: var(--accent, #FFA86B);
-}
-
-.post-tags .tag a:hover {
-  background: var(--accent-alpha-70, rgba(255, 168, 107, 0.7));
-}
-
-.post-read-more {
-  margin-left: auto;
-}
-
-.post-read-more a {
-  color: var(--accent, #FFA86B);
-  text-decoration: none;
-  font-weight: bold;
-}
-
-.post-read-more a:hover {
-  text-decoration: underline;
-}
-</style>
+  
+</article>
 
   </div>
 
