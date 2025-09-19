@@ -216,6 +216,83 @@
     
       <article class="post on-list">
         <h2 class="post-title">
+          <a href="https://www.jinzhi.site/posts/2024-01/ebpf-%E6%8C%87%E4%BB%A4%E9%9B%86%E8%A7%84%E8%8C%83/">eBPF 指令集规范</a>
+        </h2>
+
+        <div class="post-meta"><time class="post-date">2024-01-05</time></div>
+
+        
+          <span class="post-tags">
+            
+            #<a href="https://www.jinzhi.site/tags/ebpf/">eBPF</a>&nbsp;
+            
+          </span>
+        
+
+        
+
+
+        <div class="post-content">
+          
+            <p><a href="https://docs.kernel.org/bpf/standardization/instruction-set.html">1 BPF Instruction Set Specification, v1.0 — The Linux Kernel documentation</a></p>
+<h2 id="寄存器和调用约定">寄存器和调用约定</h2>
+<p>eBPF有10个通用寄存器和一个只读的帧指针寄存器，所有的寄存器都是64bits位长。</p>
+<p>eBPF的调用约定如下：</p>
+<ul>
+<li><strong>R0:</strong> 函数调用的返回值和eBPF程序的退出值</li>
+<li><strong>R1 - R5:</strong> 函数调用的参数</li>
+<li><strong>R6 - R9:</strong> callee saved registers，由函数调用负责保存到栈上</li>
+<li><strong>R10:</strong> 只读的帧指针，用于访问栈
+R0 - R5是临时寄存器，eBPF程序在函数调用时如需使用需要将它们保存/填充。</li>
+</ul>
+<h2 id="指令编码">指令编码</h2>
+<p>eBPF使用64bit指令，编码如下：</p>
+<table>
+  <thead>
+      <tr>
+          <th><strong>32位（最高有效位）</strong></th>
+          <th><strong>16位</strong></th>
+          <th><strong>4位</strong></th>
+          <th><strong>4位</strong></th>
+          <th><strong>8位（最低有效位）</strong></th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>immediate</td>
+          <td>offset</td>
+          <td>source register</td>
+          <td>dest register</td>
+          <td>opcode</td>
+      </tr>
+  </tbody>
+</table>
+<ul>
+<li>imm: 有符号整型立即数</li>
+<li>offset: 有符号整型数，用于指针算术</li>
+<li>src_reg: 除开特殊指令的编码外（如64位立即数指令）指的是源寄存器(R0 - R10)</li>
+<li>dst_reg: 目标寄存器(R0 - R10)</li>
+<li>opcode: 操作码</li>
+</ul>
+<p>绝大多数指令不会使用所有的字段。没有使用的字段应当被置0。多字节的字段（如imm和offset）在大端BPF中以大端字节序存储，小端BPF中以小端字节序存储。</p>
+<pre tabindex="0"><code>opcode                  offset imm          assembly
+       src_reg dst_reg
+07     0       1        00 00  44 33 22 11  r1 += 0x11223344 // little
+       dst_reg src_reg
+07     1       0        00 00  11 22 33 44  r1 += 0x11223344 // big
+</code></pre><p>除了这些基本指令编码外，eBPF还有一种宽指令编码，在基本指令之后使用第2个64位立即数做扩展。第2个立即数包括一个伪指令，和基本指令的格式一样，不过所有的字段（除了imm）都置为0。它的imm作为整个宽指令中的imm64值的高32位：</p>
+          
+        </div>
+
+        
+          <div>
+            <a class="read-more button inline" href="/posts/2024-01/ebpf-%E6%8C%87%E4%BB%A4%E9%9B%86%E8%A7%84%E8%8C%83/">[Read more]</a>
+          </div>
+        
+      </article>
+    
+      <article class="post on-list">
+        <h2 class="post-title">
           <a href="https://www.jinzhi.site/posts/2024-01/ebpf-%E5%85%A8%E5%B1%80%E5%8F%98%E9%87%8F%E7%9A%84%E5%AE%9E%E7%8E%B0/">eBPF 全局变量的实现</a>
         </h2>
 
@@ -566,105 +643,6 @@ typedef struct {
         
       </article>
     
-      <article class="post on-list">
-        <h2 class="post-title">
-          <a href="https://www.jinzhi.site/posts/2022-03/kaist-cs431-lock/">KAIST-CS431: Lock</a>
-        </h2>
-
-        <div class="post-meta"><time class="post-date">2022-03-08</time></div>
-
-        
-          <span class="post-tags">
-            
-            #<a href="https://www.jinzhi.site/tags/concurrency/">Concurrency</a>&nbsp;
-            
-            #<a href="https://www.jinzhi.site/tags/rust/">Rust</a>&nbsp;
-            
-            #<a href="https://www.jinzhi.site/tags/kaist-cs431/">KAIST-CS431</a>&nbsp;
-            
-          </span>
-        
-
-        
-
-
-        <div class="post-content">
-          
-            <ul>
-<li><strong>Pros &amp; cons:</strong> simple &amp; possibly inefficient</li>
-</ul>
-<h2 id="low-level-lock-api">Low-Level Lock API</h2>
-<p>常用的low-level锁的API有：</p>
-<ul>
-<li><strong>Lock.acquire()</strong>: 阻塞，直到获取到锁</li>
-<li><strong>Lock.try_acquire():</strong> 返回锁是否已经被占用了，如果是，返回false，否，占用锁并返回true。不阻塞</li>
-<li><strong>Lock.release()</strong>: 释放锁</li>
-</ul>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c++" data-lang="c++"><span class="line"><span class="cl"><span class="n">L</span><span class="p">.</span><span class="n">acquire</span><span class="p">();</span>
-</span></span><span class="line"><span class="cl"><span class="n">r1</span> <span class="o">=</span> <span class="n">X</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl"><span class="n">X</span> <span class="o">=</span> <span class="n">r1</span> <span class="o">+</span> <span class="mi">1</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl"><span class="n">L</span><span class="p">.</span><span class="n">release</span><span class="p">();</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl"><span class="n">L</span><span class="p">.</span><span class="n">acquire</span><span class="p">();</span>
-</span></span><span class="line"><span class="cl"><span class="n">r2</span> <span class="o">=</span> <span class="n">X</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl"><span class="n">X</span> <span class="o">=</span> <span class="n">r2</span> <span class="o">+</span> <span class="mi">1</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl"><span class="n">L</span><span class="p">.</span><span class="n">release</span><span class="p">();</span>
-</span></span></code></pre></div><p>但是，这些API给用户在使用时造成了很多挑战（心智负担）：</p>
-<ul>
-<li><strong>Relating lock and resource</strong>: 用户只有在拿到锁时才能访问被保护的变量；</li>
-<li><strong>Matching acquire/release</strong>: 用户只能释放已经拿到的锁。</li>
-</ul>
-<p>如果锁没有得到正确的处理，会造成很多潜在的问题，并且，这些问题很难发现。因此，在并发编程时，low-level的锁API存在如下问题：</p>
-<ul>
-<li><strong>High cost</strong>：程序员需要始终关注API的使用；</li>
-<li><strong>Potential bugs</strong>：不正确的使用容易造成很多潜在的bugs。</li>
-</ul>
-<h2 id="high-level-lock-api">High-Level Lock API</h2>
-<ul>
-<li>想要一个易用地，始终能保证安全地high-level API。
-<ul>
-<li>Acquire/release自动匹配；</li>
-<li>Lock和resource显式关联。</li>
-</ul>
-</li>
-</ul>
-<p>C++中，这种API被称作<strong>RAII</strong>：<strong>Resource Acquisition Is Initialization</strong>。</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c++" data-lang="c++"><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;string&gt;</span><span class="cp">
-</span></span></span><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;mutex&gt;</span><span class="cp">
-</span></span></span><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;iostream&gt;</span><span class="cp">
-</span></span></span><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;fstream&gt;</span><span class="cp">
-</span></span></span><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;stdexcept&gt;</span><span class="cp">
-</span></span></span><span class="line"><span class="cl"><span class="cp"></span>
-</span></span><span class="line"><span class="cl"><span class="kt">void</span> <span class="nf">write_to_file</span><span class="p">(</span><span class="k">const</span> <span class="n">std</span><span class="o">::</span><span class="n">string</span> <span class="o">&amp;</span> <span class="n">message</span><span class="p">)</span>
-</span></span><span class="line"><span class="cl"><span class="p">{</span>
-</span></span><span class="line"><span class="cl">    <span class="c1">// 创建关于文件的互斥锁
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="k">static</span> <span class="n">std</span><span class="o">::</span><span class="n">mutex</span> <span class="n">mutex</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl">    <span class="c1">// 在访问文件前进行加锁
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="n">std</span><span class="o">::</span><span class="n">lock_guard</span><span class="o">&lt;</span><span class="n">std</span><span class="o">::</span><span class="n">mutex</span><span class="o">&gt;</span> <span class="n">lock</span><span class="p">(</span><span class="n">mutex</span><span class="p">);</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl">    <span class="c1">// 尝试打开文件
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="n">std</span><span class="o">::</span><span class="n">ofstream</span> <span class="n">file</span><span class="p">(</span><span class="s">&#34;example.txt&#34;</span><span class="p">);</span>
-</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="n">file</span><span class="p">.</span><span class="n">is_open</span><span class="p">())</span>
-</span></span><span class="line"><span class="cl">        <span class="k">throw</span> <span class="n">std</span><span class="o">::</span><span class="n">runtime_error</span><span class="p">(</span><span class="s">&#34;unable to open file&#34;</span><span class="p">);</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl">    <span class="c1">// 输出文件内容
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="n">file</span> <span class="o">&lt;&lt;</span> <span class="n">message</span> <span class="o">&lt;&lt;</span> <span class="n">std</span><span class="o">::</span><span class="n">endl</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl">    <span class="c1">// 当离开作用域时，文件句柄会被首先析构 (不管是否抛出了异常)
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">// 互斥锁也会被析构 (同样地，不管是否抛出了异常)
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="p">}</span>
-</span></span></code></pre></div><p>RAII要求，资源的有效期与持有资源的<a href="https://zh.wikipedia.org/w/index.php?title=%e5%af%b9%e8%b1%a1%e7%9a%84%e7%94%9f%e5%91%bd%e6%9c%9f&amp;action=edit&amp;redlink=1">对象的生命期</a>严格绑定，即由对象的<a href="https://zh.wikipedia.org/wiki/%E6%9E%84%E9%80%A0%E5%87%BD%E6%95%B0">构造函数</a>完成<a href="https://zh.wikipedia.org/w/index.php?title=%e8%b5%84%e6%ba%90%e7%9a%84%e5%88%86%e9%85%8d&amp;action=edit&amp;redlink=1">资源的分配</a>（获取），同时由<a href="https://zh.wikipedia.org/wiki/%E6%9E%90%E6%9E%84%E5%87%BD%E6%95%B0">析构函数</a>完成资源的释放。在这种要求下，只要对象能正确地析构，就不会出现<a href="https://zh.wikipedia.org/w/index.php?title=%e8%b5%84%e6%ba%90%e6%b3%84%e9%9c%b2&amp;action=edit&amp;redlink=1">资源泄露</a>问题。</p>
-          
-        </div>
-
-        
-          <div>
-            <a class="read-more button inline" href="/posts/2022-03/kaist-cs431-lock/">[Read more]</a>
-          </div>
-        
-      </article>
-    
 
     <div class="pagination">
   <div class="pagination__buttons">
@@ -840,6 +818,10 @@ typedef struct {
       
       
     
+      
+      
+      
+    
 
     
     
@@ -897,7 +879,7 @@ typedef struct {
         <a href="/posts/2025-08/" class="archive-link">
           <span class="archive-date">2025-08</span>
           <span class="archive-month-name">Aug</span>
-          <span class="archive-count">(8)</span>
+          <span class="archive-count">(9)</span>
         </a>
       </div>
     
@@ -1388,28 +1370,6 @@ typedef struct {
       
         
       
-        
-      
-    
-      
-        
-      
-    
-      
-    
-      
-        
-      
-    
-      
-        
-      
-    
-      
-        
-      
-        
-      
     
       
         
@@ -1422,13 +1382,17 @@ typedef struct {
       
     
       
-        
-      
-        
+    
       
         
       
     
+      
+        
+      
+    
+      
+        
       
         
       
@@ -1446,7 +1410,17 @@ typedef struct {
       
         
       
+        
+      
+        
+      
     
+      
+        
+      
+    
+      
+        
       
         
       
@@ -1467,9 +1441,24 @@ typedef struct {
         
       
     
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
     
     
     
+    
+    
+      
+      
     
       
       
@@ -2073,7 +2062,7 @@ typedef struct {
            class="tag-item" 
            style="font-size: 0.9em;"
            title="1 article">
-          Wasm
+          wasm
           <span class="tag-count">(1)</span>
         </a>
       

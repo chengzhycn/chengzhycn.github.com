@@ -266,6 +266,112 @@
         
       </article>
     
+      <article class="post on-list">
+        <h1 class="post-title">
+          <a href="https://www.jinzhi.site/posts/2025-08/wasm-internals-stack-machine/">Wasm Internals: Stack Machine</a>
+        </h1>
+        <div class="post-meta"><time class="post-date">2025-08-20</time></div>
+
+        
+          <span class="post-tags">
+            
+            #<a href="https://www.jinzhi.site/tags/wasm/">wasm</a>&nbsp;
+            
+          </span>
+        
+
+        
+
+
+        <div class="post-content">
+          
+            <p>Wasm 中的“栈机”（Stack Machine），这正是其核心执行模型之一。Wasm 是一种基于栈的虚拟机，这意味着它的所有操作都通过从一个操作数栈中弹出值、执行操作并将结果压回栈中来完成。它没有传统的“寄存器”概念。</p>
+<h2 id="什么是栈机">什么是栈机？</h2>
+<p>在计算机科学中，栈机是一种计算模型，其中指令操作数被隐含地从一个被称为“操作数栈”的内存区域中获取，并且结果被隐含地压回这个栈。这种模型与基于寄存器或基于累加器的模型形成对比。</p>
+<h2 id="wasm-栈机的工作原理">Wasm 栈机的工作原理</h2>
+<p>Wasm 模块中的函数是由一系列指令组成的。这些指令会操作一个中央的操作数栈。</p>
+<ol>
+<li>
+<p><strong>操作数栈（Operand Stack）</strong>：</p>
+<ul>
+<li>这是 Wasm 执行函数时最核心的数据结构。</li>
+<li>所有的操作数（如整数、浮点数）和操作结果都临时存储在这个栈上。</li>
+<li>指令不会像在注册机中那样直接指定操作数的位置（如“将 R1 的值加到 R2”）。相反，它们会假定操作数已经在栈的顶部。</li>
+</ul>
+</li>
+<li>
+<p><strong>局部变量（Local Variables）</strong>：</p>
+<ul>
+<li>除了操作数栈，每个函数调用还有一个独立的“局部变量”区域。</li>
+<li>局部变量是命名的存储位置，可以在函数的整个执行过程中被访问和修改。</li>
+<li>虽然局部变量不是栈的一部分，但有很多指令允许你将局部变量的值压入栈中，或者将栈顶部的值存储到局部变量中。</li>
+</ul>
+</li>
+<li>
+<p><strong>参数（Parameters）</strong>：</p>
+<ul>
+<li>函数的参数在函数被调用时，会被初始化为局部变量的一部分（通常是前几个局部变量）。</li>
+<li>它们也可以被认为是函数执行上下文的一部分。</li>
+</ul>
+</li>
+<li>
+<p><strong>指令的操作</strong>：</p>
+<ul>
+<li><strong>压栈（Push）</strong>：很多指令会将值压入栈中。例如：
+<ul>
+<li><code>i32.const 42</code>：将整数常量 <code>42</code> 压入栈。</li>
+<li><code>local.get &lt;idx&gt;</code>：获取索引为 <code>&lt;idx&gt;</code> 的局部变量的值并压入栈。</li>
+</ul>
+</li>
+<li><strong>弹栈（Pop）</strong>：大多数操作指令会从栈顶弹出所需数量的操作数。例如：
+<ul>
+<li><code>i32.add</code>：弹出栈顶的两个 <code>i32</code> 整数，将它们相加，然后将结果压回栈。</li>
+<li><code>if</code>/<code>else</code>/<code>loop</code> 等控制流指令的条件值也会从栈中弹出。</li>
+</ul>
+</li>
+<li><strong>复合操作</strong>：一些指令可能弹出一个值，执行一些副作用（如内存写入），而不压入任何新值。例如：
+<ul>
+<li><code>i32.store</code>：弹出内存地址和要存储的值，将值写入内存。</li>
+</ul>
+</li>
+</ul>
+</li>
+</ol>
+<h2 id="栈机模型的优势与特点">栈机模型的优势与特点</h2>
+<ol>
+<li>
+<p><strong>紧凑性（Compactness）</strong>：</p>
+<ul>
+<li>指令更短，因为它们不需要编码操作数的位置。例如，一个加法操作，在寄存器机中可能需要指定两个源寄存器和一个目标寄存器；在栈机中，它只是一个简单的 <code>add</code> 指令。</li>
+<li>这有助于生成更小的二进制代码，对于 Web 环境中的快速下载和解析非常有利。</li>
+</ul>
+</li>
+<li>
+<p><strong>简化编译器后端（Simplified Compiler Backends）</strong>：</p>
+<ul>
+<li>IR（中间表示）到指令的映射通常更直接。许多高级语言的语义本身就可以很容易地映射到栈操作。</li>
+<li>这使得将 C/C++/Rust 等语言编译到 Wasm 变得相对容易。</li>
+</ul>
+</li>
+<li>
+<p><strong>易于验证（Easy to Validate）</strong>：</p>
+<ul>
+<li>Wasm 在加载时会进行严格的类型检查和结构验证。栈机模型使得验证其类型安全变得相对容易。例如，当检查 <code>i32.add</code> 指令时，验证器只需确保栈顶有两个 <code>i32</code> 类型的值。</li>
+<li>这对于沙盒环境中的安全性至关重要。</li>
+</ul>
+</li>
+<li>
+<p><strong>独立于目标架构（Architecture-Independent）</strong>：</p>
+          
+        </div>
+
+        
+          <div>
+            <a class="read-more button inline" href="/posts/2025-08/wasm-internals-stack-machine/">[Read more]</a>
+          </div>
+        
+      </article>
+    
 
     <div class="pagination">
   <div class="pagination__buttons">
@@ -314,6 +420,10 @@
     
 
     
+    
+      
+      
+      
     
       
       
@@ -488,7 +598,7 @@
         <a href="/posts/2025-08/" class="archive-link">
           <span class="archive-date">2025-08</span>
           <span class="archive-month-name">Aug</span>
-          <span class="archive-count">(8)</span>
+          <span class="archive-count">(9)</span>
         </a>
       </div>
     
@@ -979,28 +1089,6 @@
       
         
       
-        
-      
-    
-      
-        
-      
-    
-      
-    
-      
-        
-      
-    
-      
-        
-      
-    
-      
-        
-      
-        
-      
     
       
         
@@ -1013,13 +1101,17 @@
       
     
       
-        
-      
-        
+    
       
         
       
     
+      
+        
+      
+    
+      
+        
       
         
       
@@ -1037,7 +1129,17 @@
       
         
       
+        
+      
+        
+      
     
+      
+        
+      
+    
+      
+        
       
         
       
@@ -1058,9 +1160,24 @@
         
       
     
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
     
     
     
+    
+    
+      
+      
     
       
       
@@ -1664,7 +1781,7 @@
            class="tag-item" 
            style="font-size: 0.9em;"
            title="1 article">
-          Wasm
+          wasm
           <span class="tag-count">(1)</span>
         </a>
       

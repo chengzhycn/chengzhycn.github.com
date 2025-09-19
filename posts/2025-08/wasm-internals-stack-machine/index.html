@@ -2,23 +2,27 @@
 <html lang="en">
 <head>
   
-    <title>KAIST-CS431: Lock Implementations :: chengzhycn&#39;s blog</title>
+    <title>Wasm Internals: Stack Machine :: chengzhycn&#39;s blog</title>
   
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="Naive Spin Lock Naive Spin Lock的缺陷 无法保证公平性，可能有的倒霉蛋空转了一辈子也无法cas成功，无法做到按竞争线程先来后到的次序占有锁。 扩展性差，大量对同一内存区域的自旋引发性能问题。 对Naive Spin Lock的优化 关键思路：
-通过release/acquire同步机制保证互斥量的排他性 从一个临界区的结束（release）到另一个临界区的开始（acquire） 在ticket lock里面是curr成员，CLH/MCS lock是每个waiter的一个新内存区域 通过排队和等待不同的区域释放保证公平性 通过公平的指令来排队（如swap, fetch-and-add） Ticket lock：通过next来排队，curr来等待锁 CLH/MCS lock：通过tail来排队，等待每个锁调用者申请的不同区域中值的变化来获取锁 Ticket Lock ticket lock在锁的结构体里面新增了一个原子变量next，每次需要竞争锁时，需要先从next中拿到一个ticket，然后再去监听curr，只有curr被更新成当前的ticket值后，才能去占领锁。
-优点 利用公平指令排队解决了公平性问题 缺点 API相对较复杂（调用者感知ticket）（为什么不直接用curr&#43;1？） 没有解决spinlock中所有线程监听同一个原子变量的问题 CLH Lock 为了减少缓存一致性带来的开销，CLH lock被发明了。CLH是三个人首字母的缩写：Craig, Landin, and Hagersten。
-CLH lock给所有等待线程分配了一个Node，每个Node初始为true，在锁内维护一个链表，所有竞争锁的线程都会获取到前一个线程的Node，并将tail指针指向自己的Node。
-不同于spin lock和Ticket lock，CLH lock的临界区是前一个Node中的原子变量。在锁释放时，当前线程会将自己的Node值置为false，而排队的下一个线程监听到这个变化，则可以安全地占有锁了。
-优点 线程监听的不同临界区，减少缓存一致性的开销 链表排队，也能保证公平性 缺点 O(n)的空间复杂度开销，n是临界区数目 每个线程都是在前驱节点的Node上自旋，如果跨NUMA会有性能问题 MCS Lock MCS lock也是以三个人名命名的：John M. Mellor-Crummey and Michael L. Scott。MCS lock和LCH lock最大的不同是：CLH lock是在前驱节点上自旋，MCS则是在自己节点上自旋。
-在CLH的Node结构里面，MCS又添加了一个next字段，新的线程竞争锁时，会将自己的Node添加到前驱节点的next字段中。
+<meta name="description" content="Wasm 中的“栈机”（Stack Machine），这正是其核心执行模型之一。Wasm 是一种基于栈的虚拟机，这意味着它的所有操作都通过从一个操作数栈中弹出值、执行操作并将结果压回栈中来完成。它没有传统的“寄存器”概念。
+什么是栈机？ 在计算机科学中，栈机是一种计算模型，其中指令操作数被隐含地从一个被称为“操作数栈”的内存区域中获取，并且结果被隐含地压回这个栈。这种模型与基于寄存器或基于累加器的模型形成对比。
+Wasm 栈机的工作原理 Wasm 模块中的函数是由一系列指令组成的。这些指令会操作一个中央的操作数栈。
+操作数栈（Operand Stack）：
+这是 Wasm 执行函数时最核心的数据结构。 所有的操作数（如整数、浮点数）和操作结果都临时存储在这个栈上。 指令不会像在注册机中那样直接指定操作数的位置（如“将 R1 的值加到 R2”）。相反，它们会假定操作数已经在栈的顶部。 局部变量（Local Variables）：
+除了操作数栈，每个函数调用还有一个独立的“局部变量”区域。 局部变量是命名的存储位置，可以在函数的整个执行过程中被访问和修改。 虽然局部变量不是栈的一部分，但有很多指令允许你将局部变量的值压入栈中，或者将栈顶部的值存储到局部变量中。 参数（Parameters）：
+函数的参数在函数被调用时，会被初始化为局部变量的一部分（通常是前几个局部变量）。 它们也可以被认为是函数执行上下文的一部分。 指令的操作：
+压栈（Push）：很多指令会将值压入栈中。例如： i32.const 42：将整数常量 42 压入栈。 local.get &lt;idx&gt;：获取索引为 &lt;idx&gt; 的局部变量的值并压入栈。 弹栈（Pop）：大多数操作指令会从栈顶弹出所需数量的操作数。例如： i32.add：弹出栈顶的两个 i32 整数，将它们相加，然后将结果压回栈。 if/else/loop 等控制流指令的条件值也会从栈中弹出。 复合操作：一些指令可能弹出一个值，执行一些副作用（如内存写入），而不压入任何新值。例如： i32.store：弹出内存地址和要存储的值，将值写入内存。 栈机模型的优势与特点 紧凑性（Compactness）：
+指令更短，因为它们不需要编码操作数的位置。例如，一个加法操作，在寄存器机中可能需要指定两个源寄存器和一个目标寄存器；在栈机中，它只是一个简单的 add 指令。 这有助于生成更小的二进制代码，对于 Web 环境中的快速下载和解析非常有利。 简化编译器后端（Simplified Compiler Backends）：
+IR（中间表示）到指令的映射通常更直接。许多高级语言的语义本身就可以很容易地映射到栈操作。 这使得将 C/C&#43;&#43;/Rust 等语言编译到 Wasm 变得相对容易。 易于验证（Easy to Validate）：
+Wasm 在加载时会进行严格的类型检查和结构验证。栈机模型使得验证其类型安全变得相对容易。例如，当检查 i32.add 指令时，验证器只需确保栈顶有两个 i32 类型的值。 这对于沙盒环境中的安全性至关重要。 独立于目标架构（Architecture-Independent）：
 " />
 <meta name="keywords" content="" />
 
   <meta name="robots" content="noodp" />
 
-<link rel="canonical" href="https://www.jinzhi.site/posts/2025-08/kaist-cs431-lock-implementations/" />
+<link rel="canonical" href="https://www.jinzhi.site/posts/2025-08/wasm-internals-stack-machine/" />
 
 
 
@@ -84,16 +88,20 @@ CLH lock给所有等待线程分配了一个Node，每个Node初始为true，在
 
 <meta property="og:locale" content="en" />
 <meta property="og:type" content="article" />
-<meta property="og:title" content="KAIST-CS431: Lock Implementations">
-<meta property="og:description" content="Naive Spin Lock Naive Spin Lock的缺陷 无法保证公平性，可能有的倒霉蛋空转了一辈子也无法cas成功，无法做到按竞争线程先来后到的次序占有锁。 扩展性差，大量对同一内存区域的自旋引发性能问题。 对Naive Spin Lock的优化 关键思路：
-通过release/acquire同步机制保证互斥量的排他性 从一个临界区的结束（release）到另一个临界区的开始（acquire） 在ticket lock里面是curr成员，CLH/MCS lock是每个waiter的一个新内存区域 通过排队和等待不同的区域释放保证公平性 通过公平的指令来排队（如swap, fetch-and-add） Ticket lock：通过next来排队，curr来等待锁 CLH/MCS lock：通过tail来排队，等待每个锁调用者申请的不同区域中值的变化来获取锁 Ticket Lock ticket lock在锁的结构体里面新增了一个原子变量next，每次需要竞争锁时，需要先从next中拿到一个ticket，然后再去监听curr，只有curr被更新成当前的ticket值后，才能去占领锁。
-优点 利用公平指令排队解决了公平性问题 缺点 API相对较复杂（调用者感知ticket）（为什么不直接用curr&#43;1？） 没有解决spinlock中所有线程监听同一个原子变量的问题 CLH Lock 为了减少缓存一致性带来的开销，CLH lock被发明了。CLH是三个人首字母的缩写：Craig, Landin, and Hagersten。
-CLH lock给所有等待线程分配了一个Node，每个Node初始为true，在锁内维护一个链表，所有竞争锁的线程都会获取到前一个线程的Node，并将tail指针指向自己的Node。
-不同于spin lock和Ticket lock，CLH lock的临界区是前一个Node中的原子变量。在锁释放时，当前线程会将自己的Node值置为false，而排队的下一个线程监听到这个变化，则可以安全地占有锁了。
-优点 线程监听的不同临界区，减少缓存一致性的开销 链表排队，也能保证公平性 缺点 O(n)的空间复杂度开销，n是临界区数目 每个线程都是在前驱节点的Node上自旋，如果跨NUMA会有性能问题 MCS Lock MCS lock也是以三个人名命名的：John M. Mellor-Crummey and Michael L. Scott。MCS lock和LCH lock最大的不同是：CLH lock是在前驱节点上自旋，MCS则是在自己节点上自旋。
-在CLH的Node结构里面，MCS又添加了一个next字段，新的线程竞争锁时，会将自己的Node添加到前驱节点的next字段中。
+<meta property="og:title" content="Wasm Internals: Stack Machine">
+<meta property="og:description" content="Wasm 中的“栈机”（Stack Machine），这正是其核心执行模型之一。Wasm 是一种基于栈的虚拟机，这意味着它的所有操作都通过从一个操作数栈中弹出值、执行操作并将结果压回栈中来完成。它没有传统的“寄存器”概念。
+什么是栈机？ 在计算机科学中，栈机是一种计算模型，其中指令操作数被隐含地从一个被称为“操作数栈”的内存区域中获取，并且结果被隐含地压回这个栈。这种模型与基于寄存器或基于累加器的模型形成对比。
+Wasm 栈机的工作原理 Wasm 模块中的函数是由一系列指令组成的。这些指令会操作一个中央的操作数栈。
+操作数栈（Operand Stack）：
+这是 Wasm 执行函数时最核心的数据结构。 所有的操作数（如整数、浮点数）和操作结果都临时存储在这个栈上。 指令不会像在注册机中那样直接指定操作数的位置（如“将 R1 的值加到 R2”）。相反，它们会假定操作数已经在栈的顶部。 局部变量（Local Variables）：
+除了操作数栈，每个函数调用还有一个独立的“局部变量”区域。 局部变量是命名的存储位置，可以在函数的整个执行过程中被访问和修改。 虽然局部变量不是栈的一部分，但有很多指令允许你将局部变量的值压入栈中，或者将栈顶部的值存储到局部变量中。 参数（Parameters）：
+函数的参数在函数被调用时，会被初始化为局部变量的一部分（通常是前几个局部变量）。 它们也可以被认为是函数执行上下文的一部分。 指令的操作：
+压栈（Push）：很多指令会将值压入栈中。例如： i32.const 42：将整数常量 42 压入栈。 local.get &lt;idx&gt;：获取索引为 &lt;idx&gt; 的局部变量的值并压入栈。 弹栈（Pop）：大多数操作指令会从栈顶弹出所需数量的操作数。例如： i32.add：弹出栈顶的两个 i32 整数，将它们相加，然后将结果压回栈。 if/else/loop 等控制流指令的条件值也会从栈中弹出。 复合操作：一些指令可能弹出一个值，执行一些副作用（如内存写入），而不压入任何新值。例如： i32.store：弹出内存地址和要存储的值，将值写入内存。 栈机模型的优势与特点 紧凑性（Compactness）：
+指令更短，因为它们不需要编码操作数的位置。例如，一个加法操作，在寄存器机中可能需要指定两个源寄存器和一个目标寄存器；在栈机中，它只是一个简单的 add 指令。 这有助于生成更小的二进制代码，对于 Web 环境中的快速下载和解析非常有利。 简化编译器后端（Simplified Compiler Backends）：
+IR（中间表示）到指令的映射通常更直接。许多高级语言的语义本身就可以很容易地映射到栈操作。 这使得将 C/C&#43;&#43;/Rust 等语言编译到 Wasm 变得相对容易。 易于验证（Easy to Validate）：
+Wasm 在加载时会进行严格的类型检查和结构验证。栈机模型使得验证其类型安全变得相对容易。例如，当检查 i32.add 指令时，验证器只需确保栈顶有两个 i32 类型的值。 这对于沙盒环境中的安全性至关重要。 独立于目标架构（Architecture-Independent）：
 " />
-<meta property="og:url" content="https://www.jinzhi.site/posts/2025-08/kaist-cs431-lock-implementations/" />
+<meta property="og:url" content="https://www.jinzhi.site/posts/2025-08/wasm-internals-stack-machine/" />
 <meta property="og:site_name" content="chengzhycn&#39;s blog" />
 
   <meta property="og:image" content="https://www.jinzhi.site/og-image.png">
@@ -101,10 +109,10 @@ CLH lock给所有等待线程分配了一个Node，每个Node初始为true，在
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="627">
 
-  <meta property="article:section" content="Courses" />
+  <meta property="article:section" content="Learning" />
 
 
-  <meta property="article:published_time" content="2025-08-28 12:52:58 &#43;0800 &#43;0800" />
+  <meta property="article:published_time" content="2025-08-20 01:04:28 &#43;0800 &#43;0800" />
 
 
 
@@ -219,18 +227,14 @@ CLH lock给所有等待线程分配了一个Node，每个Node初始为true，在
     
 <article class="post">
   <h1 class="post-title">
-    <a href="https://www.jinzhi.site/posts/2025-08/kaist-cs431-lock-implementations/">KAIST-CS431: Lock Implementations</a>
+    <a href="https://www.jinzhi.site/posts/2025-08/wasm-internals-stack-machine/">Wasm Internals: Stack Machine</a>
   </h1>
-  <div class="post-meta"><time class="post-date">2025-08-28</time><span class="post-reading-time">1 min read (88 words)</span></div>
+  <div class="post-meta"><time class="post-date">2025-08-20</time><span class="post-reading-time">2 min read (216 words)</span></div>
 
   
     <span class="post-tags">
       
-      #<a href="https://www.jinzhi.site/tags/rust/">Rust</a>&nbsp;
-      
-      #<a href="https://www.jinzhi.site/tags/concurrency/">Concurrency</a>&nbsp;
-      
-      #<a href="https://www.jinzhi.site/tags/kaist-cs431/">KAIST-CS431</a>&nbsp;
+      #<a href="https://www.jinzhi.site/tags/wasm/">wasm</a>&nbsp;
       
     </span>
   
@@ -244,94 +248,163 @@ CLH lock给所有等待线程分配了一个Node，每个Node初始为true，在
       </h2>
       <nav id="TableOfContents">
   <ul>
-    <li><a href="#naive-spin-lock">Naive Spin Lock</a>
+    <li><a href="#什么是栈机">什么是栈机？</a></li>
+    <li><a href="#wasm-栈机的工作原理">Wasm 栈机的工作原理</a></li>
+    <li><a href="#栈机模型的优势与特点">栈机模型的优势与特点</a>
       <ul>
-        <li><a href="#naive-spin-lock的缺陷">Naive Spin Lock的缺陷</a></li>
+        <li><a href="#示例代码wasm-text-format---wat">示例代码（Wasm Text Format - WAT）</a></li>
       </ul>
     </li>
-    <li><a href="#对naive-spin-lock的优化">对Naive Spin Lock的优化</a>
-      <ul>
-        <li><a href="#ticket-lock">Ticket Lock</a></li>
-        <li><a href="#clh-lock">CLH Lock</a></li>
-        <li><a href="#mcs-lock">MCS Lock</a></li>
-        <li><a href="#mcs-parking-lock">MCS Parking Lock</a></li>
-      </ul>
-    </li>
+    <li><a href="#reference">Reference</a></li>
   </ul>
 </nav>
     </div>
   
 
   <div class="post-content"><div>
-        <h2 id="naive-spin-lock">Naive Spin Lock<a href="#naive-spin-lock" class="hanchor" ariaLabel="Anchor">#</a> </h2>
-<p><img src="/images/notes/kaist-cs431-lock-implementations/image-20220324081153922.png" alt="image-20220324081153922"></p>
-<h3 id="naive-spin-lock的缺陷">Naive Spin Lock的缺陷<a href="#naive-spin-lock的缺陷" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+        <p>Wasm 中的“栈机”（Stack Machine），这正是其核心执行模型之一。Wasm 是一种基于栈的虚拟机，这意味着它的所有操作都通过从一个操作数栈中弹出值、执行操作并将结果压回栈中来完成。它没有传统的“寄存器”概念。</p>
+<h2 id="什么是栈机">什么是栈机？<a href="#什么是栈机" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>在计算机科学中，栈机是一种计算模型，其中指令操作数被隐含地从一个被称为“操作数栈”的内存区域中获取，并且结果被隐含地压回这个栈。这种模型与基于寄存器或基于累加器的模型形成对比。</p>
+<h2 id="wasm-栈机的工作原理">Wasm 栈机的工作原理<a href="#wasm-栈机的工作原理" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>Wasm 模块中的函数是由一系列指令组成的。这些指令会操作一个中央的操作数栈。</p>
+<ol>
+<li>
+<p><strong>操作数栈（Operand Stack）</strong>：</p>
 <ul>
-<li>无法保证公平性，可能有的倒霉蛋空转了一辈子也无法cas成功，无法做到按竞争线程先来后到的次序占有锁。</li>
-<li>扩展性差，大量对同一内存区域的自旋引发性能问题。</li>
-</ul>
-<h2 id="对naive-spin-lock的优化">对Naive Spin Lock的优化<a href="#对naive-spin-lock的优化" class="hanchor" ariaLabel="Anchor">#</a> </h2>
-<p>关键思路：</p>
-<ul>
-<li>通过release/acquire同步机制保证互斥量的排他性
-<ul>
-<li>从一个临界区的结束（release）到另一个临界区的开始（acquire）</li>
-<li>在ticket lock里面是<code>curr</code>成员，CLH/MCS lock是每个waiter的一个新内存区域</li>
+<li>这是 Wasm 执行函数时最核心的数据结构。</li>
+<li>所有的操作数（如整数、浮点数）和操作结果都临时存储在这个栈上。</li>
+<li>指令不会像在注册机中那样直接指定操作数的位置（如“将 R1 的值加到 R2”）。相反，它们会假定操作数已经在栈的顶部。</li>
 </ul>
 </li>
-<li>通过排队和等待不同的区域释放保证公平性
+<li>
+<p><strong>局部变量（Local Variables）</strong>：</p>
 <ul>
-<li>通过公平的指令来排队（如swap, fetch-and-add）</li>
-<li>Ticket lock：通过<code>next</code>来排队，<code>curr</code>来等待锁</li>
-<li>CLH/MCS lock：通过<code>tail</code>来排队，等待每个锁调用者申请的不同区域中值的变化来获取锁</li>
+<li>除了操作数栈，每个函数调用还有一个独立的“局部变量”区域。</li>
+<li>局部变量是命名的存储位置，可以在函数的整个执行过程中被访问和修改。</li>
+<li>虽然局部变量不是栈的一部分，但有很多指令允许你将局部变量的值压入栈中，或者将栈顶部的值存储到局部变量中。</li>
+</ul>
+</li>
+<li>
+<p><strong>参数（Parameters）</strong>：</p>
+<ul>
+<li>函数的参数在函数被调用时，会被初始化为局部变量的一部分（通常是前几个局部变量）。</li>
+<li>它们也可以被认为是函数执行上下文的一部分。</li>
+</ul>
+</li>
+<li>
+<p><strong>指令的操作</strong>：</p>
+<ul>
+<li><strong>压栈（Push）</strong>：很多指令会将值压入栈中。例如：
+<ul>
+<li><code>i32.const 42</code>：将整数常量 <code>42</code> 压入栈。</li>
+<li><code>local.get &lt;idx&gt;</code>：获取索引为 <code>&lt;idx&gt;</code> 的局部变量的值并压入栈。</li>
+</ul>
+</li>
+<li><strong>弹栈（Pop）</strong>：大多数操作指令会从栈顶弹出所需数量的操作数。例如：
+<ul>
+<li><code>i32.add</code>：弹出栈顶的两个 <code>i32</code> 整数，将它们相加，然后将结果压回栈。</li>
+<li><code>if</code>/<code>else</code>/<code>loop</code> 等控制流指令的条件值也会从栈中弹出。</li>
+</ul>
+</li>
+<li><strong>复合操作</strong>：一些指令可能弹出一个值，执行一些副作用（如内存写入），而不压入任何新值。例如：
+<ul>
+<li><code>i32.store</code>：弹出内存地址和要存储的值，将值写入内存。</li>
 </ul>
 </li>
 </ul>
-<h3 id="ticket-lock">Ticket Lock<a href="#ticket-lock" class="hanchor" ariaLabel="Anchor">#</a> </h3>
-<p><img src="/images/notes/kaist-cs431-lock-implementations/image-20220323075751550.png" alt="image-20220323075751550"></p>
-<p>ticket lock在锁的结构体里面新增了一个原子变量<code>next</code>，每次需要竞争锁时，需要先从<code>next</code>中拿到一个ticket，然后再去监听<code>curr</code>，只有<code>curr</code>被更新成当前的ticket值后，才能去占领锁。</p>
-<h4 id="优点">优点<a href="#优点" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+</li>
+</ol>
+<h2 id="栈机模型的优势与特点">栈机模型的优势与特点<a href="#栈机模型的优势与特点" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<ol>
+<li>
+<p><strong>紧凑性（Compactness）</strong>：</p>
 <ul>
-<li>利用公平指令排队解决了公平性问题</li>
+<li>指令更短，因为它们不需要编码操作数的位置。例如，一个加法操作，在寄存器机中可能需要指定两个源寄存器和一个目标寄存器；在栈机中，它只是一个简单的 <code>add</code> 指令。</li>
+<li>这有助于生成更小的二进制代码，对于 Web 环境中的快速下载和解析非常有利。</li>
 </ul>
-<h4 id="缺点">缺点<a href="#缺点" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+</li>
+<li>
+<p><strong>简化编译器后端（Simplified Compiler Backends）</strong>：</p>
 <ul>
-<li>API相对较复杂（调用者感知ticket）（为什么不直接用curr+1？）</li>
-<li>没有解决spinlock中所有线程监听同一个原子变量的问题</li>
+<li>IR（中间表示）到指令的映射通常更直接。许多高级语言的语义本身就可以很容易地映射到栈操作。</li>
+<li>这使得将 C/C++/Rust 等语言编译到 Wasm 变得相对容易。</li>
 </ul>
-<h3 id="clh-lock">CLH Lock<a href="#clh-lock" class="hanchor" ariaLabel="Anchor">#</a> </h3>
-<p><img src="/images/notes/kaist-cs431-lock-implementations/image-20220323082114800.png" alt="image-20220323082114800"></p>
-<p>为了减少缓存一致性带来的开销，CLH lock被发明了。CLH是三个人首字母的缩写：Craig, Landin, and Hagersten。</p>
-<p>CLH lock给所有等待线程分配了一个Node，每个Node初始为true，在锁内维护一个链表，所有竞争锁的线程都会获取到前一个线程的Node，并将<code>tail</code>指针指向自己的Node。</p>
-<p>不同于spin lock和Ticket lock，CLH lock的临界区是前一个Node中的原子变量。在锁释放时，当前线程会将自己的Node值置为false，而排队的下一个线程监听到这个变化，则可以安全地占有锁了。</p>
-<h4 id="优点-1">优点<a href="#优点-1" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+</li>
+<li>
+<p><strong>易于验证（Easy to Validate）</strong>：</p>
 <ul>
-<li>线程监听的不同临界区，减少缓存一致性的开销</li>
-<li>链表排队，也能保证公平性</li>
+<li>Wasm 在加载时会进行严格的类型检查和结构验证。栈机模型使得验证其类型安全变得相对容易。例如，当检查 <code>i32.add</code> 指令时，验证器只需确保栈顶有两个 <code>i32</code> 类型的值。</li>
+<li>这对于沙盒环境中的安全性至关重要。</li>
 </ul>
-<h4 id="缺点-1">缺点<a href="#缺点-1" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+</li>
+<li>
+<p><strong>独立于目标架构（Architecture-Independent）</strong>：</p>
 <ul>
-<li>O(n)的空间复杂度开销，n是临界区数目</li>
-<li>每个线程都是在前驱节点的Node上自旋，如果跨NUMA会有性能问题</li>
+<li>Wasm 字节码是平台无关的。它可以在任何支持 Wasm 运行时的 CPU 架构上运行。栈机模型是这种可移植性的一部分。</li>
 </ul>
-<h3 id="mcs-lock">MCS Lock<a href="#mcs-lock" class="hanchor" ariaLabel="Anchor">#</a> </h3>
-<p><img src="/images/notes/kaist-cs431-lock-implementations/image-20220324080334262.png" alt="image-20220324080334262"></p>
-<p>MCS lock也是以三个人名命名的：John M. Mellor-Crummey and Michael L. Scott。MCS lock和LCH lock最大的不同是：CLH lock是在前驱节点上自旋，MCS则是在自己节点上自旋。</p>
-<p>在CLH的Node结构里面，MCS又添加了一个<code>next</code>字段，新的线程竞争锁时，会将自己的Node添加到前驱节点的<code>next</code>字段中。</p>
-<p>线程持续在自己Node的<code>lock</code>字段上自旋，当为false时，表示可以安全地获取锁。</p>
-<p>在释放锁时，将<code>next</code> Node中的<code>lock</code>置为false，从而通知后驱节点可以获取锁了。</p>
-<p>MCS lock将CLH lock多次对远端内存的监听 + 一次对本地内存的更新，简化成了多次对本地内存的监听 + 一次对远端内存的更新。</p>
-<h4 id="优点-2">优点<a href="#优点-2" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+</li>
+<li>
+<p><strong>性能（Performance）</strong>：</p>
 <ul>
-<li>能够保证公平性</li>
-<li>解决CLH锁跨NUMA的性能问题</li>
+<li>虽然是栈机，但现代 Wasm 运行时（如 V8、SpiderMonkey）会进行即时编译（JIT），将 Wasm 字节码编译成本地机器码。</li>
+<li>JIT 编译器能很好地优化栈操作，例如通过将栈顶的某些值映射到 CPU 寄存器，从而避免实际的内存栈访问。因此，栈机在运行时层面并不意味着性能低下。</li>
 </ul>
-<h4 id="缺点-2">缺点<a href="#缺点-2" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+</li>
+</ol>
+<h3 id="示例代码wasm-text-format---wat">示例代码（Wasm Text Format - WAT）<a href="#示例代码wasm-text-format---wat" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>以下是一个简单的 Wasm 函数（WAT 格式），演示了栈机的工作原理：</p>
+<pre tabindex="0"><code class="language-wasm" data-lang="wasm">(module
+  (func $add_two_numbers_and_store (param $x i32) (param $y i32) (result i32)
+    (local $temp_sum i32)  ;; 声明一个局部变量
+
+    ;; 将参数压入栈
+    get_local $x         ;; 栈: [x]
+    get_local $y         ;; 栈: [x, y]
+
+    ;; 执行加法操作
+    i32.add              ;; 弹出 x 和 y，计算 x + y，将结果压回栈
+                         ;; 栈: [x+y]
+
+    ;; 将栈顶结果存储到局部变量
+    set_local $temp_sum  ;; 栈: [] (弹出了 x+y 并存储到 $temp_sum)
+
+    ;; 将局部变量的值压入栈作为函数结果
+    get_local $temp_sum  ;; 栈: [temp_sum]
+  )
+)
+</code></pre><p><strong>栈状态变化跟踪：</strong></p>
+<ol>
+<li><code>get_local $x</code>: 参数 <code>$x</code> (类型 i32) 的值被压入操作数栈。
 <ul>
-<li>unlock可能会存在一次额外的cas开销</li>
+<li>栈: <code>[val_of_x]</code></li>
 </ul>
-<h3 id="mcs-parking-lock">MCS Parking Lock<a href="#mcs-parking-lock" class="hanchor" ariaLabel="Anchor">#</a> </h3>
-<p>MCS Parking Lock即即将MCS Lock中的自旋改成了parking。牺牲了低竞争环境下的性能，改善大量锁自旋引发的开销。</p>
+</li>
+<li><code>get_local $y</code>: 参数 <code>$y</code> (类型 i32) 的值被压入操作数栈。
+<ul>
+<li>栈: <code>[val_of_x, val_of_y]</code></li>
+</ul>
+</li>
+<li><code>i32.add</code>: 从栈顶弹出 <code>val_of_y</code> 和 <code>val_of_x</code>。它们被相加。结果 (<code>val_of_x + val_of_y</code>) 被压回栈。
+<ul>
+<li>栈: <code>[sum]</code></li>
+</ul>
+</li>
+<li><code>set_local $temp_sum</code>: 从栈顶弹出 <code>sum</code>，并将其值存储到局部变量 <code>$temp_sum</code> 中。
+<ul>
+<li>栈: <code>[]</code></li>
+</ul>
+</li>
+<li><code>get_local $temp_sum</code>: 局部变量 <code>$temp_sum</code> 的值被压入操作数栈。
+<ul>
+<li>栈: <code>[final_result]</code></li>
+</ul>
+</li>
+</ol>
+<p>由于这是函数的最后一条指令，并且函数声明了 <code>(result i32)</code>，栈顶的 <code>[final_result]</code> 就是函数的返回值。</p>
+<h2 id="reference">Reference<a href="#reference" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<ul>
+<li><a href="https://hacks.mozilla.org/2017/02/creating-and-working-with-webassembly-modules/">https://hacks.mozilla.org/2017/02/creating-and-working-with-webassembly-modules/</a></li>
+</ul>
 
       </div></div>
 
@@ -344,17 +417,11 @@ CLH lock给所有等待线程分配了一个Node，每个Node初始为true，在
   </div>
   <div class="pagination__buttons">
     
-      <a href="https://www.jinzhi.site/posts/2025-08/kaist-cs431-concurrent-data-structure/" class="button inline prev">
-        &lt; [<span class="button__text">KAIST-CS431: Concurrent Data Structure</span>]
+      <a href="https://www.jinzhi.site/posts/2025-08/wasm-internals-overview/" class="button inline prev">
+        &lt; [<span class="button__text">Wasm Internals - Overview</span>]
       </a>
     
     
-      ::
-    
-    
-      <a href="https://www.jinzhi.site/posts/2025-08/kaist-cs431-promising-semantics/" class="button inline next">
-         [<span class="button__text">KAIST-CS431: Promising Semantics</span>] &gt;
-      </a>
     
   </div>
 </div>
