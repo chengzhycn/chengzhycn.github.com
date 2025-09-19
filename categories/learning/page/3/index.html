@@ -207,6 +207,66 @@
     
       <article class="post on-list">
         <h1 class="post-title">
+          <a href="https://www.jinzhi.site/posts/2022-01/linux-%E8%BF%9B%E7%A8%8B%E8%B0%83%E5%BA%A6/">Linux 进程调度</a>
+        </h1>
+        <div class="post-meta"><time class="post-date">2022-01-11</time></div>
+
+        
+          <span class="post-tags">
+            
+            #<a href="https://www.jinzhi.site/tags/linux/">Linux</a>&nbsp;
+            
+            #<a href="https://www.jinzhi.site/tags/schedule/">Schedule</a>&nbsp;
+            
+          </span>
+        
+
+        
+
+
+        <div class="post-content">
+          
+            <p>总体来说，调度主要解决两类问题：</p>
+<ul>
+<li>什么时候调度</li>
+<li>调度的目标是谁
+而一个优秀的调度系统，可以从如下几个指标判断：</li>
+<li>fast process response time</li>
+<li>good throughput for background jobs</li>
+<li>avoidance of process starvation</li>
+<li>reconciliation of the needs of low- and high- priority processes</li>
+</ul>
+<p>Linux调度基于分时（Time-Sharing）：多个进程共享同一个CPU，CPU运行时切分成多个时间片。分时技术依赖于timer interrupt，对进程来说是透明的。</p>
+<p>Linux进程是<strong>可抢占</strong>的。当进程切换到<code>TASK_RUNNING</code>状态，内核检查其动态优先级是否比当前运行的进程的优先级高。如果更高，当前执行的进程中断掉，调度器切入，选择另外一个进程运行（通常是刚刚切换成runnable的进程）。当进程的时间片消耗完毕时，进程也是可被抢占的。当前进程<code>struct thread_info</code>中的<code>TIF_NEED_RESCHED</code>被设置，timer interrupt handler终止后，scheduler切入。</p>
+<p>一个被抢占的进程并不是被暂停，它还维持在<code>TASK_RUNNING</code>状态，只不过不再使用CPU。</p>
+<h2 id="调度算法">调度算法</h2>
+<p>Linux 2.6版本之前的调度算法很简单，进程切换时，内核扫描runnable进程列表，计算它们的优先级，选择“最优”的进程运行。这种算法的问题是切换时的时间开销会随着进程数目的增多呈线性增长。</p>
+<p>调度策略：</p>
+<ul>
+<li><code>SCHED_FIFO</code></li>
+<li><code>SCHED_RR</code></li>
+<li><code>SCHED_NORMAL</code></li>
+</ul>
+<h3 id="o1-scheduler">O(1) Scheduler</h3>
+<p>基于Linux-2.6.12版本。</p>
+<h4 id="优先级">优先级</h4>
+<p>Linux 2.6.12 内核里，优先级表示分为用户态和内核态。用户态优先级就是我们常用的nice值。取值范围[-20, 19]。内核态优先级被称作静态优先级（static priority），取值范围是[0, 139]。其中，[0, 99]是Real-Time Process，[100, 139]对应用户态nice值。</p>
+<p>在静态优先级外，真正发挥作用的是<strong>动态优先级（dynamic priority）</strong>。动态优先级实际上是静态优先级加上了一个运行时补偿（bonus）：
+$$
+dynamic_priority = max(100, min((static_priority - 5 + bonus), 139)), bonus \in [0, 10]
+$$</p>
+          
+        </div>
+
+        
+          <div>
+            <a class="read-more button inline" href="/posts/2022-01/linux-%E8%BF%9B%E7%A8%8B%E8%B0%83%E5%BA%A6/">[Read more]</a>
+          </div>
+        
+      </article>
+    
+      <article class="post on-list">
+        <h1 class="post-title">
           <a href="https://www.jinzhi.site/posts/2021-06/rust-concurrency/">Rust: Concurrency</a>
         </h1>
         <div class="post-meta"><time class="post-date">2021-06-27</time></div>
@@ -453,6 +513,10 @@
     
 
     
+    
+      
+      
+      
     
       
       
@@ -836,6 +900,34 @@
       
 
       <div class="archive-item">
+        <a href="/posts/2022-01/" class="archive-link">
+          <span class="archive-date">2022-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
         <a href="/posts/2021-11/" class="archive-link">
           <span class="archive-date">2021-11</span>
           <span class="archive-month-name">Nov</span>
@@ -1098,8 +1190,6 @@
       
         
       
-    
-      
         
       
     
@@ -1115,9 +1205,23 @@
         
       
     
+      
+        
+      
+    
+      
+        
+      
     
     
     
+    
+    
+      
+      
+    
+      
+      
     
       
       
@@ -1244,11 +1348,17 @@
     
       
       
+    
     
     
     
     
+    
+      
+      
     
+      
+      
     
       
       
@@ -1300,10 +1410,14 @@
     
       
       
+    
     
     
     
     
+      
+    
+      
     
       
     
@@ -1524,6 +1638,25 @@
         
         
         
+        <a href="https://www.jinzhi.site/tags/linux/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Linux
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
         <a href="https://www.jinzhi.site/tags/lua/" 
            class="tag-item" 
            style="font-size: 0.9em;"
@@ -1644,6 +1777,25 @@
            title="10 articles">
           Rust
           <span class="tag-count">(10)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/schedule/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Schedule
+          <span class="tag-count">(1)</span>
         </a>
       
     

@@ -1,0 +1,1988 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  
+    <title>Linux 进程调度 :: chengzhycn&#39;s blog</title>
+  
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="总体来说，调度主要解决两类问题：
+什么时候调度 调度的目标是谁 而一个优秀的调度系统，可以从如下几个指标判断： fast process response time good throughput for background jobs avoidance of process starvation reconciliation of the needs of low- and high- priority processes Linux调度基于分时（Time-Sharing）：多个进程共享同一个CPU，CPU运行时切分成多个时间片。分时技术依赖于timer interrupt，对进程来说是透明的。
+Linux进程是可抢占的。当进程切换到TASK_RUNNING状态，内核检查其动态优先级是否比当前运行的进程的优先级高。如果更高，当前执行的进程中断掉，调度器切入，选择另外一个进程运行（通常是刚刚切换成runnable的进程）。当进程的时间片消耗完毕时，进程也是可被抢占的。当前进程struct thread_info中的TIF_NEED_RESCHED被设置，timer interrupt handler终止后，scheduler切入。
+一个被抢占的进程并不是被暂停，它还维持在TASK_RUNNING状态，只不过不再使用CPU。
+调度算法 Linux 2.6版本之前的调度算法很简单，进程切换时，内核扫描runnable进程列表，计算它们的优先级，选择“最优”的进程运行。这种算法的问题是切换时的时间开销会随着进程数目的增多呈线性增长。
+调度策略：
+SCHED_FIFO SCHED_RR SCHED_NORMAL O(1) Scheduler 基于Linux-2.6.12版本。
+优先级 Linux 2.6.12 内核里，优先级表示分为用户态和内核态。用户态优先级就是我们常用的nice值。取值范围[-20, 19]。内核态优先级被称作静态优先级（static priority），取值范围是[0, 139]。其中，[0, 99]是Real-Time Process，[100, 139]对应用户态nice值。
+在静态优先级外，真正发挥作用的是动态优先级（dynamic priority）。动态优先级实际上是静态优先级加上了一个运行时补偿（bonus）： $$ dynamic_priority = max(100, min((static_priority - 5 &#43; bonus), 139)), bonus \in [0, 10] $$
+" />
+<meta name="keywords" content="" />
+
+  <meta name="robots" content="noodp" />
+
+<link rel="canonical" href="https://www.jinzhi.site/posts/2022-01/linux-%E8%BF%9B%E7%A8%8B%E8%B0%83%E5%BA%A6/" />
+
+
+
+
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/buttons.min.86f6b4c106b6c6eb690ae5203d36b442c1f66f718ff4e8164fa86cf6c61ad641.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/code.min.d529ea4b2fb8d34328d7d31afc5466d5f7bc2f0bc9abdd98b69385335d7baee4.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/fonts.min.5bb7ed13e1d00d8ff39ea84af26737007eb5051b157b86fc24487c94f3dc8bbe.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/footer.min.eb8dfc2c6a7eafa36cd3ba92d63e69e849e2200e0002a228d137f236b09ecd75.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/gist.min.a751e8b0abe1ba8bc53ced52a38b19d8950fe78ca29454ea8c2595cf26aad5c0.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/header.min.75c7eb0e2872d95ff48109c6647d0223a38db52e2561dd87966eb5fc7c6bdac6.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/main.min.7984a754b43b7469d389c539410e90dff2870263de16b008dfc7e8170fcd0f5b.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/menu.min.3c17467ebeb3d38663dce68f71f519901124fa5cbb4519b2fb0667a21e9aca39.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/pagination.min.bbb986dbce00a5ce5aca0504b7925fc1c581992a4bf57f163e5d69cc1db7d836.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/post.min.e6dddd258e64c83e05cec0cd49c05216742d42fc8ecbfbe6b67083412b609bd3.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/syntax.min.a0773cce9310cb6d8ed23e50f005448facf29a53001b57e038828daa466b25c0.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/terminal.min.e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/terms.min.b81791663c3790e738e571cdbf802312390d30e4b1d8dc9d814a5b5454d0ac11.css">
+
+
+
+
+
+
+
+<link rel="shortcut icon" href="https://www.jinzhi.site/favicon.png">
+<link rel="apple-touch-icon" href="https://www.jinzhi.site/apple-touch-icon.png">
+
+
+<meta name="twitter:card" content="summary" />
+
+  
+    <meta name="twitter:site" content="" />
+  
+    <meta name="twitter:creator" content="" />
+
+
+
+<meta property="og:locale" content="en" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="Linux 进程调度">
+<meta property="og:description" content="总体来说，调度主要解决两类问题：
+什么时候调度 调度的目标是谁 而一个优秀的调度系统，可以从如下几个指标判断： fast process response time good throughput for background jobs avoidance of process starvation reconciliation of the needs of low- and high- priority processes Linux调度基于分时（Time-Sharing）：多个进程共享同一个CPU，CPU运行时切分成多个时间片。分时技术依赖于timer interrupt，对进程来说是透明的。
+Linux进程是可抢占的。当进程切换到TASK_RUNNING状态，内核检查其动态优先级是否比当前运行的进程的优先级高。如果更高，当前执行的进程中断掉，调度器切入，选择另外一个进程运行（通常是刚刚切换成runnable的进程）。当进程的时间片消耗完毕时，进程也是可被抢占的。当前进程struct thread_info中的TIF_NEED_RESCHED被设置，timer interrupt handler终止后，scheduler切入。
+一个被抢占的进程并不是被暂停，它还维持在TASK_RUNNING状态，只不过不再使用CPU。
+调度算法 Linux 2.6版本之前的调度算法很简单，进程切换时，内核扫描runnable进程列表，计算它们的优先级，选择“最优”的进程运行。这种算法的问题是切换时的时间开销会随着进程数目的增多呈线性增长。
+调度策略：
+SCHED_FIFO SCHED_RR SCHED_NORMAL O(1) Scheduler 基于Linux-2.6.12版本。
+优先级 Linux 2.6.12 内核里，优先级表示分为用户态和内核态。用户态优先级就是我们常用的nice值。取值范围[-20, 19]。内核态优先级被称作静态优先级（static priority），取值范围是[0, 139]。其中，[0, 99]是Real-Time Process，[100, 139]对应用户态nice值。
+在静态优先级外，真正发挥作用的是动态优先级（dynamic priority）。动态优先级实际上是静态优先级加上了一个运行时补偿（bonus）： $$ dynamic_priority = max(100, min((static_priority - 5 &#43; bonus), 139)), bonus \in [0, 10] $$
+" />
+<meta property="og:url" content="https://www.jinzhi.site/posts/2022-01/linux-%E8%BF%9B%E7%A8%8B%E8%B0%83%E5%BA%A6/" />
+<meta property="og:site_name" content="chengzhycn&#39;s blog" />
+
+  <meta property="og:image" content="https://www.jinzhi.site/og-image.png">
+
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="627">
+
+  <meta property="article:section" content="Learning" />
+
+
+  <meta property="article:published_time" content="2022-01-11 14:30:28 &#43;0800 &#43;0800" />
+
+
+
+
+
+
+
+
+
+<html>
+<head>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-screen-web/style.css" />
+  <style>
+    body {
+      font-family: "LXGW WenKai Screen";
+      font-weight: normal;
+    }
+  </style>
+</head>
+<body>
+
+</body>
+</html>
+
+
+</head>
+<body>
+
+
+<div class="page-wrapper">
+  <div class="container center">
+
+  <header class="header">
+  <div class="header__inner">
+    <div class="header__logo">
+      <a href="/">
+  <div class="logo">
+    chengzhycn&#39;s blog
+  </div>
+</a>
+
+    </div>
+    
+      <ul class="menu menu--mobile">
+  <li class="menu__trigger">Menu&nbsp;▾</li>
+  <li>
+    <ul class="menu__dropdown">
+      
+        
+          <li><a href="/">Home</a></li>
+        
+      
+        
+          <li><a href="/about">About</a></li>
+        
+      
+        
+          <li><a href="/categories/">Categories</a></li>
+        
+      
+        
+          <li><a href="/tags/">Tags</a></li>
+        
+      
+        
+          <li><a href="/archives/">Archives</a></li>
+        
+      
+      
+    </ul>
+  </li>
+</ul>
+
+    
+    
+  </div>
+  
+    <nav class="navigation-menu">
+  <ul class="navigation-menu__inner menu--desktop">
+    
+      
+        
+          <li><a href="/" >Home</a></li>
+        
+      
+        
+          <li><a href="/about" >About</a></li>
+        
+      
+        
+          <li><a href="/categories/" >Categories</a></li>
+        
+      
+        
+          <li><a href="/tags/" >Tags</a></li>
+        
+      
+        
+          <li><a href="/archives/" >Archives</a></li>
+        
+      
+      
+    
+  </ul>
+</nav>
+
+  
+</header>
+
+
+  <div class="content">
+    
+<article class="post">
+  <h1 class="post-title">
+    <a href="https://www.jinzhi.site/posts/2022-01/linux-%E8%BF%9B%E7%A8%8B%E8%B0%83%E5%BA%A6/">Linux 进程调度</a>
+  </h1>
+  <div class="post-meta"><time class="post-date">2022-01-11</time><span class="post-reading-time">5 min read (908 words)</span></div>
+
+  
+    <span class="post-tags">
+      
+      #<a href="https://www.jinzhi.site/tags/linux/">Linux</a>&nbsp;
+      
+      #<a href="https://www.jinzhi.site/tags/schedule/">Schedule</a>&nbsp;
+      
+    </span>
+  
+  
+
+
+  
+    <div class="table-of-contents">
+      <h2>
+        Table of Contents
+      </h2>
+      <nav id="TableOfContents">
+  <ul>
+    <li><a href="#调度算法">调度算法</a>
+      <ul>
+        <li><a href="#o1-scheduler">O(1) Scheduler</a></li>
+        <li><a href="#cfs-scheduler">CFS Scheduler</a></li>
+      </ul>
+    </li>
+    <li><a href="#references">References</a></li>
+  </ul>
+</nav>
+    </div>
+  
+
+  <div class="post-content"><div>
+        <p>总体来说，调度主要解决两类问题：</p>
+<ul>
+<li>什么时候调度</li>
+<li>调度的目标是谁
+而一个优秀的调度系统，可以从如下几个指标判断：</li>
+<li>fast process response time</li>
+<li>good throughput for background jobs</li>
+<li>avoidance of process starvation</li>
+<li>reconciliation of the needs of low- and high- priority processes</li>
+</ul>
+<p>Linux调度基于分时（Time-Sharing）：多个进程共享同一个CPU，CPU运行时切分成多个时间片。分时技术依赖于timer interrupt，对进程来说是透明的。</p>
+<p>Linux进程是<strong>可抢占</strong>的。当进程切换到<code>TASK_RUNNING</code>状态，内核检查其动态优先级是否比当前运行的进程的优先级高。如果更高，当前执行的进程中断掉，调度器切入，选择另外一个进程运行（通常是刚刚切换成runnable的进程）。当进程的时间片消耗完毕时，进程也是可被抢占的。当前进程<code>struct thread_info</code>中的<code>TIF_NEED_RESCHED</code>被设置，timer interrupt handler终止后，scheduler切入。</p>
+<p>一个被抢占的进程并不是被暂停，它还维持在<code>TASK_RUNNING</code>状态，只不过不再使用CPU。</p>
+<h2 id="调度算法">调度算法<a href="#调度算法" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>Linux 2.6版本之前的调度算法很简单，进程切换时，内核扫描runnable进程列表，计算它们的优先级，选择“最优”的进程运行。这种算法的问题是切换时的时间开销会随着进程数目的增多呈线性增长。</p>
+<p>调度策略：</p>
+<ul>
+<li><code>SCHED_FIFO</code></li>
+<li><code>SCHED_RR</code></li>
+<li><code>SCHED_NORMAL</code></li>
+</ul>
+<h3 id="o1-scheduler">O(1) Scheduler<a href="#o1-scheduler" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>基于Linux-2.6.12版本。</p>
+<h4 id="优先级">优先级<a href="#优先级" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<p>Linux 2.6.12 内核里，优先级表示分为用户态和内核态。用户态优先级就是我们常用的nice值。取值范围[-20, 19]。内核态优先级被称作静态优先级（static priority），取值范围是[0, 139]。其中，[0, 99]是Real-Time Process，[100, 139]对应用户态nice值。</p>
+<p>在静态优先级外，真正发挥作用的是<strong>动态优先级（dynamic priority）</strong>。动态优先级实际上是静态优先级加上了一个运行时补偿（bonus）：
+$$
+dynamic_priority = max(100, min((static_priority - 5 + bonus), 139)), bonus \in [0, 10]
+$$</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="c1">// kernel/sched.c
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span><span class="line"><span class="cl"><span class="cp">#define CURRENT_BONUS(p) \
+</span></span></span><span class="line"><span class="cl"><span class="cp">    (NS_TO_JIFFIES((p)-&gt;sleep_avg) * MAX_BONUS / \
+</span></span></span><span class="line"><span class="cl"><span class="cp">        MAX_SLEEP_AVG)
+</span></span></span><span class="line"><span class="cl"><span class="cp"></span>
+</span></span><span class="line"><span class="cl"><span class="cm">/*
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * effective_prio - return the priority that is based on the static
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * priority but is modified by bonuses/penalties.
+</span></span></span><span class="line"><span class="cl"><span class="cm"> *
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * We scale the actual sleep average [0 .... MAX_SLEEP_AVG]
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * into the -5 ... 0 ... +5 bonus/penalty range.
+</span></span></span><span class="line"><span class="cl"><span class="cm"> *
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * We use 25% of the full 0...39 priority range so that:
+</span></span></span><span class="line"><span class="cl"><span class="cm"> *
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * 1) nice +19 interactive tasks do not preempt nice 0 CPU hogs.
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * 2) nice -20 CPU hogs do not get preempted by nice 0 tasks.
+</span></span></span><span class="line"><span class="cl"><span class="cm"> *
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * Both properties are important to certain workloads.
+</span></span></span><span class="line"><span class="cl"><span class="cm"> */</span>
+</span></span><span class="line"><span class="cl"><span class="k">static</span> <span class="kt">int</span> <span class="nf">effective_prio</span><span class="p">(</span><span class="kt">task_t</span> <span class="o">*</span><span class="n">p</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">int</span> <span class="n">bonus</span><span class="p">,</span> <span class="n">prio</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="nf">rt_task</span><span class="p">(</span><span class="n">p</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">p</span><span class="o">-&gt;</span><span class="n">prio</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">bonus</span> <span class="o">=</span> <span class="nf">CURRENT_BONUS</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="o">-</span> <span class="n">MAX_BONUS</span> <span class="o">/</span> <span class="mi">2</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">prio</span> <span class="o">=</span> <span class="n">p</span><span class="o">-&gt;</span><span class="n">static_prio</span> <span class="o">-</span> <span class="n">bonus</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">prio</span> <span class="o">&lt;</span> <span class="n">MAX_RT_PRIO</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="n">prio</span> <span class="o">=</span> <span class="n">MAX_RT_PRIO</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">prio</span> <span class="o">&gt;</span> <span class="n">MAX_PRIO</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="n">prio</span> <span class="o">=</span> <span class="n">MAX_PRIO</span><span class="o">-</span><span class="mi">1</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">prio</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>bonus的取值跟进程结构体中<code>sleep_avg</code>的值相关。<code>sleep_avg</code>的初始化在函数<code>recalc_task_prio(task_t *p unsigned long long now)</code>中，此处不再粘贴代码。总体上说，average sleep time越长，会增加bonus的值，导致优先级降低。==因为休眠时间越长，用户任务会被归类为idle，降低其优先级防止饿死其他进程。==</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="cm">/*
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * These are the &#39;tuning knobs&#39; of the scheduler:
+</span></span></span><span class="line"><span class="cl"><span class="cm"> *
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * Minimum timeslice is 5 msecs (or 1 jiffy, whichever is larger),
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * default timeslice is 100 msecs, maximum timeslice is 800 msecs.
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * Timeslices get refilled after they expire.
+</span></span></span><span class="line"><span class="cl"><span class="cm"> */</span>
+</span></span><span class="line"><span class="cl"><span class="cp">#define MIN_TIMESLICE       max(5 * HZ / 1000, 1)
+</span></span></span><span class="line"><span class="cl"><span class="cp">#define DEF_TIMESLICE       (100 * HZ / 1000)
+</span></span></span><span class="line"><span class="cl"><span class="cp"></span>
+</span></span><span class="line"><span class="cl"><span class="cp">#define MAX_SLEEP_AVG       (DEF_TIMESLICE * MAX_BONUS)
+</span></span></span></code></pre></div><h4 id="time_slice计算"><code>time_slice</code>计算<a href="#time_slice计算" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<p>进程的时间片也会受到进程优先级的影响。总的规则是，==<strong>优先级越高，分配的时间片越长</strong>==。
+$$
+base_time_quantum = \begin{cases}
+(140 - static_priority) * 20 &amp;\text{if static priority &lt; 120}\
+(140 - static_priority) * 5 &amp;\text{if static priority &gt;= 120}
+\end{cases}
+$$</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="cm">/*
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * task_timeslice() scales user-nice values [ -20 ... 0 ... 19 ]
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * to time slice values: [800ms ... 100ms ... 5ms]
+</span></span></span><span class="line"><span class="cl"><span class="cm"> *
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * The higher a thread&#39;s priority, the bigger timeslices
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * it gets during one round of execution. But even the lowest
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * priority thread gets MIN_TIMESLICE worth of execution time.
+</span></span></span><span class="line"><span class="cl"><span class="cm"> */</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="cp">#define SCALE_PRIO(x, prio) \
+</span></span></span><span class="line"><span class="cl"><span class="cp">    max(x * (MAX_PRIO - prio) / (MAX_USER_PRIO/2), MIN_TIMESLICE)
+</span></span></span><span class="line"><span class="cl"><span class="cp"></span>
+</span></span><span class="line"><span class="cl"><span class="k">static</span> <span class="kr">inline</span> <span class="kt">unsigned</span> <span class="kt">int</span> <span class="nf">task_timeslice</span><span class="p">(</span><span class="kt">task_t</span> <span class="o">*</span><span class="n">p</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">p</span><span class="o">-&gt;</span><span class="n">static_prio</span> <span class="o">&lt;</span> <span class="nf">NICE_TO_PRIO</span><span class="p">(</span><span class="mi">0</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="nf">SCALE_PRIO</span><span class="p">(</span><span class="n">DEF_TIMESLICE</span><span class="o">*</span><span class="mi">4</span><span class="p">,</span> <span class="n">p</span><span class="o">-&gt;</span><span class="n">static_prio</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="k">else</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="nf">SCALE_PRIO</span><span class="p">(</span><span class="n">DEF_TIMESLICE</span><span class="p">,</span> <span class="n">p</span><span class="o">-&gt;</span><span class="n">static_prio</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><h4 id="基本思想">基本思想<a href="#基本思想" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<p>调度器的主函数是<code>schedule()</code>，定义在<code>kernel/sched.c</code>内。每个CPU核都有自己的per-cpu的<code>runqueue</code>结构体。<code>runqueue</code>中记录了当前CPU中等待运行的进程列表。</p>
+<p>每个<code>runqueue</code>有两个==<strong>优先级队列</strong>==：<code>active</code>和<code>expired</code>。<code>active</code>用来放置<code>time_slice</code>没有跑完的进程。进程的<code>time_slice</code>消耗完时，进程会转移到<code>expired</code>队列中。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="c1">// kernel/sched.c: scheduler_tick(void)
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="k">if</span> <span class="p">(</span><span class="o">!--</span><span class="n">p</span><span class="o">-&gt;</span><span class="n">time_slice</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nf">dequeue_task</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">rq</span><span class="o">-&gt;</span><span class="n">active</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="nf">set_tsk_need_resched</span><span class="p">(</span><span class="n">p</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">p</span><span class="o">-&gt;</span><span class="n">prio</span> <span class="o">=</span> <span class="nf">effective_prio</span><span class="p">(</span><span class="n">p</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">p</span><span class="o">-&gt;</span><span class="n">time_slice</span> <span class="o">=</span> <span class="nf">task_timeslice</span><span class="p">(</span><span class="n">p</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">p</span><span class="o">-&gt;</span><span class="n">first_time_slice</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="n">rq</span><span class="o">-&gt;</span><span class="n">expired_timestamp</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="n">rq</span><span class="o">-&gt;</span><span class="n">expired_timestamp</span> <span class="o">=</span> <span class="n">jiffies</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="nf">TASK_INTERACTIVE</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="o">||</span> <span class="nf">EXPIRED_STARVING</span><span class="p">(</span><span class="n">rq</span><span class="p">))</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="nf">enqueue_task</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">rq</span><span class="o">-&gt;</span><span class="n">expired</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">            <span class="k">if</span> <span class="p">(</span><span class="n">p</span><span class="o">-&gt;</span><span class="n">static_prio</span> <span class="o">&lt;</span> <span class="n">rq</span><span class="o">-&gt;</span><span class="n">best_expired_prio</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">                <span class="n">rq</span><span class="o">-&gt;</span><span class="n">best_expired_prio</span> <span class="o">=</span> <span class="n">p</span><span class="o">-&gt;</span><span class="n">static_prio</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span> <span class="k">else</span>
+</span></span><span class="line"><span class="cl">            <span class="nf">enqueue_task</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">rq</span><span class="o">-&gt;</span><span class="n">active</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span></code></pre></div><p>==<strong><code>scheduler_tick()</code>会在<code>kernel/timer.c</code>中调用。</strong>==</p>
+<p>当<code>active</code>队列所有进程都被转移到<code>expired</code>中后，<code>runqueue</code>会交换两个队列的指针，即<code>expired</code>队列成为新的<code>active</code>队列。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="c1">// kernel/sched.c: schedule(void)
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="n">array</span> <span class="o">=</span> <span class="n">rq</span><span class="o">-&gt;</span><span class="n">active</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="nf">unlikely</span><span class="p">(</span><span class="o">!</span><span class="n">array</span><span class="o">-&gt;</span><span class="n">nr_active</span><span class="p">))</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="cm">/*
+</span></span></span><span class="line"><span class="cl"><span class="cm">         * Switch the active and expired arrays.
+</span></span></span><span class="line"><span class="cl"><span class="cm">         */</span>
+</span></span><span class="line"><span class="cl">        <span class="nf">schedstat_inc</span><span class="p">(</span><span class="n">rq</span><span class="p">,</span> <span class="n">sched_switch</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">rq</span><span class="o">-&gt;</span><span class="n">active</span> <span class="o">=</span> <span class="n">rq</span><span class="o">-&gt;</span><span class="n">expired</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">rq</span><span class="o">-&gt;</span><span class="n">expired</span> <span class="o">=</span> <span class="n">array</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">array</span> <span class="o">=</span> <span class="n">rq</span><span class="o">-&gt;</span><span class="n">active</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">rq</span><span class="o">-&gt;</span><span class="n">expired_timestamp</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">rq</span><span class="o">-&gt;</span><span class="n">best_expired_prio</span> <span class="o">=</span> <span class="n">MAX_PRIO</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span></code></pre></div><p><code>active</code>和<code>expired</code>队列始终是有序的，并能通过一个bitmap以O(1)找到最优先的任务：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="k">struct</span> <span class="n">prio_array</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">unsigned</span> <span class="kt">int</span> <span class="n">nr_active</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">unsigned</span> <span class="kt">long</span> <span class="n">bitmap</span><span class="p">[</span><span class="n">BITMAP_SIZE</span><span class="p">];</span>
+</span></span><span class="line"><span class="cl">    <span class="k">struct</span> <span class="n">list_head</span> <span class="n">queue</span><span class="p">[</span><span class="n">MAX_PRIO</span><span class="p">];</span>
+</span></span><span class="line"><span class="cl"><span class="p">};</span>
+</span></span></code></pre></div><p><strong>bitmap每一个bit代表一个优先级，映射的是所有同一优先级的任务队列。某一优先级的任务加入时，将该优先级bit置位。任务移除时，如果该优先级的队列里没有其它任务，将该优先级bit复位。在查找时，找到第一个置位的队列，从里面取任务。</strong></p>
+<h3 id="cfs-scheduler">CFS Scheduler<a href="#cfs-scheduler" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>基于Linux-4.18版本。</p>
+<p>The main issue with this algorithm is the complex heuristics used to mark a task as <a href="https://en.wikipedia.org/wiki/Interactive_computing">interactive</a> or non-interactive. The algorithm tries to identify interactive processes by analyzing average sleep time (the amount of time the process spends waiting for input). Processes that sleep for long periods of time probably are waiting for user input, so the scheduler assumes they&rsquo;re interactive. The scheduler gives a priority bonus to interactive tasks (for better throughput) while penalizing non-interactive tasks by lowering their priorities. All the calculations to determine the interactivity of tasks are complex and subject to potential miscalculations,[<em><a href="https://en.wikipedia.org/wiki/Wikipedia:Citation_needed">citation needed</a></em>] causing non-interactive behavior from an interactive process.</p>
+<h4 id="vruntime"><code>vruntime</code><a href="#vruntime" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<p><code>vruntime</code>是CFS构造出来的一个概念，用来衡量tasks的运行时间。因为在实际运行时间上按照优先级进行了加权，被称作虚拟运行时间。CFS的<code>runqueue</code>完全是按照虚拟运行时间进行排序的。</p>
+<p>任务的运行时长怎么确定？</p>
+<h4 id="基本思想-1">基本思想<a href="#基本思想-1" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<blockquote>
+<p>CFS basically models an &lsquo;ideal, precise multitasking CPU&rsquo; on real hardware.                        - Ingo Molnar, the author of the CFS</p></blockquote>
+<p>对于一个理想的多任务CPU，所有的任务的运行时间在任意时间段内应该是相同的。但是现实情况是，一个CPU同一时间只能执行一个任务的指令，所以理想情况是不可实现的。现代CPU采用分时调度来使多任务在同一CPU上看起来是并行执行的。</p>
+<p><img src="/images/notes/linux-%E8%BF%9B%E7%A8%8B%E8%B0%83%E5%BA%A6/multitasking.png" alt="img"></p>
+<p>左图为理想状态，右图为实际运行情况。</p>
+<p>每个任务在CPU上都有自己的运行时间，==<strong>CFS的基本思想就是让所有任务的运行时间尽量收敛到理想状态。因此，对于当前运行时间少的任务，调度器给予更高的调度优先级和调度运行时间补偿；对于当前运行时间多的任务，调度器降低其调度优先级，即使调度上，也会调低调度运行时间。</strong>==</p>
+<p>相比O(1) Scheduler，CFS改用rbtree实现<code>runqueue task</code>管理。红黑树按照<code>vruntime</code>的大小进行排序，换句话说，<code>vruntime</code>越小，任务被调度的顺位越靠前。</p>
+<h4 id="核心流程">核心流程<a href="#核心流程" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<p>CFS所有的操作函数都放在<code>fair_sched_class</code>结构体内，定义在<code>kernel/sched/fair.c</code>内。</p>
+<p>最底层有几个比较重要的操作函数，所有的流程都可以根据这几个函数倒溯出来：</p>
+<ul>
+<li><code>place_entity</code> - 设置任务的<code>vruntime</code></li>
+<li><code>enqueue_entity</code> - 将任务加入per-cpu的<code>rq</code>树</li>
+<li><code>dequeue_entity</code> - 将任务移除<code>rq</code></li>
+</ul>
+<h5 id="新建任务流程">新建任务流程<a href="#新建任务流程" class="hanchor" ariaLabel="Anchor">#</a> </h5>
+<pre tabindex="0"><code>_do_fork()
+│
+├─copy_process()
+│ │
+│ └─sched_fork()
+│   │
+│   └─p-&gt;sched_class-&gt;task_fork(p)
+│                     │
+│                     └─task_fork_fair()
+│                       │
+│                       └─place_entity()
+│
+└─wake_up_new_task()
+  │
+  └─activate_task()
+    │
+    └─enqueue_task()
+      │
+      └─p-&gt;sched_class-&gt;enqueue_task()
+                        │
+                        └─enqueue_task_fair()
+                          │
+                          └─enqueue_entity()
+</code></pre><ul>
+<li>
+<p>cgroup的参数是如何影响CFS工作的？</p>
+</li>
+<li>
+<p>为什么用红黑树，不用最小堆？</p>
+</li>
+</ul>
+<blockquote>
+<p>The reason is: Heaps are array based and hence require contiguous memory in kernel space. This is because the way heaps are implemented in Linux. See the files <code>lib/prio_heap.c</code> and <code>include/linux/prio_heap.h</code> and you&rsquo;ll note that heap is <code>kmalloc</code>&rsquo;d using <code>heap_init</code>. Once the multi-programming space becomes huge, maintaining thousands of <code>struct sched_entity</code> requires lot of contiguous space (it runs in several pages). From time and performance point of view, one would prefer heap as hepify operation can run in background once min <code>vruntime</code> is picked but it&rsquo;s space requirement which makes bottleneck.</p>
+<p>As <code>rbtree</code> is readily available, kernel developers didn&rsquo;t think of implementing pointer based heap, in fact one doesn&rsquo;t need.</p>
+<p>Another interesting point is that, considering you have a task (process or thread) <strong>changing state from runnable to blocked (waiting for io or network resource), then you need to remove that task from the runqueue</strong> and the complexities are:</p>
+<ul>
+<li>O(log(n)) for red black tree</li>
+<li>O(n) for heap</li>
+</ul>
+<p><strong>The remove operation of heap is slow and that&rsquo;s why red black tree is better.</strong></p>
+<p>And when we get the min vruntime, the heap operation is not actually O(1), O(1) only happen if you refer the root node without removing it. But in CFS, we need to</p>
+<ul>
+<li>Remove it (which requires heapifying of O(log(n)))</li>
+<li>Update vruntime, and insert it back to runqueue which needs O(log(n)), too</li>
+</ul></blockquote>
+<p><img src="/images/notes/linux-%E8%BF%9B%E7%A8%8B%E8%B0%83%E5%BA%A6/routines.png" alt="img"></p>
+<h2 id="references">References<a href="#references" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<ul>
+<li><a href="https://www.kernel.org/doc/html/latest/scheduler/sched-design-CFS.html">https://www.kernel.org/doc/html/latest/scheduler/sched-design-CFS.html</a></li>
+<li><a href="https://zhuanlan.zhihu.com/p/56430999">https://zhuanlan.zhihu.com/p/56430999</a></li>
+<li><a href="http://c.biancheng.net/view/1255.html">http://c.biancheng.net/view/1255.html</a></li>
+<li><a href="https://blog.acolyer.org/2016/04/26/the-linux-scheduler-a-decade-of-wasted-cores/">https://blog.acolyer.org/2016/04/26/the-linux-scheduler-a-decade-of-wasted-cores/</a></li>
+</ul>
+
+      </div></div>
+
+  
+    
+
+  
+
+  
+    
+
+  
+</article>
+
+  </div>
+
+  
+    <footer class="footer">
+  <div class="footer__inner">
+    
+      <div class="copyright">
+        <span>© 2025 Powered by <a href="https://gohugo.io">Hugo</a></span>
+    
+      <span>:: <a href="https://github.com/panr/hugo-theme-terminal" target="_blank">Theme</a> made by <a href="https://github.com/panr" target="_blank">panr</a></span>
+      </div>
+  </div>
+</footer>
+
+
+
+
+
+
+<script type="text/javascript" src="/bundle.min.js"></script>
+
+
+
+
+
+  
+  </div>
+
+  <aside class="floating-sidebar">
+    
+<div class="sidebar time-archive">
+  <h3>Time Archives</h3>
+  <div class="archive-list">
+    
+    
+
+    
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+
+    
+    
+
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-09/" class="archive-link">
+          <span class="archive-date">2025-09</span>
+          <span class="archive-month-name">Sep</span>
+          <span class="archive-count">(3)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-08/" class="archive-link">
+          <span class="archive-date">2025-08</span>
+          <span class="archive-month-name">Aug</span>
+          <span class="archive-count">(8)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-06/" class="archive-link">
+          <span class="archive-date">2025-06</span>
+          <span class="archive-month-name">Jun</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-04/" class="archive-link">
+          <span class="archive-date">2025-04</span>
+          <span class="archive-month-name">Apr</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-03/" class="archive-link">
+          <span class="archive-date">2025-03</span>
+          <span class="archive-month-name">Mar</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2024-01/" class="archive-link">
+          <span class="archive-date">2024-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(2)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-07/" class="archive-link">
+          <span class="archive-date">2022-07</span>
+          <span class="archive-month-name">Jul</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-05/" class="archive-link">
+          <span class="archive-date">2022-05</span>
+          <span class="archive-month-name">May</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-03/" class="archive-link">
+          <span class="archive-date">2022-03</span>
+          <span class="archive-month-name">Mar</span>
+          <span class="archive-count">(3)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-01/" class="archive-link">
+          <span class="archive-date">2022-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-11/" class="archive-link">
+          <span class="archive-date">2021-11</span>
+          <span class="archive-month-name">Nov</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-06/" class="archive-link">
+          <span class="archive-date">2021-06</span>
+          <span class="archive-month-name">Jun</span>
+          <span class="archive-count">(3)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-01/" class="archive-link">
+          <span class="archive-date">2021-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+  </div>
+</div>
+
+<style>
+.sidebar.time-archive {
+  background: rgba(26, 23, 15, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--accent, #FFA86B);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+  max-width: var(--sidebar-component-width, 240px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.sidebar.time-archive h3 {
+  margin: 0 0 1rem 0;
+  color: var(--accent, #FFA86B);
+  font-size: 1.2rem;
+  border-bottom: 1px solid var(--accent-alpha-70, rgba(255, 168, 107, 0.7));
+  padding-bottom: 0.5rem;
+}
+
+
+.archive-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.archive-item {
+  display: block;
+}
+
+.archive-link {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  text-decoration: none;
+  color: var(--color, inherit);
+  padding: 0.5rem;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+}
+
+.archive-link:hover {
+  background-color: var(--accent-alpha-20, rgba(255, 168, 107, 0.2));
+  color: var(--accent, #FFA86B);
+}
+
+.archive-date {
+  font-family: var(--code-font-family, 'Fira Code', monospace);
+  font-weight: bold;
+  min-width: 60px;
+}
+
+.archive-month-name {
+  flex: 1;
+  margin-left: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.archive-count {
+  color: var(--accent, #FFA86B);
+  font-weight: bold;
+  font-size: 0.9rem;
+}
+
+ 
+</style>
+
+    
+<div class="sidebar tags-cloud">
+  <h3>Tags Cloud</h3>
+  <div class="tags-container">
+    
+    
+    
+    
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+    
+    
+    
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+    
+    
+    
+    
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+    
+    
+    
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+    
+    
+    
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/compile/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          compile
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/concurrency/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="7 articles">
+          Concurrency
+          <span class="tag-count">(7)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/csi/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          csi
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/dns/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          dns
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/ebpf/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          ebpf
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/elf/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          ELF
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/go/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Go
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/kaist-cs431/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="7 articles">
+          KAIST-CS431
+          <span class="tag-count">(7)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/kubernetes/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          kubernetes
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/linux/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Linux
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/lua/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="3 articles">
+          Lua
+          <span class="tag-count">(3)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/makefile/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          makefile
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/mindfulness/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          mindfulness
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/network/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Network
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/nonfiction/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          nonfiction
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/operatingsystem/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          OperatingSystem
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/rust/" 
+           class="tag-item" 
+           style="font-size: 1.5em;"
+           title="10 articles">
+          Rust
+          <span class="tag-count">(10)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/schedule/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Schedule
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/wasm/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Wasm
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+  </div>
+</div>
+
+<style>
+.sidebar.tags-cloud {
+  background: rgba(26, 23, 15, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--accent, #FFA86B);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+  max-width: var(--sidebar-component-width, 240px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.sidebar.tags-cloud h3 {
+  margin: 0 0 1rem 0;
+  color: var(--accent, #FFA86B);
+  font-size: 1.2rem;
+  border-bottom: 1px solid var(--accent-alpha-70, rgba(255, 168, 107, 0.7));
+  padding-bottom: 0.5rem;
+}
+
+.tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  line-height: 1.6;
+}
+
+.tag-item {
+  display: inline-flex;
+  align-items: baseline;
+  text-decoration: none;
+  color: var(--color, inherit);
+  padding: 0.3rem 0.6rem;
+  border-radius: 16px;
+  background: rgba(255, 168, 107, 0.1);
+  border: 1px solid transparent;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.tag-item:hover {
+  background: rgba(255, 168, 107, 0.25);
+  border-color: var(--accent-alpha-50, rgba(255, 168, 107, 0.5));
+  color: var(--accent, #FFA86B);
+  transform: translateY(-1px);
+}
+
+.tag-count {
+  font-size: 0.75em;
+  margin-left: 0.3rem;
+  opacity: 0.7;
+  font-weight: normal;
+}
+
+.tag-item:hover .tag-count {
+  opacity: 1;
+}
+
+ 
+
+ 
+.tag-item {
+  font-weight: 400;
+}
+
+ 
+.tag-item[style*="1.5"], 
+.tag-item[style*="1.4"],
+.tag-item[style*="1.3"] {
+  font-weight: 600;
+}
+
+ 
+.tag-item[style*="1.2"],
+.tag-item[style*="1.1"] {
+  font-weight: 500;
+}
+
+ 
+.tag-item[style*="1.5"]:hover,
+.tag-item[style*="1.4"]:hover,
+.tag-item[style*="1.3"]:hover {
+  box-shadow: 0 3px 10px rgba(255, 168, 107, 0.4);
+  transform: translateY(-2px);
+}
+
+</style>
+
+  </aside>
+</div>
+
+<style>
+ 
+.page-wrapper {
+  position: relative;
+  width: 100%;
+  max-width: none;
+  --sidebar-top-offset: 150px;  
+  --sidebar-component-width: 240px;  
+}
+
+   
+.floating-sidebar {
+  position: absolute;
+   
+  top: var(--sidebar-top-offset, 175px);
+   
+  right: max(20px, calc((100vw - 864px) / 2 - 330px));
+  width: 300px;
+  z-index: 100;
+  opacity: 0.96;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+ 
+.floating-sidebar:hover {
+  opacity: 1;
+  transform: translateX(-5px);
+}
+
+ 
+.floating-sidebar {
+  display: none;
+}
+
+ 
+@media (min-width: 1524px) {
+  .floating-sidebar {
+    display: block;
+    position: absolute;
+    right: max(20px, calc((100vw - 864px) / 2 - 330px));
+  }
+}
+
+ 
+@media (max-width: 1523px) {
+  .floating-sidebar {
+    display: none !important;
+  }
+}
+
+</style>
+
+</body>
+</html>
