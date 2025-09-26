@@ -2,16 +2,22 @@
 <html lang="en">
 <head>
   
-    <title>Archive for 2024-01 :: chengzhycn&#39;s blog</title>
+    <title>Spurious Retransmit 导致 NAT 设备响应 RST :: chengzhycn&#39;s blog</title>
   
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="" />
+<meta name="description" content="在一个线上问题排查过程中，出现了一个新的问题：wget 下载文件在连接建立很短的时间内（1 - 2s）就被 RESET 了。 首先先简要说明一下链路：
+客户端经过一个SNAT设备出公网，在服务器上下载一个大文件。端到端的 RTT 大约 90 ms。由于最开始并没有怀疑到 SNAT 设备，并且 server 端无法抓包，我们分别在客户端 和 SNAT 设备到 server 间一台网元设备上抓包。 如上，中间网元设备显示客户端（端口 34567）先发送了 RST 报文，随后服务器（端口 443）响应 RST 报文。但是客户端抓包显示它根本没有发送过 RST 报文。
+此时，我们再从 SNAT 设备上抓包，发现就是 SNAT 设备首先给服务器发送了 RST 报文。
+这里的 SNAT 设备实际上是一台基于 IPtables 的 Linux 设备。
+抓包可以看到，RST 是对一个 TCP Spurious Retransmission 的响应。为什么会发出这个 RST 呢？正好网上有一个相似的场景：Add workaround for spurious retransmits leading to connection resets
+总的来说，就是 spurious retransmits 报文在序列号超出 TCP 窗口时，会被 conntrack 认为是 invalid 包，从而不再经过反向 SNAT 规则的处理。由于目的地址没有被转换，报文会按照原来的目的地址送往 INPUT，而本地又没有这个 socket，则响应一个 RST 报文。
+" />
 <meta name="keywords" content="" />
 
   <meta name="robots" content="noodp" />
 
-<link rel="canonical" href="https://www.jinzhi.site/posts/2024-01/" />
+<link rel="canonical" href="https://www.jinzhi.site/posts/2025-06/spurious-retransmit-%E5%AF%BC%E8%87%B4-nat-%E8%AE%BE%E5%A4%87%E5%93%8D%E5%BA%94-rst/" />
 
 
 
@@ -76,10 +82,16 @@
 
 
 <meta property="og:locale" content="en" />
-<meta property="og:type" content="website" />
-<meta property="og:title" content="Archive for 2024-01">
-<meta property="og:description" content="" />
-<meta property="og:url" content="https://www.jinzhi.site/posts/2024-01/" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="Spurious Retransmit 导致 NAT 设备响应 RST">
+<meta property="og:description" content="在一个线上问题排查过程中，出现了一个新的问题：wget 下载文件在连接建立很短的时间内（1 - 2s）就被 RESET 了。 首先先简要说明一下链路：
+客户端经过一个SNAT设备出公网，在服务器上下载一个大文件。端到端的 RTT 大约 90 ms。由于最开始并没有怀疑到 SNAT 设备，并且 server 端无法抓包，我们分别在客户端 和 SNAT 设备到 server 间一台网元设备上抓包。 如上，中间网元设备显示客户端（端口 34567）先发送了 RST 报文，随后服务器（端口 443）响应 RST 报文。但是客户端抓包显示它根本没有发送过 RST 报文。
+此时，我们再从 SNAT 设备上抓包，发现就是 SNAT 设备首先给服务器发送了 RST 报文。
+这里的 SNAT 设备实际上是一台基于 IPtables 的 Linux 设备。
+抓包可以看到，RST 是对一个 TCP Spurious Retransmission 的响应。为什么会发出这个 RST 呢？正好网上有一个相似的场景：Add workaround for spurious retransmits leading to connection resets
+总的来说，就是 spurious retransmits 报文在序列号超出 TCP 窗口时，会被 conntrack 认为是 invalid 包，从而不再经过反向 SNAT 规则的处理。由于目的地址没有被转换，报文会按照原来的目的地址送往 INPUT，而本地又没有这个 socket，则响应一个 RST 报文。
+" />
+<meta property="og:url" content="https://www.jinzhi.site/posts/2025-06/spurious-retransmit-%E5%AF%BC%E8%87%B4-nat-%E8%AE%BE%E5%A4%87%E5%93%8D%E5%BA%94-rst/" />
 <meta property="og:site_name" content="chengzhycn&#39;s blog" />
 
   <meta property="og:image" content="https://www.jinzhi.site/og-image.png">
@@ -87,13 +99,13 @@
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="627">
 
-
-  <meta property="article:published_time" content="2024-01-01 00:00:00 &#43;0000 UTC" />
-
+  <meta property="article:section" content="Work" />
 
 
+  <meta property="article:published_time" content="2025-06-13 09:57:28 &#43;0800 &#43;0800" />
 
-  <link href="/posts/2024-01/index.xml" rel="alternate" type="application/rss+xml" title="chengzhycn&#39;s blog" />
+
+
 
 
 
@@ -203,181 +215,135 @@
 
   <div class="content">
     
-<main class="post-list" role="main">
+<article class="post">
+  <h1 class="post-title">
+    <a href="https://www.jinzhi.site/posts/2025-06/spurious-retransmit-%E5%AF%BC%E8%87%B4-nat-%E8%AE%BE%E5%A4%87%E5%93%8D%E5%BA%94-rst/">Spurious Retransmit 导致 NAT 设备响应 RST</a>
+  </h1>
+  <div class="post-meta"><time class="post-date">2025-06-13</time><span class="post-reading-time">2 min read (304 words)</span></div>
+
+  
+    <span class="post-tags">
+      
+      #<a href="https://www.jinzhi.site/tags/debug/">debug</a>&nbsp;
+      
+    </span>
   
   
+
+
   
+    <div class="table-of-contents">
+      <h2>
+        Table of Contents
+      </h2>
+      <nav id="TableOfContents"></nav>
+    </div>
   
+
+  <div class="post-content"><div>
+        <p>在一个线上问题排查过程中，出现了一个新的问题：wget 下载文件在连接建立很短的时间内（1 - 2s）就被 RESET 了。
+首先先简要说明一下链路：</p>
+<p><img src="5035a324e7b30c51292018e81c2e41b6_MD5.jpeg" alt="5035a324e7b30c51292018e81c2e41b6_MD5"></p>
+<p>客户端经过一个SNAT设备出公网，在服务器上下载一个大文件。端到端的 RTT 大约 90 ms。由于最开始并没有怀疑到 SNAT 设备，并且 server 端无法抓包，我们分别在客户端 和 SNAT 设备到 server 间一台网元设备上抓包。
+<img src="adc7d13285d32bfc4c287a8d5afd1da1_MD5.jpeg" alt="adc7d13285d32bfc4c287a8d5afd1da1_MD5"></p>
+<p><img src="a9850b914275bd0d8c5c53f1dfd3b2d4_MD5.jpeg" alt="a9850b914275bd0d8c5c53f1dfd3b2d4_MD5"></p>
+<p>如上，中间网元设备显示客户端（端口 34567）先发送了 RST 报文，随后服务器（端口 443）响应 RST 报文。但是客户端抓包显示它根本没有发送过 RST 报文。</p>
+<p>此时，我们再从 SNAT 设备上抓包，发现就是 SNAT 设备首先给服务器发送了 RST 报文。</p>
+<p>这里的 SNAT 设备实际上是一台基于 IPtables 的 Linux 设备。</p>
+<p><img src="bc892bf5d9ba1a52cb9c0ea3baf99b64_MD5.jpg" alt="bc892bf5d9ba1a52cb9c0ea3baf99b64_MD5">
+抓包可以看到，RST 是对一个 TCP Spurious Retransmission 的响应。为什么会发出这个 RST 呢？正好网上有一个相似的场景：<a href="https://github.com/moby/libnetwork/issues/1090">Add workaround for spurious retransmits leading to connection resets</a></p>
+<p><img src="1f45fd40111f9e29fb5a47fd8e1baad0_MD5.jpeg" alt="1f45fd40111f9e29fb5a47fd8e1baad0_MD5"></p>
+<p>总的来说，就是 spurious retransmits 报文在序列号超出 TCP 窗口时，会被 conntrack 认为是 invalid 包，从而不再经过反向 SNAT 规则的处理。由于目的地址没有被转换，报文会按照原来的目的地址送往 INPUT，而本地又没有这个 socket，则响应一个 RST 报文。</p>
+<p>作者给出的两种 workarounds，第一种是不要让 conntrack 把这种超出窗口的包认为是 invalid，第二种是既然你把没有经过 DNAT 转换的包直接送给了我的 INPUT，那么我就在 INPUT 上把这个包给丢弃，防止协议栈发送错误的 RST。</p>
+<p>显然，这两种 workarounds 都有不小的副作用。</p>
+<p>be_liberal 生效代码：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="nf">__printf</span><span class="p">(</span><span class="mi">6</span><span class="p">,</span> <span class="mi">7</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="k">static</span> <span class="k">enum</span> <span class="n">nf_ct_tcp_action</span> <span class="nf">nf_tcp_log_invalid</span><span class="p">(</span><span class="k">const</span> <span class="k">struct</span> <span class="n">sk_buff</span> <span class="o">*</span><span class="n">skb</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">						<span class="k">const</span> <span class="k">struct</span> <span class="n">nf_conn</span> <span class="o">*</span><span class="n">ct</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">						<span class="k">const</span> <span class="k">struct</span> <span class="n">nf_hook_state</span> <span class="o">*</span><span class="n">state</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">						<span class="k">const</span> <span class="k">struct</span> <span class="n">ip_ct_tcp_state</span> <span class="o">*</span><span class="n">sender</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">						<span class="k">enum</span> <span class="n">nf_ct_tcp_action</span> <span class="n">ret</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">						<span class="k">const</span> <span class="kt">char</span> <span class="o">*</span><span class="n">fmt</span><span class="p">,</span> <span class="p">...)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">const</span> <span class="k">struct</span> <span class="n">nf_tcp_net</span> <span class="o">*</span><span class="n">tn</span> <span class="o">=</span> <span class="nf">nf_tcp_pernet</span><span class="p">(</span><span class="nf">nf_ct_net</span><span class="p">(</span><span class="n">ct</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">	<span class="k">struct</span> <span class="n">va_format</span> <span class="n">vaf</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="n">va_list</span> <span class="n">args</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="kt">bool</span> <span class="n">be_liberal</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="n">be_liberal</span> <span class="o">=</span> <span class="n">sender</span><span class="o">-&gt;</span><span class="n">flags</span> <span class="o">&amp;</span> <span class="n">IP_CT_TCP_FLAG_BE_LIBERAL</span> <span class="o">||</span> <span class="n">tn</span><span class="o">-&gt;</span><span class="n">tcp_be_liberal</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="n">be_liberal</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="n">NFCT_TCP_ACCEPT</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="nf">va_start</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">fmt</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="n">vaf</span><span class="p">.</span><span class="n">fmt</span> <span class="o">=</span> <span class="n">fmt</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="n">vaf</span><span class="p">.</span><span class="n">va</span> <span class="o">=</span> <span class="o">&amp;</span><span class="n">args</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="nf">nf_ct_l4proto_log_invalid</span><span class="p">(</span><span class="n">skb</span><span class="p">,</span> <span class="n">ct</span><span class="p">,</span> <span class="n">state</span><span class="p">,</span> <span class="s">&#34;%pV&#34;</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">vaf</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="nf">va_end</span><span class="p">(</span><span class="n">args</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="k">return</span> <span class="n">ret</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl">	<span class="n">res</span> <span class="o">=</span> <span class="nf">tcp_in_window</span><span class="p">(</span><span class="n">ct</span><span class="p">,</span> <span class="n">dir</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">			    <span class="n">skb</span><span class="p">,</span> <span class="n">dataoff</span><span class="p">,</span> <span class="n">th</span><span class="p">,</span> <span class="n">state</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">	<span class="k">switch</span> <span class="p">(</span><span class="n">res</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="k">case</span> <span class="nl">NFCT_TCP_IGNORE</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">		<span class="nf">spin_unlock_bh</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ct</span><span class="o">-&gt;</span><span class="n">lock</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="n">NF_ACCEPT</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">case</span> <span class="nl">NFCT_TCP_INVALID</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">		<span class="nf">nf_tcp_handle_invalid</span><span class="p">(</span><span class="n">ct</span><span class="p">,</span> <span class="n">dir</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">skb</span><span class="p">,</span> <span class="n">state</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="nf">spin_unlock_bh</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ct</span><span class="o">-&gt;</span><span class="n">lock</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">		<span class="k">return</span> <span class="o">-</span><span class="n">NF_ACCEPT</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="k">case</span> <span class="nl">NFCT_TCP_ACCEPT</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">		<span class="k">break</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">	<span class="p">}</span>
+</span></span><span class="line"><span class="cl">     <span class="nl">in_window</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">     <span class="c1">// 
+</span></span></span></code></pre></div><p>cursor 生成的代码 call stack：</p>
+<ol>
+<li>
+<p>Invalid packet detection: When packets arrive with old sequence numbers outside the TCP window, tcp_in_window() in nf_conntrack_proto_tcp.c calls nf_tcp_log_invalid() which returns NFCT_TCP_INVALID.</p>
+</li>
+<li>
+<p>Conntrack bypass: Since conntrack marks the packet as invalid, DNAT rules don&rsquo;t apply, so the packet reaches the actual destination IP/port in the headers.</p>
+</li>
+<li>
+<p>No matching connection: The packet arrives at the real destination where no established connection exists to handle it.</p>
+</li>
+<li>
+<p>Reset generation: The kernel calls tcp_v4_send_reset() (lines 2380 or similar call sites in tcp_ipv4.c) to send a RST packet back to the source.</p>
+</li>
+<li>
+<p>Connection termination: The RST packet has source/destination that matches the original NAT&rsquo;d connection, causing it to be terminated.</p>
+</li>
+</ol>
+
+      </div></div>
+
   
-  
+    
+<div class="pagination">
+  <div class="pagination__title">
+    <span class="pagination__title-h">Read other posts</span>
+    <hr />
+  </div>
+  <div class="pagination__buttons">
+    
+      <a href="https://www.jinzhi.site/posts/2025-06/kubernetes-csi-%E7%AE%80%E4%BB%8B/" class="button inline prev">
+        &lt; [<span class="button__text">Kubernetes CSI 简介</span>]
+      </a>
     
     
     
-      <header class="archive-header">
-        <h1>
-          
-          
-          
-          
-          
-            
-              
-            
-          
-          
-          
-          Archive: January 2024
-        </h1>
-        <p class="archive-description">
-          Posts published in January 2024
-        </p>
-      </header>
-      
-      
-      
-      
-      
-      
-      
-        <div class="posts">
-          
-            <article class="post on-list" itemscope itemtype="http://schema.org/BlogPosting">
-              <header class="post-header">
-                <h2 class="post-title">
-                  <a href="/posts/2024-01/ebpf-%E6%8C%87%E4%BB%A4%E9%9B%86%E8%A7%84%E8%8C%83/">eBPF 指令集规范</a>
-                </h2>
-              </header>
+  </div>
+</div>
 
-              <div class="post-content">
-                
-              </div>
 
-              <footer class="post-footer">
-                <div class="post-date">
-                  2024-01-05
-                </div>
-                
-                
-                  <div class="post-tags">
-                    
-                      <span class="tag">
-                        <a href="https://www.jinzhi.site/tags/ebpf/">#eBPF</a>
-                      </span>
-                    
-                  </div>
-                
-
-                <div class="post-read-more">
-                  <a href="/posts/2024-01/ebpf-%E6%8C%87%E4%BB%A4%E9%9B%86%E8%A7%84%E8%8C%83/">Read more →</a>
-                </div>
-              </footer>
-            </article>
-          
-            <article class="post on-list" itemscope itemtype="http://schema.org/BlogPosting">
-              <header class="post-header">
-                <h2 class="post-title">
-                  <a href="/posts/2024-01/ebpf-%E5%85%A8%E5%B1%80%E5%8F%98%E9%87%8F%E7%9A%84%E5%AE%9E%E7%8E%B0/">eBPF 全局变量的实现</a>
-                </h2>
-              </header>
-
-              <div class="post-content">
-                
-              </div>
-
-              <footer class="post-footer">
-                <div class="post-date">
-                  2024-01-02
-                </div>
-                
-                
-                  <div class="post-tags">
-                    
-                      <span class="tag">
-                        <a href="https://www.jinzhi.site/tags/ebpf/">#ebpf</a>
-                      </span>
-                    
-                  </div>
-                
-
-                <div class="post-read-more">
-                  <a href="/posts/2024-01/ebpf-%E5%85%A8%E5%B1%80%E5%8F%98%E9%87%8F%E7%9A%84%E5%AE%9E%E7%8E%B0/">Read more →</a>
-                </div>
-              </footer>
-            </article>
-          
-        </div>
-      
-      
-    
   
-</main>
 
-<style>
-.archive-header {
-  margin-bottom: 2rem;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid var(--accent-alpha-20, rgba(255, 168, 107, 0.2));
-}
+  
+    
 
-.archive-header h1 {
-  color: var(--accent, #FFA86B);
-  margin-bottom: 0.5rem;
-}
-
-.archive-description {
-  color: var(--color-secondary, #999);
-  font-style: italic;
-}
-
-.no-posts {
-  text-align: center;
-  padding: 2rem;
-  color: var(--color-secondary, #999);
-}
-
-.post-footer {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-  align-items: center;
-  margin-top: 1rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--accent-alpha-20, rgba(255, 168, 107, 0.2));
-}
-
-.post-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.post-tags .tag a {
-  background: var(--accent-alpha-20, rgba(255, 168, 107, 0.2));
-  padding: 0.2rem 0.5rem;
-  border-radius: 3px;
-  font-size: 0.8rem;
-  text-decoration: none;
-  color: var(--accent, #FFA86B);
-}
-
-.post-tags .tag a:hover {
-  background: var(--accent-alpha-70, rgba(255, 168, 107, 0.7));
-}
-
-.post-read-more {
-  margin-left: auto;
-}
-
-.post-read-more a {
-  color: var(--accent, #FFA86B);
-  text-decoration: none;
-  font-weight: bold;
-}
-
-.post-read-more a:hover {
-  text-decoration: underline;
-}
-</style>
+  
+</article>
 
   </div>
 

@@ -443,6 +443,49 @@
     
       <article class="post on-list">
         <h2 class="post-title">
+          <a href="https://www.jinzhi.site/posts/2025-06/spurious-retransmit-%E5%AF%BC%E8%87%B4-nat-%E8%AE%BE%E5%A4%87%E5%93%8D%E5%BA%94-rst/">Spurious Retransmit 导致 NAT 设备响应 RST</a>
+        </h2>
+
+        <div class="post-meta"><time class="post-date">2025-06-13</time></div>
+
+        
+          <span class="post-tags">
+            
+            #<a href="https://www.jinzhi.site/tags/debug/">debug</a>&nbsp;
+            
+          </span>
+        
+
+        
+
+
+        <div class="post-content">
+          
+            <p>在一个线上问题排查过程中，出现了一个新的问题：wget 下载文件在连接建立很短的时间内（1 - 2s）就被 RESET 了。
+首先先简要说明一下链路：</p>
+<p><img src="5035a324e7b30c51292018e81c2e41b6_MD5.jpeg" alt="5035a324e7b30c51292018e81c2e41b6_MD5"></p>
+<p>客户端经过一个SNAT设备出公网，在服务器上下载一个大文件。端到端的 RTT 大约 90 ms。由于最开始并没有怀疑到 SNAT 设备，并且 server 端无法抓包，我们分别在客户端 和 SNAT 设备到 server 间一台网元设备上抓包。
+<img src="adc7d13285d32bfc4c287a8d5afd1da1_MD5.jpeg" alt="adc7d13285d32bfc4c287a8d5afd1da1_MD5"></p>
+<p><img src="a9850b914275bd0d8c5c53f1dfd3b2d4_MD5.jpeg" alt="a9850b914275bd0d8c5c53f1dfd3b2d4_MD5"></p>
+<p>如上，中间网元设备显示客户端（端口 34567）先发送了 RST 报文，随后服务器（端口 443）响应 RST 报文。但是客户端抓包显示它根本没有发送过 RST 报文。</p>
+<p>此时，我们再从 SNAT 设备上抓包，发现就是 SNAT 设备首先给服务器发送了 RST 报文。</p>
+<p>这里的 SNAT 设备实际上是一台基于 IPtables 的 Linux 设备。</p>
+<p><img src="bc892bf5d9ba1a52cb9c0ea3baf99b64_MD5.jpg" alt="bc892bf5d9ba1a52cb9c0ea3baf99b64_MD5">
+抓包可以看到，RST 是对一个 TCP Spurious Retransmission 的响应。为什么会发出这个 RST 呢？正好网上有一个相似的场景：<a href="https://github.com/moby/libnetwork/issues/1090">Add workaround for spurious retransmits leading to connection resets</a></p>
+<p><img src="1f45fd40111f9e29fb5a47fd8e1baad0_MD5.jpeg" alt="1f45fd40111f9e29fb5a47fd8e1baad0_MD5"></p>
+<p>总的来说，就是 spurious retransmits 报文在序列号超出 TCP 窗口时，会被 conntrack 认为是 invalid 包，从而不再经过反向 SNAT 规则的处理。由于目的地址没有被转换，报文会按照原来的目的地址送往 INPUT，而本地又没有这个 socket，则响应一个 RST 报文。</p>
+          
+        </div>
+
+        
+          <div>
+            <a class="read-more button inline" href="/posts/2025-06/spurious-retransmit-%E5%AF%BC%E8%87%B4-nat-%E8%AE%BE%E5%A4%87%E5%93%8D%E5%BA%94-rst/">[Read more]</a>
+          </div>
+        
+      </article>
+    
+      <article class="post on-list">
+        <h2 class="post-title">
           <a href="https://www.jinzhi.site/posts/2025-04/vrf-an-overview/">VRF: An Overview</a>
         </h2>
 
@@ -522,45 +565,6 @@
         
       </article>
     
-      <article class="post on-list">
-        <h2 class="post-title">
-          <a href="https://www.jinzhi.site/posts/2025-03/c-common-coding-conventions/">C³: Common Coding Conventions</a>
-        </h2>
-
-        <div class="post-meta"><time class="post-date">2025-03-29</time></div>
-
-        
-
-        
-
-
-        <div class="post-content">
-          
-            <h1 id="c-common-coding-conventions">C³: Common Coding Conventions</h1>
-<p><a href="https://google.github.io/eng-practices/">https://google.github.io/eng-practices/</a></p>
-<p><a href="https://github.com/tum-esi/common-coding-conventions">https://github.com/tum-esi/common-coding-conventions</a></p>
-<p>The goal of these conventions is to be concise, universal, and remarkable. It targets emerging code enthusiasts under time pressure and covers 7 topics:</p>
-<ol>
-<li><a href="/posts/2025-03/c-common-coding-conventions/#user-content-general-clarifications">General Clarifications</a>,</li>
-<li><a href="/posts/2025-03/c-common-coding-conventions/#user-content-architecture">Architecture</a>,</li>
-<li><a href="/posts/2025-03/c-common-coding-conventions/#user-content-implementation">Implementation</a>,</li>
-<li><a href="/posts/2025-03/c-common-coding-conventions/#user-content-naming">Naming</a>,</li>
-<li><a href="/posts/2025-03/c-common-coding-conventions/#user-content-code-layout">Code Layout</a>,</li>
-<li><a href="/posts/2025-03/c-common-coding-conventions/#user-content-documentation">Documentation</a>, and</li>
-<li><a href="/posts/2025-03/c-common-coding-conventions/#user-content-languages">Languages</a>.</li>
-</ol>
-<p>To follow this guide, you should already have heard about <a href="https://www.educative.io/blog/object-oriented-programming">Object Oriented Programming</a> and know basic programming rules, such as writing loops and meaningful functions instead of copy pasting
-instructions. In this Readme, we will shortly summarize the most important rules for every topic.</p>
-          
-        </div>
-
-        
-          <div>
-            <a class="read-more button inline" href="/posts/2025-03/c-common-coding-conventions/">[Read more]</a>
-          </div>
-        
-      </article>
-    
 
     <div class="pagination">
   <div class="pagination__buttons">
@@ -619,6 +623,10 @@ instructions. In this Readme, we will shortly summarize the most important rules
     
 
     
+    
+      
+      
+      
     
       
       
@@ -857,7 +865,7 @@ instructions. In this Readme, we will shortly summarize the most important rules
         <a href="/posts/2025-06/" class="archive-link">
           <span class="archive-date">2025-06</span>
           <span class="archive-month-name">Jun</span>
-          <span class="archive-count">(1)</span>
+          <span class="archive-count">(2)</span>
         </a>
       </div>
     
@@ -1360,6 +1368,10 @@ instructions. In this Readme, we will shortly summarize the most important rules
       
     
       
+        
+      
+    
+      
     
       
         
@@ -1637,16 +1649,13 @@ instructions. In this Readme, we will shortly summarize the most important rules
       
       
     
-    
-    
-    
-    
-    
       
       
     
-      
-      
+    
+    
+    
+    
     
       
       
@@ -1711,9 +1720,20 @@ instructions. In this Readme, we will shortly summarize the most important rules
       
       
     
+      
+      
+    
+      
+      
+    
+      
+      
     
     
     
+    
+    
+      
     
       
     
@@ -1837,6 +1857,25 @@ instructions. In this Readme, we will shortly summarize the most important rules
            style="font-size: 0.9em;"
            title="1 article">
           csi
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/debug/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          debug
           <span class="tag-count">(1)</span>
         </a>
       
