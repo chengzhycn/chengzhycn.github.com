@@ -2,27 +2,16 @@
 <html lang="en">
 <head>
   
-    <title>KAIST-CS431: Safe Memory Reclamation :: chengzhycn&#39;s blog</title>
+    <title>Reading :: chengzhycn&#39;s blog</title>
   
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="无锁数据结构和传统的数据结构在内存管理有一点区别是：当数据不用了，需要释放内存时，传统数据结构直接调用free()就可以了，但是无锁数据结构不行。举个例子，如下图所示，T1正在读取b1的时候，T2释放了b1，T1中的指针就变成了野指针，造成不安全的内存访问。
-因此，在无锁数据结构中，内存的释放操作一般要延后执行，即保证没有线程能够访问到该片内存后，再执行内存回收。这种方式被称作Safe Memory Reclamation（SMR）。
-从上述例子中，我们可以从两个方面去理解一个SMR算法：
-如何保护正在使用的数据不被释放？ 什么时候能安全地释放已经被标记为需要释放的内存？ 下面介绍两种常用的SMR算法：
-Hazard Pointers（Protected Pointers） Epoch-Based Reclamation（基于代际的内存释放） Hazard Pointers Hazard Pointers的基本思想是线程访问数据块时会将指针记录下来，其它线程尝试释放内存时会感知到数据块引用的存在，从而延迟释放内存，直到所有线程对该数据块的访问结束。
-如上图所示，使用hazard pointers有如下几个步骤：
-在线程访问共享数据时，先调用reserve()方法，将指针记录在一个list内； T2线程尝试释放释放b1时，调用retire()，因为检测到还有线程访问b1，延迟释放内存； 因为内存没有真正释放，T1能在b1 retire后继续访问b1。访问结束后，T1调用unreserve()将指针从list中移除； T3调用gc()（可以周期性运行，也可以事件触发），遍历所有retired的数据块，如果list内没有指向数据块的指针，即可以真正回收内存。 Hazard Pointers有些致命的缺点：
-不够快。因为reserve()保护的指针需要立即被gc()感知到，所以，两个函数都需要引入开销非常大的store-load fence。在遍历整个数据结构时，每个数据块都会调用reserve()，导致遍历效率降低； 并不是所有的数据结构都适用Hazard Pointers。在前文的Lock-free Linked List中，我们也提过Harris-Michael‘s traversing是为了专门支持Hazard Pointers的。Harris&rsquo;s traversing会retire一个连续的数据块，这样，即便T1线程保护了其中一个数据块，gc()仍然可以回收其它的数据块内存，T1线程访问next指针时，仍然会出现问题。 Epoch-Based Reclamation Hazard Pointers只保护无锁数据结构中真正被访问的那部分数据，这也导致了上文中Hazard Pointers的两个缺陷。与Hazard Pointers不同的是，EBR保护的是数据结构中所有可能潜在的访问。这样也就不需要频繁地在线程间同步。
-每个线程在访问数据结构前都会开启一个代际（epoch）。T1在代际e中retire了b1和b2。那么什么时候能安全地reclaim b1和b2的内存呢？
-如上图，我们在这个EBR算法中规定了一个代际一致性规则：并发的代际之间最多只能相差1。也就是说，只要T1还没有调用set_quiescent()结束掉e代，那么其它线程通过set_active()开启的代际号只能是e&#43;1。而所有的e&#43;1代的线程是有可能引用到b1和b2的。当e代结束，T2开启e&#43;2代时，因为e&#43;2代和e代不存在同时发生的可能性（通过代际一致性规则保证），所以在e&#43;2代是不可能访问到e代retire的b1和b2的。到了e&#43;3代，表示所有可能访问到b1和b2的e&#43;1代都已经结束，此时即可安全地回收b1和b2内存。
-不同的代际一致性规则，可以安全回收的代际是不一样的。
-" />
+<meta name="description" content="" />
 <meta name="keywords" content="" />
 
   <meta name="robots" content="noodp" />
 
-<link rel="canonical" href="https://www.jinzhi.site/posts/2025-08/kaist-cs431-safe-memory-reclamation/" />
+<link rel="canonical" href="https://www.jinzhi.site/categories/reading/" />
 
 
 
@@ -87,21 +76,10 @@ Hazard Pointers（Protected Pointers） Epoch-Based Reclamation（基于代际�
 
 
 <meta property="og:locale" content="en" />
-<meta property="og:type" content="article" />
-<meta property="og:title" content="KAIST-CS431: Safe Memory Reclamation">
-<meta property="og:description" content="无锁数据结构和传统的数据结构在内存管理有一点区别是：当数据不用了，需要释放内存时，传统数据结构直接调用free()就可以了，但是无锁数据结构不行。举个例子，如下图所示，T1正在读取b1的时候，T2释放了b1，T1中的指针就变成了野指针，造成不安全的内存访问。
-因此，在无锁数据结构中，内存的释放操作一般要延后执行，即保证没有线程能够访问到该片内存后，再执行内存回收。这种方式被称作Safe Memory Reclamation（SMR）。
-从上述例子中，我们可以从两个方面去理解一个SMR算法：
-如何保护正在使用的数据不被释放？ 什么时候能安全地释放已经被标记为需要释放的内存？ 下面介绍两种常用的SMR算法：
-Hazard Pointers（Protected Pointers） Epoch-Based Reclamation（基于代际的内存释放） Hazard Pointers Hazard Pointers的基本思想是线程访问数据块时会将指针记录下来，其它线程尝试释放内存时会感知到数据块引用的存在，从而延迟释放内存，直到所有线程对该数据块的访问结束。
-如上图所示，使用hazard pointers有如下几个步骤：
-在线程访问共享数据时，先调用reserve()方法，将指针记录在一个list内； T2线程尝试释放释放b1时，调用retire()，因为检测到还有线程访问b1，延迟释放内存； 因为内存没有真正释放，T1能在b1 retire后继续访问b1。访问结束后，T1调用unreserve()将指针从list中移除； T3调用gc()（可以周期性运行，也可以事件触发），遍历所有retired的数据块，如果list内没有指向数据块的指针，即可以真正回收内存。 Hazard Pointers有些致命的缺点：
-不够快。因为reserve()保护的指针需要立即被gc()感知到，所以，两个函数都需要引入开销非常大的store-load fence。在遍历整个数据结构时，每个数据块都会调用reserve()，导致遍历效率降低； 并不是所有的数据结构都适用Hazard Pointers。在前文的Lock-free Linked List中，我们也提过Harris-Michael‘s traversing是为了专门支持Hazard Pointers的。Harris&rsquo;s traversing会retire一个连续的数据块，这样，即便T1线程保护了其中一个数据块，gc()仍然可以回收其它的数据块内存，T1线程访问next指针时，仍然会出现问题。 Epoch-Based Reclamation Hazard Pointers只保护无锁数据结构中真正被访问的那部分数据，这也导致了上文中Hazard Pointers的两个缺陷。与Hazard Pointers不同的是，EBR保护的是数据结构中所有可能潜在的访问。这样也就不需要频繁地在线程间同步。
-每个线程在访问数据结构前都会开启一个代际（epoch）。T1在代际e中retire了b1和b2。那么什么时候能安全地reclaim b1和b2的内存呢？
-如上图，我们在这个EBR算法中规定了一个代际一致性规则：并发的代际之间最多只能相差1。也就是说，只要T1还没有调用set_quiescent()结束掉e代，那么其它线程通过set_active()开启的代际号只能是e&#43;1。而所有的e&#43;1代的线程是有可能引用到b1和b2的。当e代结束，T2开启e&#43;2代时，因为e&#43;2代和e代不存在同时发生的可能性（通过代际一致性规则保证），所以在e&#43;2代是不可能访问到e代retire的b1和b2的。到了e&#43;3代，表示所有可能访问到b1和b2的e&#43;1代都已经结束，此时即可安全地回收b1和b2内存。
-不同的代际一致性规则，可以安全回收的代际是不一样的。
-" />
-<meta property="og:url" content="https://www.jinzhi.site/posts/2025-08/kaist-cs431-safe-memory-reclamation/" />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Reading">
+<meta property="og:description" content="" />
+<meta property="og:url" content="https://www.jinzhi.site/categories/reading/" />
 <meta property="og:site_name" content="chengzhycn&#39;s blog" />
 
   <meta property="og:image" content="https://www.jinzhi.site/og-image.png">
@@ -109,13 +87,11 @@ Hazard Pointers（Protected Pointers） Epoch-Based Reclamation（基于代际�
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="627">
 
-  <meta property="article:section" content="Courses" />
-
-
-  <meta property="article:published_time" content="2025-08-28 13:09:43 &#43;0800 &#43;0800" />
 
 
 
+
+  <link href="/categories/reading/index.xml" rel="alternate" type="application/rss+xml" title="chengzhycn&#39;s blog" />
 
 
 
@@ -225,111 +201,110 @@ Hazard Pointers（Protected Pointers） Epoch-Based Reclamation（基于代际�
 
   <div class="content">
     
-<article class="post">
-  <h1 class="post-title">
-    <a href="https://www.jinzhi.site/posts/2025-08/kaist-cs431-safe-memory-reclamation/">KAIST-CS431: Safe Memory Reclamation</a>
-  </h1>
-  <div class="post-meta"><time class="post-date">2025-08-28</time><span class="post-reading-time">1 min read (45 words)</span></div>
-
+  <h1>Posts for: #Reading</h1>
   
-    <span class="post-tags">
-      
-      #<a href="https://www.jinzhi.site/tags/rust/">Rust</a>&nbsp;
-      
-      #<a href="https://www.jinzhi.site/tags/concurrency/">Concurrency</a>&nbsp;
-      
-      #<a href="https://www.jinzhi.site/tags/kaist-cs431/">KAIST-CS431</a>&nbsp;
-      
-    </span>
-  
-  
-
-
-  
-    <div class="table-of-contents">
-      <h2>
-        Table of Contents
-      </h2>
-      <nav id="TableOfContents">
-  <ul>
-    <li><a href="#hazard-pointers">Hazard Pointers</a></li>
-    <li><a href="#epoch-based-reclamation">Epoch-Based Reclamation</a></li>
-  </ul>
-</nav>
-    </div>
-  
-
-  <div class="post-content"><div>
-        <p>无锁数据结构和传统的数据结构在内存管理有一点区别是：当数据不用了，需要释放内存时，传统数据结构直接调用<code>free()</code>就可以了，但是无锁数据结构不行。举个例子，如下图所示，T1正在读取b1的时候，T2释放了b1，T1中的指针就变成了野指针，造成不安全的内存访问。</p>
-<p><img src="/images/notes/kaist-cs431-safe-memory-reclamation/image-20220410114205442.png" alt="image-20220410114205442"></p>
-<p>因此，在无锁数据结构中，内存的释放操作一般要延后执行，即保证没有线程能够访问到该片内存后，再执行内存回收。这种方式被称作Safe Memory Reclamation（SMR）。</p>
-<p>从上述例子中，我们可以从两个方面去理解一个SMR算法：</p>
-<ol>
-<li><strong>如何保护正在使用的数据不被释放？</strong></li>
-<li><strong>什么时候能安全地释放已经被标记为需要释放的内存？</strong></li>
-</ol>
-<p>下面介绍两种常用的SMR算法：</p>
-<ol>
-<li>Hazard Pointers（Protected Pointers）</li>
-<li>Epoch-Based Reclamation（基于代际的内存释放）</li>
-</ol>
-<p><img src="/images/notes/kaist-cs431-safe-memory-reclamation/image-20220411074041712.png" alt="image-20220411074041712"></p>
-<h2 id="hazard-pointers">Hazard Pointers<a href="#hazard-pointers" class="hanchor" ariaLabel="Anchor">#</a> </h2>
-<p>Hazard Pointers的基本思想是<strong>线程访问数据块时会将指针记录下来，其它线程尝试释放内存时会感知到数据块引用的存在，从而延迟释放内存，直到所有线程对该数据块的访问结束。</strong></p>
-<p><img src="/images/notes/kaist-cs431-safe-memory-reclamation/image-20220411083606925.png" alt="image-20220411083606925"></p>
-<p>如上图所示，使用hazard pointers有如下几个步骤：</p>
-<ol>
-<li>在线程访问共享数据时，先调用<code>reserve()</code>方法，将指针记录在一个list内；</li>
-<li>T2线程尝试释放释放b1时，调用<code>retire()</code>，因为检测到还有线程访问b1，延迟释放内存；</li>
-<li>因为内存没有真正释放，T1能在b1 retire后继续访问b1。访问结束后，T1调用<code>unreserve()</code>将指针从list中移除；</li>
-<li>T3调用<code>gc()</code>（可以周期性运行，也可以事件触发），遍历所有retired的数据块，如果list内没有指向数据块的指针，即可以真正回收内存。</li>
-</ol>
-<p>Hazard Pointers有些致命的缺点：</p>
-<ol>
-<li>不够快。因为<code>reserve()</code>保护的指针需要立即被<code>gc()</code>感知到，所以，两个函数都需要引入开销非常大的store-load fence。在遍历整个数据结构时，每个数据块都会调用<code>reserve()</code>，导致遍历效率降低；</li>
-<li>并不是所有的数据结构都适用Hazard Pointers。在前文的Lock-free Linked List中，我们也提过Harris-Michael‘s traversing是为了专门支持Hazard Pointers的。Harris&rsquo;s traversing会retire一个连续的数据块，这样，即便T1线程保护了其中一个数据块，<code>gc()</code>仍然可以回收其它的数据块内存，T1线程访问next指针时，仍然会出现问题。</li>
-</ol>
-<h2 id="epoch-based-reclamation">Epoch-Based Reclamation<a href="#epoch-based-reclamation" class="hanchor" ariaLabel="Anchor">#</a> </h2>
-<p>Hazard Pointers只保护无锁数据结构中真正被访问的那部分数据，这也导致了上文中Hazard Pointers的两个缺陷。与Hazard Pointers不同的是，<strong>EBR保护的是数据结构中所有可能潜在的访问</strong>。这样也就不需要频繁地在线程间同步。</p>
-<p><img src="/images/notes/kaist-cs431-safe-memory-reclamation/image-20220413090336739.png" alt="image-20220413090336739"></p>
-<p>每个线程在访问数据结构前都会开启一个代际（epoch）。T1在代际e中retire了b1和b2。那么什么时候能安全地reclaim b1和b2的内存呢？</p>
-<p>如上图，我们在这个EBR算法中规定了一个<strong>代际一致性规则：并发的代际之间最多只能相差1。<strong>也就是说，只要T1还没有调用<code>set_quiescent()</code>结束掉e代，那么其它线程通过<code>set_active()</code>开启的代际号只能是e+1。而所有的e+1代的线程是有可能引用到b1和b2的。当e代结束，T2开启e+2代时，因为e+2代和e代不存在</strong>同时发生</strong>的可能性（通过代际一致性规则保证），所以在e+2代是不可能访问到e代retire的b1和b2的。到了e+3代，表示所有可能访问到b1和b2的e+1代都已经结束，此时即可安全地回收b1和b2内存。</p>
-<p>不同的代际一致性规则，可以安全回收的代际是不一样的。</p>
-
-      </div></div>
-
-  
+  <div class="posts">
     
-<div class="pagination">
-  <div class="pagination__title">
-    <span class="pagination__title-h">Read other posts</span>
-    <hr />
-  </div>
+      <article class="post on-list">
+        <h1 class="post-title">
+          <a href="https://www.jinzhi.site/posts/2022-03/%E6%9E%AA%E7%82%AE%E7%97%85%E8%8F%8C%E4%B8%8E%E9%92%A2%E9%93%81/">枪炮、病菌与钢铁</a>
+        </h1>
+        <div class="post-meta"><time class="post-date">2022-03-07</time></div>
+
+        
+          <span class="post-tags">
+            
+            #<a href="https://www.jinzhi.site/tags/nonfiction/">nonfiction</a>&nbsp;
+            
+          </span>
+        
+
+        
+
+
+        <div class="post-content">
+          
+            <h2 id="枪炮病菌与钢铁">《枪炮、病菌与钢铁》</h2>
+<p>作者 <em>贾雷德·戴蒙德</em></p>
+<p><img src="/images/notes/%E6%9E%AA%E7%82%AE%E7%97%85%E8%8F%8C%E4%B8%8E%E9%92%A2%E9%93%81/t6_42766048.jpg" alt=""></p>
+<h3 id="致我的中国读者">致我的中国读者</h3>
+<p>物理学家、化学家和分子生物学家告诉我们，唯一严谨的科学研究方法是进行可操纵的实验室实验</p>
+<h3 id="开场白-亚力的问题">开场白 亚力的问题</h3>
+<p>几乎所有的儿童发展都强调：童年的刺激和活动有助于心智发展，不可逆的心智障碍与童年时的刺激不足有关。</p>
+<p>各族群的历史循着不同的轨迹开展，那是环境而非生物差异造成的。</p>
+<p>世界技术发展的共通模式反倒更容易理解。食物生产手段让农民生产出食物盈余，因此农业社会可以供养全职的技术专家，他们不用亲自耕作，只要专注于发展技术。</p>
+<h3 id="第一部分-从伊甸园到卡哈马卡">第一部分 从伊甸园到卡哈马卡</h3>
+<p>第一批走出非洲的人类祖先是直立人，其化石证据是在东南亚的爪哇岛发现的“爪哇人”（Java man）。</p>
+<p>今天西伯利亚与阿拉斯加之间浅浅的白令海峡在冰期由于海面的升降，有时是海峡，有时则是宽广的洲际陆桥。</p>
+<h3 id="第2章-历史的自然实验">第2章 历史的自然实验</h3>
+<p>一般而言，政治单元越大，人口密度越高，技术和组织就越繁复</p>
+<p>人口密度与政治单元大小的差异对波利尼西亚各地的社会有何影响？经济生活仍非常简单的岛屿要么人口密度低（如查塔姆群岛上的狩猎—采集社群），要么人口数量少（小环礁上的社群），要么二者皆是。在这种社会，家家户户自给自足，经济上几乎不需要专业分工。经济专业化是在面积较大、人口密度较高的岛屿发展出来的</p>
+<h3 id="第3章-卡哈马卡的冲突">第3章 卡哈马卡的冲突</h3>
+<p>阿塔瓦尔帕的被俘是现代历史上最大冲突中的决定性时刻，因此令人玩味不已。但这一事件之所以能引起更广泛的关注，是因为使得皮萨罗虏获阿塔瓦尔帕的种种因素，也在现代世界中许多殖民者和土著的冲突中起了作用。可以说，阿塔瓦尔帕被俘为我们了解世界史打开了一扇窗。</p>
+<p>皮萨罗的武力优势在于西班牙人的枪炮、刀剑和马匹。而阿塔瓦尔帕的军队作战时没有骑乘任何动物，武器也只有石头、铜器、木棒、狼牙棒、斧头，加上弹弓和其他拼凑起来的武器。这种悬殊决定了美洲土著等族群与欧洲人交锋时的命运。</p>
+<p>阿塔瓦尔帕之后成为印加皇帝的曼科（Manco），其麾下最骁勇善战的是尤潘基（Quizo Yupanqui）。1536年，尤潘基率军在利马发动突袭攻打西班牙人，然而对方只派出两支西班牙骑兵就把他们打得落花流水，尤潘基和手下的将领都被杀，全军覆没。另一支26名骑兵组成的队伍则在库斯科击败了曼科亲率的精锐。</p>
+<p>较有免疫力的入侵族群把传染病带给其他没有免疫力的族群。天花、麻疹、流感、斑疹伤寒、腺鼠疫等已在欧洲蔓延的传染病，反倒成了欧洲人征服世界各地族群的助力。</p>
+<p>皮萨罗成功的直接原因包括基于枪炮、钢铁武器和马匹的军事技术，来自欧亚大陆的传染病，欧洲的海事技术，中央集权的政治组织，以及文字。</p>
+<h3 id="第二部分-食物生产的兴起与扩散">第二部分 食物生产的兴起与扩散</h3>
+<p>食物生产对枪炮、病菌和钢铁的发展而言，是间接的前提条件。因此，从各大洲族群从事农牧的地理条件可看出日后的命运。</p>
+<p>通过驯化动植物比狩猎—采集方式产出更多食物，从而增加人口密度，这是作物和家畜对人口直接的影响。间接一些的影响，是此类食物生产方法需要人们定居下来，这种生活方式促成了人口密度的增加。</p>
+<p>作物和牲畜的有无，从根本上解释了为何帝国、文字、钢铁武器最早在欧亚大陆出现，而在其他地方较晚甚至没有出现。</p>
+<h3 id="第5章-历史上的有与无">第5章 历史上的有与无</h3>
+<p>所有生物体内的碳元素中，都含有固定比例的放射性碳14原子。生物死亡后，就不再从外界吸收碳元素，体内已有的放射性碳14原子仍继续衰变，半衰期约5 700年，生物死后大约4万年，其体内碳14的量就低到难以测量，或者难以和晚近时期混入的少量含碳14的遗存分辨了。</p>
+<p>利用碳14测年法的第二个问题，就是大气中碳14与碳12的比例实际上并不恒定，而是在不同的时间段内有波动，因此基于比例恒定假设的计算结果必然存在系统性的小误差，必须加以校正。</p>
+<p>在有些地区，生产食物的手段完全是独立发展出来的。这些地区在外来作物与动物输入之前，自行驯化了很多本土的作物与动物。这种地区目前只有5个我们有翔实的证据：西南亚（或称近东或肥沃新月地带）、中国、中美洲（墨西哥中部、南部以及邻近的中美洲地区）、南美洲的安第斯山脉（或许还包括邻近的亚马孙盆地）和美国东部</p>
+<p>食物生产方面取得先机的族群，在迈向枪炮、病菌和钢铁的路途上，领先群雄。其结果就是历史上一连串“有”与“无”的冲突。</p>
+<h3 id="第6章-下田好还是打猎好">第6章 下田好，还是打猎好？</h3>
+<p>人类最近1万年的历史彰彰在目的事实，就是人类生计的变迁，主流是从狩猎—采集转变成食物生产。因此我们必须问的是：哪些因素让食物生产显得有利，使其他的生计类型都失色了？</p>
+<p>第一个因素是可获得的野生食物越来越少。</p>
+<p>第二个因素是，随着可驯化的野生植物变多，驯化植物的回报越来越多</p>
+<p>影响狩猎—采集和农业消长的第三个因素，是生产食物的技术（例如采收、处理和储藏）不断改进。</p>
+<p>第四个因素是人口密度上升与食物生产兴起的双向关联。</p>
+<p>接受食物生产是一种自催化的过程，也就是在一个正回馈循环中不断自我催化的过程，这个过程开启后就会加速。</p>
+<p>明白了食物生产与人口密度的这种双向关联，就可以解释这样一种矛盾状况：食物生产增加了每英亩土地上可食用卡路里的数量，但食物生产者的营养状况不如被他们取代的狩猎—采集者。之所以有时会出现这种状况，是因为食物增产的速度稍稍落后于人口增加的速度。</p>
+<p>食物生产者社群的人口密度很高，凭数量优势就足以驱逐或消灭狩猎—采集者，更别提其他优势了（包括技术、病菌和职业军人）。</p>
+<p>只有当地理或生态屏障将食物生产者拦在外面，或使得适用于当地的食物生产技术难以传入的时候，狩猎—采集者才有可能一直到近现代都在适于农牧的土地上保持原有的生活方式。</p>
+<h3 id="第7章-杏仁的前世今生">第7章 杏仁的前世今生</h3>
+<p>这些作物多半是自花传粉，直接把有利的基因传给下一代，不必和其他较没有价值的植物杂交，坏了自己的种。</p>
+<p>谷物和豆类相比，这些作物的缺点是至少得种植3年才可能有收成，盛产期则必须等待10年之久。因此，只有在一地长住的人才有可能种植这些作物。这些最早的果树和坚果树还容易栽种，插枝甚至撒下种子就长出来了，晚期才被驯化的树木可没这么简单。插枝还有个好处，也就是保证后代和亲代一模一样。</p>
+<p>谷物的优点有长得快、碳水化合物含量高，每公顷可收获多达1吨的食物。因此，谷物在今天人类摄入的卡路里中占了超过半数。今日世界的12种主要作物中，谷物就有5种：小麦、玉米、稻米、大麦和高粱。很多谷物蛋白质含量低，但这种缺陷可由豆类来补足。豆类的25%是蛋白质，黄豆更高达38%，谷物和豆类是均衡饮食不可或缺的。</p>
+<h3 id="第8章-是苹果的问题还是印第安人的问题">第8章 是苹果的问题，还是印第安人的问题？</h3>
+<p>现代世界作物年产量的80%是由十几种植物贡献的。这十几种“重量级”的作物如下：谷物有小麦、玉米、稻米、大麦和高粱，豆类有黄豆，块根或块茎类为马铃薯、木薯、甘薯，糖分的来源则是甘蔗、甜菜，水果如香蕉。</p>
+<p>小麦、大麦的天生优势和墨西哥类蜀黍的明显劣势，大概就是欧亚社会和新大陆社会发展差异的要因。</p>
+<p>肥沃新月地带的第三大优势，就是雌雄同株自花传粉的植物比例很高，这些植物偶尔也行异花传粉。</p>
+<p>大多数的野生植物是雌雄同株异花传粉，或是雌雄异株——这种生殖生物学的现象给早期农民添了很多麻烦，因为他们选择一种突变的植物栽种后，其子代往往因和其他植株杂交而失去原来的特色。因此，大部分的作物来自野生植物中小部分行雌雄同株自花传粉者，或经无性生殖产生者（如用根来种植以复制亲代基因）。</p>
+<p>野生单粒小麦、二粒小麦和大麦这三种的蛋白质含量很高，为8%～14%，相形之下，东亚的首要作物稻米和新大陆的玉米则蛋白质含量少，营养问题比较严重。</p>
+<p>农业最早在肥沃新月地带发端，主要是“八大始祖作物”之功，它们是属于谷物的二粒小麦、野生单粒小麦、大麦，属于豆类的兵豆、豌豆、鹰嘴豆、苦野豌豆，属于纤维作物的亚麻。在这八种作物之中，只有亚麻和大麦的野生种分布超出了肥沃新月地带和安纳托利亚地区；有两种始祖作物的分布范围很窄，鹰嘴豆只在土耳其东南部，二粒小麦的分布范围则限于肥沃新月地带。因此，肥沃新月地带驯化当地现成的野生植物就足以发展农业，无须仰赖外地引入的作物包。有两种始祖作物无法在肥沃新月地带以外的地方被驯化，主要原因是它们只在肥沃新月地带有。</p>
+<p>在食物生产兴起前，人类大抵以野生物种为食，因此掌握的关于野生动植物的知识特别丰富。最早的农民承袭了这样的知识——几千年来和大自然亲密生活、观察而累积下来的经验。因此，有价值的物种似乎不大可能逃过早期农民的眼睛。</p>
+<p><em>其他领域也是一样的道理</em></p>
+<blockquote>
+<p>能优先获得引进的新作物和家畜（或者在文化上乐意接受新作物和家畜）的族群就可扩张版图，没有门路或意愿接受的族群自然遭到淘汰。</p></blockquote>
+<p>肥沃新月地带登峰造极，新几内亚和美国东部则乏善可陈。肥沃新月地带野生动植物的驯养可谓轻而易举，不但驯化了许多物种，其中品种多产而优良者比比皆是，而且种类繁多。结果得以发展出精密的粮食生产业，促使人口更加稠密，进而迈入有先进技术和复杂政治组织的现代世界，同时携带可以消灭其他族群的传染病。</p>
+<p>事实上，这个地表的各大洲上有成百上千互相竞争的社会，有些比较开放，很能接受新事物，有些则趋向保守。接受新的作物、家畜和技术的，就能日益精进，领袖群伦，人口数目远远超过那些不愿接受新事物的族群，接着便向后者大举入侵，甚至将之连根拔起。</p>
+          
+        </div>
+
+        
+          <div>
+            <a class="read-more button inline" href="/posts/2022-03/%E6%9E%AA%E7%82%AE%E7%97%85%E8%8F%8C%E4%B8%8E%E9%92%A2%E9%93%81/">[Read more]</a>
+          </div>
+        
+      </article>
+    
+
+    <div class="pagination">
   <div class="pagination__buttons">
     
-      <a href="https://www.jinzhi.site/posts/2025-08/lua-an-overview/" class="button inline prev">
-        &lt; [<span class="button__text">Lua - An Overview</span>]
+      <a href="/categories/reading/" class="button inline prev">
+        &lt; [<span class="button__text">Newer posts</span>]
       </a>
     
     
-      ::
-    
-    
-      <a href="https://www.jinzhi.site/posts/2025-08/kaist-cs431-concurrent-data-structure/" class="button inline next">
-         [<span class="button__text">KAIST-CS431: Concurrent Data Structure</span>] &gt;
-      </a>
     
   </div>
 </div>
 
-
-  
-
-  
-    
-
-  
-</article>
+  </div>
 
   </div>
 
