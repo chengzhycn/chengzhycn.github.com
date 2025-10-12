@@ -216,6 +216,105 @@
     
       <article class="post on-list">
         <h2 class="post-title">
+          <a href="https://www.jinzhi.site/posts/2022-03/kaist-cs431-lock/">KAIST-CS431: Lock</a>
+        </h2>
+
+        <div class="post-meta"><time class="post-date">2022-03-08</time></div>
+
+        
+          <span class="post-tags">
+            
+            #<a href="https://www.jinzhi.site/tags/concurrency/">Concurrency</a>&nbsp;
+            
+            #<a href="https://www.jinzhi.site/tags/rust/">Rust</a>&nbsp;
+            
+            #<a href="https://www.jinzhi.site/tags/kaist-cs431/">KAIST-CS431</a>&nbsp;
+            
+          </span>
+        
+
+        
+
+
+        <div class="post-content">
+          
+            <ul>
+<li><strong>Pros &amp; cons:</strong> simple &amp; possibly inefficient</li>
+</ul>
+<h2 id="low-level-lock-api">Low-Level Lock API</h2>
+<p>常用的low-level锁的API有：</p>
+<ul>
+<li><strong>Lock.acquire()</strong>: 阻塞，直到获取到锁</li>
+<li><strong>Lock.try_acquire():</strong> 返回锁是否已经被占用了，如果是，返回false，否，占用锁并返回true。不阻塞</li>
+<li><strong>Lock.release()</strong>: 释放锁</li>
+</ul>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c++" data-lang="c++"><span class="line"><span class="cl"><span class="n">L</span><span class="p">.</span><span class="n">acquire</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl"><span class="n">r1</span> <span class="o">=</span> <span class="n">X</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="n">X</span> <span class="o">=</span> <span class="n">r1</span> <span class="o">+</span> <span class="mi">1</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="n">L</span><span class="p">.</span><span class="n">release</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="n">L</span><span class="p">.</span><span class="n">acquire</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl"><span class="n">r2</span> <span class="o">=</span> <span class="n">X</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="n">X</span> <span class="o">=</span> <span class="n">r2</span> <span class="o">+</span> <span class="mi">1</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="n">L</span><span class="p">.</span><span class="n">release</span><span class="p">();</span>
+</span></span></code></pre></div><p>但是，这些API给用户在使用时造成了很多挑战（心智负担）：</p>
+<ul>
+<li><strong>Relating lock and resource</strong>: 用户只有在拿到锁时才能访问被保护的变量；</li>
+<li><strong>Matching acquire/release</strong>: 用户只能释放已经拿到的锁。</li>
+</ul>
+<p>如果锁没有得到正确的处理，会造成很多潜在的问题，并且，这些问题很难发现。因此，在并发编程时，low-level的锁API存在如下问题：</p>
+<ul>
+<li><strong>High cost</strong>：程序员需要始终关注API的使用；</li>
+<li><strong>Potential bugs</strong>：不正确的使用容易造成很多潜在的bugs。</li>
+</ul>
+<h2 id="high-level-lock-api">High-Level Lock API</h2>
+<ul>
+<li>想要一个易用地，始终能保证安全地high-level API。
+<ul>
+<li>Acquire/release自动匹配；</li>
+<li>Lock和resource显式关联。</li>
+</ul>
+</li>
+</ul>
+<p>C++中，这种API被称作<strong>RAII</strong>：<strong>Resource Acquisition Is Initialization</strong>。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c++" data-lang="c++"><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;string&gt;</span><span class="cp">
+</span></span></span><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;mutex&gt;</span><span class="cp">
+</span></span></span><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;iostream&gt;</span><span class="cp">
+</span></span></span><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;fstream&gt;</span><span class="cp">
+</span></span></span><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;stdexcept&gt;</span><span class="cp">
+</span></span></span><span class="line"><span class="cl"><span class="cp"></span>
+</span></span><span class="line"><span class="cl"><span class="kt">void</span> <span class="nf">write_to_file</span><span class="p">(</span><span class="k">const</span> <span class="n">std</span><span class="o">::</span><span class="n">string</span> <span class="o">&amp;</span> <span class="n">message</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 创建关于文件的互斥锁
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="k">static</span> <span class="n">std</span><span class="o">::</span><span class="n">mutex</span> <span class="n">mutex</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 在访问文件前进行加锁
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="n">std</span><span class="o">::</span><span class="n">lock_guard</span><span class="o">&lt;</span><span class="n">std</span><span class="o">::</span><span class="n">mutex</span><span class="o">&gt;</span> <span class="n">lock</span><span class="p">(</span><span class="n">mutex</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 尝试打开文件
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="n">std</span><span class="o">::</span><span class="n">ofstream</span> <span class="n">file</span><span class="p">(</span><span class="s">&#34;example.txt&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="n">file</span><span class="p">.</span><span class="n">is_open</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">        <span class="k">throw</span> <span class="n">std</span><span class="o">::</span><span class="n">runtime_error</span><span class="p">(</span><span class="s">&#34;unable to open file&#34;</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 输出文件内容
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="n">file</span> <span class="o">&lt;&lt;</span> <span class="n">message</span> <span class="o">&lt;&lt;</span> <span class="n">std</span><span class="o">::</span><span class="n">endl</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 当离开作用域时，文件句柄会被首先析构 (不管是否抛出了异常)
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">// 互斥锁也会被析构 (同样地，不管是否抛出了异常)
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="p">}</span>
+</span></span></code></pre></div><p>RAII要求，资源的有效期与持有资源的<a href="https://zh.wikipedia.org/w/index.php?title=%e5%af%b9%e8%b1%a1%e7%9a%84%e7%94%9f%e5%91%bd%e6%9c%9f&amp;action=edit&amp;redlink=1">对象的生命期</a>严格绑定，即由对象的<a href="https://zh.wikipedia.org/wiki/%E6%9E%84%E9%80%A0%E5%87%BD%E6%95%B0">构造函数</a>完成<a href="https://zh.wikipedia.org/w/index.php?title=%e8%b5%84%e6%ba%90%e7%9a%84%e5%88%86%e9%85%8d&amp;action=edit&amp;redlink=1">资源的分配</a>（获取），同时由<a href="https://zh.wikipedia.org/wiki/%E6%9E%90%E6%9E%84%E5%87%BD%E6%95%B0">析构函数</a>完成资源的释放。在这种要求下，只要对象能正确地析构，就不会出现<a href="https://zh.wikipedia.org/w/index.php?title=%e8%b5%84%e6%ba%90%e6%b3%84%e9%9c%b2&amp;action=edit&amp;redlink=1">资源泄露</a>问题。</p>
+          
+        </div>
+
+        
+          <div>
+            <a class="read-more button inline" href="/posts/2022-03/kaist-cs431-lock/">[Read more]</a>
+          </div>
+        
+      </article>
+    
+      <article class="post on-list">
+        <h2 class="post-title">
           <a href="https://www.jinzhi.site/posts/2022-03/%E6%9E%AA%E7%82%AE%E7%97%85%E8%8F%8C%E4%B8%8E%E9%92%A2%E9%93%81/">枪炮、病菌与钢铁</a>
         </h2>
 
@@ -487,70 +586,6 @@ $$</p>
         
       </article>
     
-      <article class="post on-list">
-        <h2 class="post-title">
-          <a href="https://www.jinzhi.site/posts/2021-09/go-channel-%E5%AE%9E%E7%8E%B0/">Go channel 实现</a>
-        </h2>
-
-        <div class="post-meta"><time class="post-date">2021-09-12</time></div>
-
-        
-          <span class="post-tags">
-            
-            #<a href="https://www.jinzhi.site/tags/go/">Go</a>&nbsp;
-            
-          </span>
-        
-
-        
-
-
-        <div class="post-content">
-          
-            <p>Go的Channel在runtime里面是一个hchan的结构体，每次我们make一个新的channel时，runtime从heap内分配一个hchan结构体管理channel。</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">type</span><span class="w"> </span><span class="nx">hchan</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">qcount</span><span class="w">   </span><span class="kt">uint</span><span class="w">           </span><span class="c1">// total data in the queue</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">dataqsiz</span><span class="w"> </span><span class="kt">uint</span><span class="w">           </span><span class="c1">// size of the circular queue</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">buf</span><span class="w">      </span><span class="nx">unsafe</span><span class="p">.</span><span class="nx">Pointer</span><span class="w"> </span><span class="c1">// points to an array of dataqsiz elements</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">elemsize</span><span class="w"> </span><span class="kt">uint16</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">closed</span><span class="w">   </span><span class="kt">uint32</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">elemtype</span><span class="w"> </span><span class="o">*</span><span class="nx">_type</span><span class="w"> </span><span class="c1">// element type</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">sendx</span><span class="w">    </span><span class="kt">uint</span><span class="w">   </span><span class="c1">// send index</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">recvx</span><span class="w">    </span><span class="kt">uint</span><span class="w">   </span><span class="c1">// receive index</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">recvq</span><span class="w">    </span><span class="nx">waitq</span><span class="w">  </span><span class="c1">// list of recv waiters</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">sendq</span><span class="w">    </span><span class="nx">waitq</span><span class="w">  </span><span class="c1">// list of send waiters</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="c1">// lock protects all fields in hchan, as well as several</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="c1">// fields in sudogs blocked on this channel.</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="c1">//
-</span></span></span><span class="line"><span class="cl"><span class="c1">    // Do not change another G&#39;s status while holding this lock</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="c1">// (in particular, do not ready a G), as this can deadlock</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="c1">// with stack shrinking.</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">lock</span><span class="w"> </span><span class="nx">mutex</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="p">}</span><span class="w">
-</span></span></span></code></pre></div><ul>
-<li>qcount：当前channel queue内的element数目，当qcount等于dataqsiz时，表示channel buffer已经满了，send channel会被阻塞；</li>
-<li>dataqsiz：channel的buffer大小，也就是我们在make时设定的值。dataqsiz在channel创建后不会再变动，因此channel的buffer是不会动态扩容的；</li>
-<li>buf：buffered channel缓存elements的内存地址。是一个数组实现的环形队列；</li>
-<li>elemsize：element类型大小；</li>
-<li>closed：channel是否已经被关闭，防止关闭已经关闭的channel；</li>
-<li>elemtype：channel element 类型；</li>
-<li>sendx：buffer中下一个生产的element的index；</li>
-<li>recvx：buffer中下一个消费的element的index；</li>
-<li>recvq：阻塞的接收channel，是一个sudog的链表</li>
-<li>sendq：阻塞的发送channel，是一个sudog的链表</li>
-</ul>
-<p>当buffer没有满时，send channel发送elements时直接把elements放在buf内，增加sendx和qcount；当buffer满时，send channel被阻塞，并加入到sendq链表内，等待被唤醒；</p>
-          
-        </div>
-
-        
-          <div>
-            <a class="read-more button inline" href="/posts/2021-09/go-channel-%E5%AE%9E%E7%8E%B0/">[Read more]</a>
-          </div>
-        
-      </article>
-    
 
     <div class="pagination">
   <div class="pagination__buttons">
@@ -766,10 +801,42 @@ $$</p>
       
       
     
+      
+      
+      
+    
 
     
     
 
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-10/" class="archive-link">
+          <span class="archive-date">2025-10</span>
+          <span class="archive-month-name">Oct</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
     
       
       
@@ -1274,8 +1341,6 @@ $$</p>
       
         
       
-    
-      
         
       
     
@@ -1290,15 +1355,7 @@ $$</p>
       
         
       
-        
-      
-        
-      
     
-      
-        
-      
-        
       
         
       
@@ -1338,36 +1395,6 @@ $$</p>
       
         
       
-    
-      
-        
-      
-    
-      
-        
-      
-        
-      
-    
-      
-        
-      
-    
-      
-        
-      
-    
-      
-    
-      
-        
-      
-    
-      
-        
-      
-    
-      
         
       
         
@@ -1377,8 +1404,6 @@ $$</p>
         
       
         
-      
-    
       
         
       
@@ -1406,8 +1431,6 @@ $$</p>
       
     
       
-        
-      
     
       
         
@@ -1419,12 +1442,6 @@ $$</p>
     
       
         
-      
-        
-      
-        
-      
-    
       
         
       
@@ -1450,6 +1467,16 @@ $$</p>
       
         
       
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
     
       
         
@@ -1463,9 +1490,61 @@ $$</p>
         
       
     
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
     
+      
+        
+      
+    
     
+    
+    
+    
+      
+      
     
+      
+      
     
       
       
@@ -1641,7 +1720,13 @@ $$</p>
     
     
     
+    
+    
+      
+      
     
+      
+      
     
       
       
@@ -1714,10 +1799,14 @@ $$</p>
     
       
       
+    
     
     
     
     
+      
+    
+      
     
       
     
@@ -1766,10 +1855,29 @@ $$</p>
       
     
       
+    
     
     
     
     
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/apisix/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          apisix
+          <span class="tag-count">(1)</span>
+        </a>
+      
     
       
       
@@ -1976,6 +2084,25 @@ $$</p>
            style="font-size: 0.9em;"
            title="1 article">
           kubernetes
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/l7gateway/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          L7Gateway
           <span class="tag-count">(1)</span>
         </a>
       
