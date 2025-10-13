@@ -229,15 +229,12 @@
             <p>最近在做网关开发时遇到了一个场景：<strong>业务在做多实例部署时需要通过 Ingress 将服务注册给 APISIX，由于每个实例属于一个单独的 namespace，导致在 APISIX 和 Ingress 上出现流量覆盖的问题：</strong></p>
 <ol>
 <li>Ingress 通过 Host 和 URI 匹配入向流量，同一个服务的 Host 和 URI 是完全一致的（Host 用 ip:port 表示），因此注册多个 Ingress 流量只会引流到一个实例上。</li>
-<li>APISIX 侧在 balance 阶段对于相同 ip:port 的 upstream node 会做去重，导致跨集群多实例时流量分配并不符合预期。
-举个例子，有 A，B 两个集群，A 集群部署了 2 个实例，B 集群部署了一个实例。预期这 3 个实例应该平均分配流量（假设采用 rr），A 集群和 B 集群流量比例应该是 2:1，但实际上 A 集群和 B 集群在 APISIX 分配时流量是 1:1，而在 A 集群内一个实例占据了全部流量。
-从业务上来说这个可以通过重新规划 namespace 和实例的关系来解决。同一个集群同一个服务的所有实例分布在同一个 namespace 中。这样注册的 Ingress 和 APISIX upstream node 就只会有一个。
-抛开这个点，我们来看看从网关的角度如何解决这两个问题。
-第一个问题比较好解决，每个注册的实例采用独立的 Domain，Ingress 通过 Host Header 来区分流量。在 APISIX 采用域名注册，域名解析到 Ingress 地址。如果域名没法解析（我们遇到的场景），也可以将 Domain 信息放到 node 的 metadata 内，写一个插件将其注入到 node.domain 内来完成。
-第二个问题涉及到 APISIX balance 的主流程，相对来说麻烦一点。这也引出了我们今天的话题。</li>
+<li>APISIX 侧在 balance 阶段对于相同 ip:port 的 upstream node 会做去重，导致跨集群多实例时流量分配并不符合预期。</li>
 </ol>
-<h2 id="upstream-node-的选择流程">Upstream Node 的选择流程</h2>
-<p>我们先来看看当前 APISIX balancer 是如何选择 upstream node 的。</p>
+<p>举个例子，有 A，B 两个集群，A 集群部署了 2 个实例，B 集群部署了一个实例。预期这 3 个实例应该平均分配流量（假设采用 rr），A 集群和 B 集群流量比例应该是 2:1，但实际上 A 集群和 B 集群在 APISIX 分配时流量是 1:1，而在 A 集群内一个实例占据了全部流量。</p>
+<p>从业务上来说这个可以通过重新规划 namespace 和实例的关系来解决。同一个集群同一个服务的所有实例分布在同一个 namespace 中。这样注册的 Ingress 和 APISIX upstream node 就只会有一个。</p>
+<p>抛开这个点，我们来看看从网关的角度如何解决这两个问题。</p>
+<p>第一个问题比较好解决，每个注册的实例采用独立的 Domain，Ingress 通过 Host Header 来区分流量。在 APISIX 采用域名注册，域名解析到 Ingress 地址。如果域名没法解析（我们遇到的场景），也可以将 Domain 信息放到 node 的 metadata 内，写一个插件将其注入到 node.domain 内来完成。</p>
           
         </div>
 
