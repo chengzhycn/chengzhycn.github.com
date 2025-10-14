@@ -1,0 +1,2827 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  
+    <title>Linux 收包和发包流程 :: chengzhycn&#39;s blog</title>
+  
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="流程图 From 《Understanding Linux Network Internals》
+收包流程 TL; DR
+收包NET_RX_SOFTRQ的软中断处理函数是net_rx_action net_rx_action中会调用网卡驱动注册的poll回调函数处理 poll回调函数将数据帧从网卡ring buffer中取出，构造skb： 运行xdpdrv上的bpf program，得到action result 如果是XDP_PASS，构造skb，并初始化skb中一些metadata字段 调用内核的GRO和RPS处理流程 进入__netif_receive_skb_core，处理skb： 运行xdpgeneric上的bpf program，得到action result 如果是XDP_PASS，遍历ptype_all和dev-&gt;ptype_all，进行抓包处理 tc ingress 处理sch_handle_ingress 查找ptype_base和dev-&gt;ptype_specific，交由对应的三层协议栈回调函数处理 NAPI **NAPI的思想是从完全的中断收包模型，改用中断和polling混合。**如果内核在处理旧的数据帧时，收到了新的数据帧，网卡设备没有必要再触发一个中断。内核继续处理设备input queue里的数据（该设备的interrupt禁止了），在队列为空时重新使能中断。
+从内核的角度，NAPI有如下的优势：
+降低CPU的负载（更少的中断） 更多的设备处理公平性 以ixgbe网卡为例，描述下NAPI处理流程。
+注册 ixgbe驱动在初始化中断向量时会调用netif_napi_add初始化NAPI，==将ixgbe_poll函数注册到napi结构体，并将napi加入到设备的napi_list内==：
+/** * ixgbe_alloc_q_vector - Allocate memory for a single interrupt vector * @adapter: board private structure to initialize * @v_count: q_vectors allocated on adapter, used for ring interleaving * @v_idx: index of vector in adapter struct * @txr_count: total number of Tx rings to allocate * @txr_idx: index of first Tx ring to allocate * @xdp_count: total number of XDP rings to allocate * @xdp_idx: index of first XDP ring to allocate * @rxr_count: total number of Rx rings to allocate * @rxr_idx: index of first Rx ring to allocate * * We allocate one q_vector. If allocation fails we return -ENOMEM. **/ static int ixgbe_alloc_q_vector(struct ixgbe_adapter *adapter, int v_count, int v_idx, int txr_count, int txr_idx, int xdp_count, int xdp_idx, int rxr_count, int rxr_idx) { /* ... */ /* initialize NAPI */ netif_napi_add(adapter-&gt;netdev, &amp;q_vector-&gt;napi, ixgbe_poll, 64); } 中断处理函数 ixgbe驱动收到中断后，会调用ixgbe_msix_clean_rings
+" />
+<meta name="keywords" content="" />
+
+  <meta name="robots" content="noodp" />
+
+<link rel="canonical" href="https://www.jinzhi.site/posts/2022-10/linux-%E6%94%B6%E5%8C%85%E5%92%8C%E5%8F%91%E5%8C%85%E6%B5%81%E7%A8%8B/" />
+
+
+
+
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/buttons.min.86f6b4c106b6c6eb690ae5203d36b442c1f66f718ff4e8164fa86cf6c61ad641.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/code.min.d529ea4b2fb8d34328d7d31afc5466d5f7bc2f0bc9abdd98b69385335d7baee4.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/fonts.min.5bb7ed13e1d00d8ff39ea84af26737007eb5051b157b86fc24487c94f3dc8bbe.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/footer.min.eb8dfc2c6a7eafa36cd3ba92d63e69e849e2200e0002a228d137f236b09ecd75.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/gist.min.a751e8b0abe1ba8bc53ced52a38b19d8950fe78ca29454ea8c2595cf26aad5c0.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/header.min.75c7eb0e2872d95ff48109c6647d0223a38db52e2561dd87966eb5fc7c6bdac6.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/main.min.7984a754b43b7469d389c539410e90dff2870263de16b008dfc7e8170fcd0f5b.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/menu.min.3c17467ebeb3d38663dce68f71f519901124fa5cbb4519b2fb0667a21e9aca39.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/pagination.min.bbb986dbce00a5ce5aca0504b7925fc1c581992a4bf57f163e5d69cc1db7d836.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/post.min.e6dddd258e64c83e05cec0cd49c05216742d42fc8ecbfbe6b67083412b609bd3.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/syntax.min.a0773cce9310cb6d8ed23e50f005448facf29a53001b57e038828daa466b25c0.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/terminal.min.e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/terms.min.b81791663c3790e738e571cdbf802312390d30e4b1d8dc9d814a5b5454d0ac11.css">
+
+
+
+
+
+
+
+<link rel="shortcut icon" href="https://www.jinzhi.site/favicon.png">
+<link rel="apple-touch-icon" href="https://www.jinzhi.site/apple-touch-icon.png">
+
+
+<meta name="twitter:card" content="summary" />
+
+  
+    <meta name="twitter:site" content="" />
+  
+    <meta name="twitter:creator" content="" />
+
+
+
+<meta property="og:locale" content="en" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="Linux 收包和发包流程">
+<meta property="og:description" content="流程图 From 《Understanding Linux Network Internals》
+收包流程 TL; DR
+收包NET_RX_SOFTRQ的软中断处理函数是net_rx_action net_rx_action中会调用网卡驱动注册的poll回调函数处理 poll回调函数将数据帧从网卡ring buffer中取出，构造skb： 运行xdpdrv上的bpf program，得到action result 如果是XDP_PASS，构造skb，并初始化skb中一些metadata字段 调用内核的GRO和RPS处理流程 进入__netif_receive_skb_core，处理skb： 运行xdpgeneric上的bpf program，得到action result 如果是XDP_PASS，遍历ptype_all和dev-&gt;ptype_all，进行抓包处理 tc ingress 处理sch_handle_ingress 查找ptype_base和dev-&gt;ptype_specific，交由对应的三层协议栈回调函数处理 NAPI **NAPI的思想是从完全的中断收包模型，改用中断和polling混合。**如果内核在处理旧的数据帧时，收到了新的数据帧，网卡设备没有必要再触发一个中断。内核继续处理设备input queue里的数据（该设备的interrupt禁止了），在队列为空时重新使能中断。
+从内核的角度，NAPI有如下的优势：
+降低CPU的负载（更少的中断） 更多的设备处理公平性 以ixgbe网卡为例，描述下NAPI处理流程。
+注册 ixgbe驱动在初始化中断向量时会调用netif_napi_add初始化NAPI，==将ixgbe_poll函数注册到napi结构体，并将napi加入到设备的napi_list内==：
+/** * ixgbe_alloc_q_vector - Allocate memory for a single interrupt vector * @adapter: board private structure to initialize * @v_count: q_vectors allocated on adapter, used for ring interleaving * @v_idx: index of vector in adapter struct * @txr_count: total number of Tx rings to allocate * @txr_idx: index of first Tx ring to allocate * @xdp_count: total number of XDP rings to allocate * @xdp_idx: index of first XDP ring to allocate * @rxr_count: total number of Rx rings to allocate * @rxr_idx: index of first Rx ring to allocate * * We allocate one q_vector. If allocation fails we return -ENOMEM. **/ static int ixgbe_alloc_q_vector(struct ixgbe_adapter *adapter, int v_count, int v_idx, int txr_count, int txr_idx, int xdp_count, int xdp_idx, int rxr_count, int rxr_idx) { /* ... */ /* initialize NAPI */ netif_napi_add(adapter-&gt;netdev, &amp;q_vector-&gt;napi, ixgbe_poll, 64); } 中断处理函数 ixgbe驱动收到中断后，会调用ixgbe_msix_clean_rings
+" />
+<meta property="og:url" content="https://www.jinzhi.site/posts/2022-10/linux-%E6%94%B6%E5%8C%85%E5%92%8C%E5%8F%91%E5%8C%85%E6%B5%81%E7%A8%8B/" />
+<meta property="og:site_name" content="chengzhycn&#39;s blog" />
+
+  <meta property="og:image" content="https://www.jinzhi.site/og-image.png">
+
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="627">
+
+  <meta property="article:section" content="Learning" />
+
+
+  <meta property="article:published_time" content="2022-10-13 14:30:28 &#43;0800 &#43;0800" />
+
+
+
+
+
+
+
+
+
+<html>
+<head>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-screen-web/style.css" />
+  <style>
+    body {
+      font-family: "LXGW WenKai Screen";
+      font-weight: normal;
+    }
+  </style>
+</head>
+<body>
+
+</body>
+</html>
+
+
+</head>
+<body>
+
+
+<div class="page-wrapper">
+  <div class="container center">
+
+  <header class="header">
+  <div class="header__inner">
+    <div class="header__logo">
+      <a href="/">
+  <div class="logo">
+    chengzhycn&#39;s blog
+  </div>
+</a>
+
+    </div>
+    
+      <ul class="menu menu--mobile">
+  <li class="menu__trigger">Menu&nbsp;▾</li>
+  <li>
+    <ul class="menu__dropdown">
+      
+        
+          <li><a href="/">Home</a></li>
+        
+      
+        
+          <li><a href="/about">About</a></li>
+        
+      
+        
+          <li><a href="/categories/">Categories</a></li>
+        
+      
+        
+          <li><a href="/tags/">Tags</a></li>
+        
+      
+        
+          <li><a href="/archives/">Archives</a></li>
+        
+      
+      
+    </ul>
+  </li>
+</ul>
+
+    
+    
+  </div>
+  
+    <nav class="navigation-menu">
+  <ul class="navigation-menu__inner menu--desktop">
+    
+      
+        
+          <li><a href="/" >Home</a></li>
+        
+      
+        
+          <li><a href="/about" >About</a></li>
+        
+      
+        
+          <li><a href="/categories/" >Categories</a></li>
+        
+      
+        
+          <li><a href="/tags/" >Tags</a></li>
+        
+      
+        
+          <li><a href="/archives/" >Archives</a></li>
+        
+      
+      
+    
+  </ul>
+</nav>
+
+  
+</header>
+
+
+  <div class="content">
+    
+<article class="post">
+  <h1 class="post-title">
+    <a href="https://www.jinzhi.site/posts/2022-10/linux-%E6%94%B6%E5%8C%85%E5%92%8C%E5%8F%91%E5%8C%85%E6%B5%81%E7%A8%8B/">Linux 收包和发包流程</a>
+  </h1>
+  <div class="post-meta"><time class="post-date">2022-10-13</time><span class="post-reading-time">7 min read (1437 words)</span></div>
+
+  
+    <span class="post-tags">
+      
+      #<a href="https://www.jinzhi.site/tags/linux/">Linux</a>&nbsp;
+      
+      #<a href="https://www.jinzhi.site/tags/network/">Network</a>&nbsp;
+      
+      #<a href="https://www.jinzhi.site/tags/kernel/">Kernel</a>&nbsp;
+      
+    </span>
+  
+  
+
+
+  
+    <div class="table-of-contents">
+      <h2>
+        Table of Contents
+      </h2>
+      <nav id="TableOfContents">
+  <ul>
+    <li><a href="#流程图">流程图</a></li>
+    <li><a href="#收包流程">收包流程</a>
+      <ul>
+        <li><a href="#napi">NAPI</a></li>
+      </ul>
+    </li>
+    <li><a href="#发包流程">发包流程</a>
+      <ul>
+        <li><a href="#dev_queue_xmit"><code>dev_queue_xmit</code></a></li>
+        <li><a href="#软中断处理函数net_tx_action">软中断处理函数<code>net_tx_action</code></a></li>
+        <li><a href="#抓包点">抓包点</a></li>
+        <li><a href="#bpf-hook点">BPF HOOK点</a></li>
+      </ul>
+    </li>
+  </ul>
+</nav>
+    </div>
+  
+
+  <div class="post-content"><div>
+        <h2 id="流程图">流程图<a href="#流程图" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>From 《Understanding Linux Network Internals》</p>
+<p><img src="image-20220128172744059.png" alt="image-20220128172744059"></p>
+<p><img src="image-20220129171450456.png" alt="image-20220129171450456"></p>
+<h2 id="收包流程">收包流程<a href="#收包流程" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>TL; DR</p>
+<p><img src="Linux_Packet_Receive_Flow.png" alt="image-20220129171450456"></p>
+<ul>
+<li><strong>收包<code>NET_RX_SOFTRQ</code>的软中断处理函数是<code>net_rx_action</code></strong></li>
+<li><strong><code>net_rx_action</code>中会调用网卡驱动注册的poll回调函数处理</strong></li>
+<li><strong>poll回调函数将数据帧从网卡ring buffer中取出，构造skb：</strong>
+<ul>
+<li><strong>运行xdpdrv上的bpf program，得到action result</strong></li>
+<li><strong>如果是XDP_PASS，构造skb，并初始化skb中一些metadata字段</strong></li>
+</ul>
+</li>
+<li><strong>调用内核的GRO和RPS处理流程</strong></li>
+<li><strong>进入<code>__netif_receive_skb_core</code>，处理skb：</strong>
+<ul>
+<li><strong>运行xdpgeneric上的bpf program，得到action result</strong></li>
+<li><strong>如果是XDP_PASS，遍历<code>ptype_all</code>和<code>dev-&gt;ptype_all</code>，进行抓包处理</strong></li>
+<li><strong>tc ingress 处理<code>sch_handle_ingress</code></strong></li>
+<li><strong>查找<code>ptype_base</code>和<code>dev-&gt;ptype_specific</code>，交由对应的三层协议栈回调函数处理</strong></li>
+</ul>
+</li>
+</ul>
+<h3 id="napi">NAPI<a href="#napi" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>**NAPI的思想是从完全的中断收包模型，改用中断和polling混合。**如果内核在处理旧的数据帧时，收到了新的数据帧，网卡设备没有必要再触发一个中断。内核继续处理设备input queue里的数据（该设备的interrupt禁止了），在队列为空时重新使能中断。</p>
+<p>从内核的角度，NAPI有如下的优势：</p>
+<ul>
+<li>降低CPU的负载（更少的中断）</li>
+<li>更多的设备处理公平性</li>
+</ul>
+<p>以ixgbe网卡为例，描述下NAPI处理流程。</p>
+<h4 id="注册">注册<a href="#注册" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<p>ixgbe驱动在初始化中断向量时会调用<code>netif_napi_add</code>初始化NAPI，==<strong>将<code>ixgbe_poll</code>函数注册到napi结构体，并将napi加入到设备的napi_list内</strong>==：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="cm">/**
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * ixgbe_alloc_q_vector - Allocate memory for a single interrupt vector
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * @adapter: board private structure to initialize
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * @v_count: q_vectors allocated on adapter, used for ring interleaving
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * @v_idx: index of vector in adapter struct
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * @txr_count: total number of Tx rings to allocate
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * @txr_idx: index of first Tx ring to allocate
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * @xdp_count: total number of XDP rings to allocate
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * @xdp_idx: index of first XDP ring to allocate
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * @rxr_count: total number of Rx rings to allocate
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * @rxr_idx: index of first Rx ring to allocate
+</span></span></span><span class="line"><span class="cl"><span class="cm"> *
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * We allocate one q_vector.  If allocation fails we return -ENOMEM.
+</span></span></span><span class="line"><span class="cl"><span class="cm"> **/</span>
+</span></span><span class="line"><span class="cl"><span class="k">static</span> <span class="kt">int</span> <span class="nf">ixgbe_alloc_q_vector</span><span class="p">(</span><span class="k">struct</span> <span class="n">ixgbe_adapter</span> <span class="o">*</span><span class="n">adapter</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                <span class="kt">int</span> <span class="n">v_count</span><span class="p">,</span> <span class="kt">int</span> <span class="n">v_idx</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                <span class="kt">int</span> <span class="n">txr_count</span><span class="p">,</span> <span class="kt">int</span> <span class="n">txr_idx</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                <span class="kt">int</span> <span class="n">xdp_count</span><span class="p">,</span> <span class="kt">int</span> <span class="n">xdp_idx</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                <span class="kt">int</span> <span class="n">rxr_count</span><span class="p">,</span> <span class="kt">int</span> <span class="n">rxr_idx</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="cm">/* ... */</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="cm">/* initialize NAPI */</span>
+</span></span><span class="line"><span class="cl">    <span class="nf">netif_napi_add</span><span class="p">(</span><span class="n">adapter</span><span class="o">-&gt;</span><span class="n">netdev</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">q_vector</span><span class="o">-&gt;</span><span class="n">napi</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">               <span class="n">ixgbe_poll</span><span class="p">,</span> <span class="mi">64</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><h4 id="中断处理函数">中断处理函数<a href="#中断处理函数" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<p>ixgbe驱动收到中断后，会调用<code>ixgbe_msix_clean_rings</code></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="k">static</span> <span class="kt">irqreturn_t</span> <span class="nf">ixgbe_msix_clean_rings</span><span class="p">(</span><span class="kt">int</span> <span class="n">irq</span><span class="p">,</span> <span class="kt">void</span> <span class="o">*</span><span class="n">data</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">struct</span> <span class="n">ixgbe_q_vector</span> <span class="o">*</span><span class="n">q_vector</span> <span class="o">=</span> <span class="n">data</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="cm">/* EIAM disabled interrupts (on this vector) for us */</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">q_vector</span><span class="o">-&gt;</span><span class="n">rx</span><span class="p">.</span><span class="n">ring</span> <span class="o">||</span> <span class="n">q_vector</span><span class="o">-&gt;</span><span class="n">tx</span><span class="p">.</span><span class="n">ring</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="nf">napi_schedule_irqoff</span><span class="p">(</span><span class="o">&amp;</span><span class="n">q_vector</span><span class="o">-&gt;</span><span class="n">napi</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">IRQ_HANDLED</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p><code>napi_schedule_irqoff</code> -&gt; <code>__napi_schedule_irqoff</code> -&gt; <code>____napi_schedule</code></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="k">static</span> <span class="kr">inline</span> <span class="kt">void</span> <span class="nf">____napi_schedule</span><span class="p">(</span><span class="k">struct</span> <span class="n">softnet_data</span> <span class="o">*</span><span class="n">sd</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                     <span class="k">struct</span> <span class="n">napi_struct</span> <span class="o">*</span><span class="n">napi</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="cm">/* ... */</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="nf">list_add_tail</span><span class="p">(</span><span class="o">&amp;</span><span class="n">napi</span><span class="o">-&gt;</span><span class="n">poll_list</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">sd</span><span class="o">-&gt;</span><span class="n">poll_list</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="nf">__raise_softirq_irqoff</span><span class="p">(</span><span class="n">NET_RX_SOFTIRQ</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>将当前<code>napi-&gt;poll_list</code>加入到<code>sd-&gt;poll_list</code>，并触发软中断。</p>
+<h4 id="软中断处理函数">软中断处理函数<a href="#软中断处理函数" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<p>==<code>NET_RX_SOFTRQ</code>的处理函数是<code>net_rx_action</code>==。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="k">static</span> <span class="n">__latent_entropy</span> <span class="kt">void</span> <span class="nf">net_rx_action</span><span class="p">(</span><span class="k">struct</span> <span class="n">softirq_action</span> <span class="o">*</span><span class="n">h</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">struct</span> <span class="n">softnet_data</span> <span class="o">*</span><span class="n">sd</span> <span class="o">=</span> <span class="nf">this_cpu_ptr</span><span class="p">(</span><span class="o">&amp;</span><span class="n">softnet_data</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">unsigned</span> <span class="kt">long</span> <span class="n">time_limit</span> <span class="o">=</span> <span class="n">jiffies</span> <span class="o">+</span>
+</span></span><span class="line"><span class="cl">        <span class="nf">usecs_to_jiffies</span><span class="p">(</span><span class="n">netdev_budget_usecs</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">int</span> <span class="n">budget</span> <span class="o">=</span> <span class="n">netdev_budget</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="nf">LIST_HEAD</span><span class="p">(</span><span class="n">list</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="nf">LIST_HEAD</span><span class="p">(</span><span class="n">repoll</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="nf">local_irq_disable</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="nf">list_splice_init</span><span class="p">(</span><span class="o">&amp;</span><span class="n">sd</span><span class="o">-&gt;</span><span class="n">poll_list</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">list</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="nf">local_irq_enable</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">for</span> <span class="p">(;;)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">struct</span> <span class="n">napi_struct</span> <span class="o">*</span><span class="n">n</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="nf">list_empty</span><span class="p">(</span><span class="o">&amp;</span><span class="n">list</span><span class="p">))</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="nf">sd_has_rps_ipi_waiting</span><span class="p">(</span><span class="n">sd</span><span class="p">)</span> <span class="o">&amp;&amp;</span> <span class="nf">list_empty</span><span class="p">(</span><span class="o">&amp;</span><span class="n">repoll</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">                <span class="k">return</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">            <span class="k">break</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="n">n</span> <span class="o">=</span> <span class="nf">list_first_entry</span><span class="p">(</span><span class="o">&amp;</span><span class="n">list</span><span class="p">,</span> <span class="k">struct</span> <span class="n">napi_struct</span><span class="p">,</span> <span class="n">poll_list</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">budget</span> <span class="o">-=</span> <span class="nf">napi_poll</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">repoll</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="cm">/* If softirq window is exhausted then punt.
+</span></span></span><span class="line"><span class="cl"><span class="cm">         * Allow this to run for 2 jiffies since which will allow
+</span></span></span><span class="line"><span class="cl"><span class="cm">         * an average latency of 1.5/HZ.
+</span></span></span><span class="line"><span class="cl"><span class="cm">         */</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="nf">unlikely</span><span class="p">(</span><span class="n">budget</span> <span class="o">&lt;=</span> <span class="mi">0</span> <span class="o">||</span>
+</span></span><span class="line"><span class="cl">                 <span class="nf">time_after_eq</span><span class="p">(</span><span class="n">jiffies</span><span class="p">,</span> <span class="n">time_limit</span><span class="p">)))</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">sd</span><span class="o">-&gt;</span><span class="n">time_squeeze</span><span class="o">++</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">            <span class="k">break</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="nf">local_irq_disable</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="nf">list_splice_tail_init</span><span class="p">(</span><span class="o">&amp;</span><span class="n">sd</span><span class="o">-&gt;</span><span class="n">poll_list</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">list</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="nf">list_splice_tail</span><span class="p">(</span><span class="o">&amp;</span><span class="n">repoll</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">list</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="nf">list_splice</span><span class="p">(</span><span class="o">&amp;</span><span class="n">list</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">sd</span><span class="o">-&gt;</span><span class="n">poll_list</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="nf">list_empty</span><span class="p">(</span><span class="o">&amp;</span><span class="n">sd</span><span class="o">-&gt;</span><span class="n">poll_list</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">        <span class="nf">__raise_softirq_irqoff</span><span class="p">(</span><span class="n">NET_RX_SOFTIRQ</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="nf">net_rps_action_and_irq_enable</span><span class="p">(</span><span class="n">sd</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p><code>netdev_budget</code>和<code>netdev_budget_usecs</code>可以通过sysctl进行调整：</p>
+<pre tabindex="0"><code>net.core.netdev_budget = 300
+net.core.netdev_budget_usecs = 2000
+</code></pre><p>每运行一次<code>napi_poll</code>，budget值减1。当budget值为0或者超过了时间限制，跳出循环。</p>
+<p><code>napi_poll</code>会调用网卡注册的poll函数，如前所述，在ixgbe网卡中就是<code>ixgbe_poll</code>。==<strong><code>ixgbe_poll</code>主要功能是将数据帧从ring buffer中取出，并重构成skb，交由协议栈处理。</strong>==</p>
+<p>而这个功能的主要函数是<code>ixgbe_clean_rx_irq_zc</code>和<code>ixgbe_clean_rx_irq</code>。前者是XDP socket调用，后者是正常的包调用。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="cm">/**
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * ixgbe_poll - NAPI Rx polling callback
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * @napi: structure for representing this polling device
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * @budget: how many packets driver is allowed to clean
+</span></span></span><span class="line"><span class="cl"><span class="cm"> *
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * This function is used for legacy and MSI, NAPI mode
+</span></span></span><span class="line"><span class="cl"><span class="cm"> **/</span>
+</span></span><span class="line"><span class="cl"><span class="kt">int</span> <span class="nf">ixgbe_poll</span><span class="p">(</span><span class="k">struct</span> <span class="n">napi_struct</span> <span class="o">*</span><span class="n">napi</span><span class="p">,</span> <span class="kt">int</span> <span class="n">budget</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="cm">/* ... */</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// 为什么会在RX软中断中清理tx？
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nf">ixgbe_for_each_ring</span><span class="p">(</span><span class="n">ring</span><span class="p">,</span> <span class="n">q_vector</span><span class="o">-&gt;</span><span class="n">tx</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">bool</span> <span class="n">wd</span> <span class="o">=</span> <span class="n">ring</span><span class="o">-&gt;</span><span class="n">xsk_pool</span> <span class="o">?</span>
+</span></span><span class="line"><span class="cl">        <span class="nf">ixgbe_clean_xdp_tx_irq</span><span class="p">(</span><span class="n">q_vector</span><span class="p">,</span> <span class="n">ring</span><span class="p">,</span> <span class="n">budget</span><span class="p">)</span> <span class="o">:</span>
+</span></span><span class="line"><span class="cl">        <span class="nf">ixgbe_clean_tx_irq</span><span class="p">(</span><span class="n">q_vector</span><span class="p">,</span> <span class="n">ring</span><span class="p">,</span> <span class="n">budget</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="n">wd</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">      <span class="n">clean_complete</span> <span class="o">=</span> <span class="nb">false</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="cm">/* ... */</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="c1">// rx ring buffer处理
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nf">ixgbe_for_each_ring</span><span class="p">(</span><span class="n">ring</span><span class="p">,</span> <span class="n">q_vector</span><span class="o">-&gt;</span><span class="n">rx</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">int</span> <span class="n">cleaned</span> <span class="o">=</span> <span class="n">ring</span><span class="o">-&gt;</span><span class="n">xsk_pool</span> <span class="o">?</span>
+</span></span><span class="line"><span class="cl">            <span class="nf">ixgbe_clean_rx_irq_zc</span><span class="p">(</span><span class="n">q_vector</span><span class="p">,</span> <span class="n">ring</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                <span class="n">per_ring_budget</span><span class="p">)</span> <span class="o">:</span>
+</span></span><span class="line"><span class="cl">            <span class="nf">ixgbe_clean_rx_irq</span><span class="p">(</span><span class="n">q_vector</span><span class="p">,</span> <span class="n">ring</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">             <span class="n">per_ring_budget</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">work_done</span> <span class="o">+=</span> <span class="n">cleaned</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">cleaned</span> <span class="o">&gt;=</span> <span class="n">per_ring_budget</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">      <span class="n">clean_complete</span> <span class="o">=</span> <span class="nb">false</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="cm">/* ... */</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="nf">min</span><span class="p">(</span><span class="n">work_done</span><span class="p">,</span> <span class="n">budget</span> <span class="o">-</span> <span class="mi">1</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p><strong>==xdpdriver的调用点也在这两个函数里面==</strong>：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="c1">// drivers/net/ethernet/intel/ixgbe/ixgbe_xsk.c:ixgbe_clean_rx_irq_zc
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="n">xdp_res</span> <span class="o">=</span> <span class="nf">ixgbe_run_xdp_zc</span><span class="p">(</span><span class="n">adapter</span><span class="p">,</span> <span class="n">rx_ring</span><span class="p">,</span> <span class="n">bi</span><span class="o">-&gt;</span><span class="n">xdp</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// drivers/net/ethernet/intel/ixgbe/ixgbe_main.c:ixgbe_clean_rx_irq
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="n">skb</span> <span class="o">=</span> <span class="nf">ixgbe_run_xdp</span><span class="p">(</span><span class="n">adapter</span><span class="p">,</span> <span class="n">rx_ring</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">xdp</span><span class="p">);</span>
+</span></span></code></pre></div><p>另外，为了支持AF_XDP的高性能特性，<code>ixgbe_clean_rx_irq_zc</code>如名所述是零拷贝的（==但是看代码zc的函数里面还是有memcpy，那么AF_XDP的zc体现在哪里呢？==）。</p>
+<p>我们用<code>ixgbe_clean_rx_irq</code>来分析下里面的流程。</p>
+<h4 id="ixgbe_clean_rx_irq"><code>ixgbe_clean_rx_irq</code><a href="#ixgbe_clean_rx_irq" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<p>函数调用<code>ixgbe_get_rx_buffer</code>从ring buffer中取数据，将传入的skb指针指向<code>rx_buffer-&gt;skb</code>。</p>
+<p>这里有个有意思的点是如果skb的值为NULL，驱动才会运行xdp程序：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="c1">// drivers/net/ethernet/intel/ixgbe/ixgbe_main.c:ixgbe_clean_rx_irq
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span><span class="line"><span class="cl">	<span class="n">rx_buffer</span> <span class="o">=</span> <span class="nf">ixgbe_get_rx_buffer</span><span class="p">(</span><span class="n">rx_ring</span><span class="p">,</span> <span class="n">rx_desc</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">skb</span><span class="p">,</span> <span class="n">size</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">rx_buffer_pgcnt</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="cm">/* retrieve a buffer from the ring */</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="n">skb</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="kt">unsigned</span> <span class="kt">char</span> <span class="o">*</span><span class="n">hard_start</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">      <span class="n">hard_start</span> <span class="o">=</span> <span class="nf">page_address</span><span class="p">(</span><span class="n">rx_buffer</span><span class="o">-&gt;</span><span class="n">page</span><span class="p">)</span> <span class="o">+</span>
+</span></span><span class="line"><span class="cl">             <span class="n">rx_buffer</span><span class="o">-&gt;</span><span class="n">page_offset</span> <span class="o">-</span> <span class="n">offset</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">      <span class="nf">xdp_prepare_buff</span><span class="p">(</span><span class="o">&amp;</span><span class="n">xdp</span><span class="p">,</span> <span class="n">hard_start</span><span class="p">,</span> <span class="n">offset</span><span class="p">,</span> <span class="n">size</span><span class="p">,</span> <span class="nb">true</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="cp">#if (PAGE_SIZE &gt; 4096)
+</span></span></span><span class="line"><span class="cl"><span class="cp"></span>      <span class="cm">/* At larger PAGE_SIZE, frame_sz depend on len size */</span>
+</span></span><span class="line"><span class="cl">      <span class="n">xdp</span><span class="p">.</span><span class="n">frame_sz</span> <span class="o">=</span> <span class="nf">ixgbe_rx_frame_truesize</span><span class="p">(</span><span class="n">rx_ring</span><span class="p">,</span> <span class="n">size</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="cp">#endif
+</span></span></span><span class="line"><span class="cl"><span class="cp"></span>      <span class="n">skb</span> <span class="o">=</span> <span class="nf">ixgbe_run_xdp</span><span class="p">(</span><span class="n">adapter</span><span class="p">,</span> <span class="n">rx_ring</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">xdp</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span></code></pre></div><p>查看<code>rx_buffer</code>的定义可以发现，结构体里面定义了一个union，<code>rx_buffer-&gt;skb</code>是结构体的首个成员；而如果使用union中另一个，首个成员是一个bool变量discard。也就是说，如果使用了xdp，<code>rx_buffer-&gt;skb</code>的结果就是一个0值。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="c1">// drivers/net/ethernet/intel/ixgbe/ixgbe.h
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span><span class="line"><span class="cl"><span class="k">struct</span> <span class="n">ixgbe_rx_buffer</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="k">union</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="k">struct</span> <span class="n">sk_buff</span> <span class="o">*</span><span class="n">skb</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">      <span class="kt">dma_addr_t</span> <span class="n">dma</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">      <span class="k">struct</span> <span class="n">page</span> <span class="o">*</span><span class="n">page</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">      <span class="n">__u32</span> <span class="n">page_offset</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">      <span class="n">__u16</span> <span class="n">pagecnt_bias</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">};</span>
+</span></span><span class="line"><span class="cl">    <span class="k">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="kt">bool</span> <span class="n">discard</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">      <span class="k">struct</span> <span class="n">xdp_buff</span> <span class="o">*</span><span class="n">xdp</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">};</span>
+</span></span><span class="line"><span class="cl">  <span class="p">};</span>
+</span></span><span class="line"><span class="cl"><span class="p">};</span>
+</span></span></code></pre></div><p>如果运行了xdp，<code>ixgbe_get_rx_buffer</code>会根据<code>ixgbe_run_xdp</code>的返回值来进行相应的操作。redirect和xmit会直接在xdp中将包转走，所以无需在这里构建skb。只有pass需要在函数中通过调用<code>ixgbe_build_skb</code>或者<code>ixgbe_construct_skb</code>构建skb。</p>
+<p>在构建好skb后，通过调用<code>ixgbe_put_rx_buffer</code>和<code>ixgbe_is_non_eop</code>回收ring buffer。eop是end-of-packet的缩写，这是因为帧可能会占据多个ring buffer，所以用循环将一个包数据都取下来，用同一个skb表示。</p>
+<p>在skb构建完成后，在<code>ixgbe_rx_skb</code>中调用<code>napi_gro_receive</code>，进入tc层处理数据包。</p>
+<h4 id="napi_gro_receive"><code>napi_gro_receive</code><a href="#napi_gro_receive" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<p><code>napi_gro_receive</code>中的调用链如下所示：</p>
+<pre tabindex="0"><code>napi_gro_receive
+│
+└─napi_skb_finish
+  │
+  └─gro_normal_one
+    │
+    └─gro_normal_list
+      │
+      └─netif_receive_skb_list_internal
+        │
+        └─__netif_receive_skb_list
+          │
+          └─__netif_receive_skb_list_core
+            │
+            └─__netif_receive_skb_core
+</code></pre><p>前面几个函数用于GRO和RPS处理。而在<code>__netif_receive_skb_core</code>中，先后会做：</p>
+<ul>
+<li>xdp generic处理 <code>do_xdp_generic</code></li>
+<li>抓包hook</li>
+<li>tc ingress处理 <code>sch_handle_ingress</code></li>
+<li>将包交给具体的协议回调函数处理</li>
+</ul>
+<p>我们来看看抓包和协议栈回调的处理：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="c1">// net/core/dev.c:__netif_receive_skb_core 抓包hook逻辑
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nf">list_for_each_entry_rcu</span><span class="p">(</span><span class="n">ptype</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">ptype_all</span><span class="p">,</span> <span class="n">list</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">pt_prev</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">      <span class="n">ret</span> <span class="o">=</span> <span class="nf">deliver_skb</span><span class="p">(</span><span class="n">skb</span><span class="p">,</span> <span class="n">pt_prev</span><span class="p">,</span> <span class="n">orig_dev</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="n">pt_prev</span> <span class="o">=</span> <span class="n">ptype</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="nf">list_for_each_entry_rcu</span><span class="p">(</span><span class="n">ptype</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">skb</span><span class="o">-&gt;</span><span class="n">dev</span><span class="o">-&gt;</span><span class="n">ptype_all</span><span class="p">,</span> <span class="n">list</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">pt_prev</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">      <span class="n">ret</span> <span class="o">=</span> <span class="nf">deliver_skb</span><span class="p">(</span><span class="n">skb</span><span class="p">,</span> <span class="n">pt_prev</span><span class="p">,</span> <span class="n">orig_dev</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="n">pt_prev</span> <span class="o">=</span> <span class="n">ptype</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// net/core/dev.c:__netif_receive_skb_core 协议栈回调
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">type</span> <span class="o">=</span> <span class="n">skb</span><span class="o">-&gt;</span><span class="n">protocol</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="cm">/* deliver only exact match when indicated */</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="p">(</span><span class="nf">likely</span><span class="p">(</span><span class="o">!</span><span class="n">deliver_exact</span><span class="p">))</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nf">deliver_ptype_list_skb</span><span class="p">(</span><span class="n">skb</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">pt_prev</span><span class="p">,</span> <span class="n">orig_dev</span><span class="p">,</span> <span class="n">type</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">               <span class="o">&amp;</span><span class="n">ptype_base</span><span class="p">[</span><span class="nf">ntohs</span><span class="p">(</span><span class="n">type</span><span class="p">)</span> <span class="o">&amp;</span>
+</span></span><span class="line"><span class="cl">               <span class="n">PTYPE_HASH_MASK</span><span class="p">]);</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="nf">deliver_ptype_list_skb</span><span class="p">(</span><span class="n">skb</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">pt_prev</span><span class="p">,</span> <span class="n">orig_dev</span><span class="p">,</span> <span class="n">type</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">             <span class="o">&amp;</span><span class="n">orig_dev</span><span class="o">-&gt;</span><span class="n">ptype_specific</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="p">(</span><span class="nf">unlikely</span><span class="p">(</span><span class="n">skb</span><span class="o">-&gt;</span><span class="n">dev</span> <span class="o">!=</span> <span class="n">orig_dev</span><span class="p">))</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nf">deliver_ptype_list_skb</span><span class="p">(</span><span class="n">skb</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">pt_prev</span><span class="p">,</span> <span class="n">orig_dev</span><span class="p">,</span> <span class="n">type</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">               <span class="o">&amp;</span><span class="n">skb</span><span class="o">-&gt;</span><span class="n">dev</span><span class="o">-&gt;</span><span class="n">ptype_specific</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">static</span> <span class="kr">inline</span> <span class="kt">int</span> <span class="nf">deliver_skb</span><span class="p">(</span><span class="k">struct</span> <span class="n">sk_buff</span> <span class="o">*</span><span class="n">skb</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">            <span class="k">struct</span> <span class="n">packet_type</span> <span class="o">*</span><span class="n">pt_prev</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">            <span class="k">struct</span> <span class="n">net_device</span> <span class="o">*</span><span class="n">orig_dev</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="p">(</span><span class="nf">unlikely</span><span class="p">(</span><span class="nf">skb_orphan_frags_rx</span><span class="p">(</span><span class="n">skb</span><span class="p">,</span> <span class="n">GFP_ATOMIC</span><span class="p">)))</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="o">-</span><span class="n">ENOMEM</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">  <span class="nf">refcount_inc</span><span class="p">(</span><span class="o">&amp;</span><span class="n">skb</span><span class="o">-&gt;</span><span class="n">users</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">  <span class="k">return</span> <span class="n">pt_prev</span><span class="o">-&gt;</span><span class="nf">func</span><span class="p">(</span><span class="n">skb</span><span class="p">,</span> <span class="n">skb</span><span class="o">-&gt;</span><span class="n">dev</span><span class="p">,</span> <span class="n">pt_prev</span><span class="p">,</span> <span class="n">orig_dev</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">static</span> <span class="kr">inline</span> <span class="kt">void</span> <span class="nf">deliver_ptype_list_skb</span><span class="p">(</span><span class="k">struct</span> <span class="n">sk_buff</span> <span class="o">*</span><span class="n">skb</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">            <span class="k">struct</span> <span class="n">packet_type</span> <span class="o">**</span><span class="n">pt</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">            <span class="k">struct</span> <span class="n">net_device</span> <span class="o">*</span><span class="n">orig_dev</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">            <span class="n">__be16</span> <span class="n">type</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">            <span class="k">struct</span> <span class="n">list_head</span> <span class="o">*</span><span class="n">ptype_list</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="k">struct</span> <span class="n">packet_type</span> <span class="o">*</span><span class="n">ptype</span><span class="p">,</span> <span class="o">*</span><span class="n">pt_prev</span> <span class="o">=</span> <span class="o">*</span><span class="n">pt</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="nf">list_for_each_entry_rcu</span><span class="p">(</span><span class="n">ptype</span><span class="p">,</span> <span class="n">ptype_list</span><span class="p">,</span> <span class="n">list</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">ptype</span><span class="o">-&gt;</span><span class="n">type</span> <span class="o">!=</span> <span class="n">type</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">      <span class="k">continue</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">pt_prev</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">      <span class="nf">deliver_skb</span><span class="p">(</span><span class="n">skb</span><span class="p">,</span> <span class="n">pt_prev</span><span class="p">,</span> <span class="n">orig_dev</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="n">pt_prev</span> <span class="o">=</span> <span class="n">ptype</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">  <span class="o">*</span><span class="n">pt</span> <span class="o">=</span> <span class="n">pt_prev</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>可以看到，两者在最后都是在<code>deliver_skb</code>中调用了<code>pt_prev</code>中注册的回调函数。<code>pt_prev</code>的类型是<code>struct packet_type</code>：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="c1">// include/linux/netdevice.h
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">struct</span> <span class="n">packet_type</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="n">__be16</span>      <span class="n">type</span><span class="p">;</span> <span class="cm">/* This is really htons(ether_type). */</span>
+</span></span><span class="line"><span class="cl">  <span class="kt">bool</span>      <span class="n">ignore_outgoing</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">  <span class="k">struct</span> <span class="n">net_device</span> <span class="o">*</span><span class="n">dev</span><span class="p">;</span> <span class="cm">/* NULL is wildcarded here       */</span>
+</span></span><span class="line"><span class="cl">  <span class="kt">int</span>     <span class="p">(</span><span class="o">*</span><span class="n">func</span><span class="p">)</span> <span class="p">(</span><span class="k">struct</span> <span class="n">sk_buff</span> <span class="o">*</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">           <span class="k">struct</span> <span class="n">net_device</span> <span class="o">*</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">           <span class="k">struct</span> <span class="n">packet_type</span> <span class="o">*</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">           <span class="k">struct</span> <span class="n">net_device</span> <span class="o">*</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">  <span class="kt">void</span>      <span class="p">(</span><span class="o">*</span><span class="n">list_func</span><span class="p">)</span> <span class="p">(</span><span class="k">struct</span> <span class="n">list_head</span> <span class="o">*</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                <span class="k">struct</span> <span class="n">packet_type</span> <span class="o">*</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                <span class="k">struct</span> <span class="n">net_device</span> <span class="o">*</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">  <span class="kt">bool</span>      <span class="p">(</span><span class="o">*</span><span class="n">id_match</span><span class="p">)(</span><span class="k">struct</span> <span class="n">packet_type</span> <span class="o">*</span><span class="n">ptype</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">              <span class="k">struct</span> <span class="n">sock</span> <span class="o">*</span><span class="n">sk</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">  <span class="kt">void</span>      <span class="o">*</span><span class="n">af_packet_priv</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">  <span class="k">struct</span> <span class="n">list_head</span>  <span class="n">list</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">};</span>
+</span></span></code></pre></div><p>type是ether_type，对于抓包的回调来说，这个值是<code>ETH_P_ALL</code>。而协议栈通常是具体的ether_type，如<code>ETH_P_IP</code>。根据这一区别，在<code>packet_type</code>注册的时候，就能将两者分别放到不同的数据结构内：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="c1">// net/core/dev.c
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span><span class="line"><span class="cl"><span class="k">static</span> <span class="kr">inline</span> <span class="k">struct</span> <span class="n">list_head</span> <span class="o">*</span><span class="nf">ptype_head</span><span class="p">(</span><span class="k">const</span> <span class="k">struct</span> <span class="n">packet_type</span> <span class="o">*</span><span class="n">pt</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="p">(</span><span class="n">pt</span><span class="o">-&gt;</span><span class="n">type</span> <span class="o">==</span> <span class="nf">htons</span><span class="p">(</span><span class="n">ETH_P_ALL</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">pt</span><span class="o">-&gt;</span><span class="n">dev</span> <span class="o">?</span> <span class="o">&amp;</span><span class="n">pt</span><span class="o">-&gt;</span><span class="n">dev</span><span class="o">-&gt;</span><span class="nl">ptype_all</span> <span class="p">:</span> <span class="o">&amp;</span><span class="n">ptype_all</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">  <span class="k">else</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">pt</span><span class="o">-&gt;</span><span class="n">dev</span> <span class="o">?</span> <span class="o">&amp;</span><span class="n">pt</span><span class="o">-&gt;</span><span class="n">dev</span><span class="o">-&gt;</span><span class="nl">ptype_specific</span> <span class="p">:</span>
+</span></span><span class="line"><span class="cl">         <span class="o">&amp;</span><span class="n">ptype_base</span><span class="p">[</span><span class="nf">ntohs</span><span class="p">(</span><span class="n">pt</span><span class="o">-&gt;</span><span class="n">type</span><span class="p">)</span> <span class="o">&amp;</span> <span class="n">PTYPE_HASH_MASK</span><span class="p">];</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="cm">/**
+</span></span></span><span class="line"><span class="cl"><span class="cm"> *  dev_add_pack - add packet handler
+</span></span></span><span class="line"><span class="cl"><span class="cm"> *  @pt: packet type declaration
+</span></span></span><span class="line"><span class="cl"><span class="cm"> *
+</span></span></span><span class="line"><span class="cl"><span class="cm"> *  Add a protocol handler to the networking stack. The passed &amp;packet_type
+</span></span></span><span class="line"><span class="cl"><span class="cm"> *  is linked into kernel lists and may not be freed until it has been
+</span></span></span><span class="line"><span class="cl"><span class="cm"> *  removed from the kernel lists.
+</span></span></span><span class="line"><span class="cl"><span class="cm"> *
+</span></span></span><span class="line"><span class="cl"><span class="cm"> *  This call does not sleep therefore it can not
+</span></span></span><span class="line"><span class="cl"><span class="cm"> *  guarantee all CPU&#39;s that are in middle of receiving packets
+</span></span></span><span class="line"><span class="cl"><span class="cm"> *  will see the new packet type (until the next received packet).
+</span></span></span><span class="line"><span class="cl"><span class="cm"> */</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kt">void</span> <span class="nf">dev_add_pack</span><span class="p">(</span><span class="k">struct</span> <span class="n">packet_type</span> <span class="o">*</span><span class="n">pt</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="k">struct</span> <span class="n">list_head</span> <span class="o">*</span><span class="n">head</span> <span class="o">=</span> <span class="nf">ptype_head</span><span class="p">(</span><span class="n">pt</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="nf">spin_lock</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ptype_lock</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">  <span class="nf">list_add_rcu</span><span class="p">(</span><span class="o">&amp;</span><span class="n">pt</span><span class="o">-&gt;</span><span class="n">list</span><span class="p">,</span> <span class="n">head</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">  <span class="nf">spin_unlock</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ptype_lock</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="nf">EXPORT_SYMBOL</span><span class="p">(</span><span class="n">dev_add_pack</span><span class="p">);</span>
+</span></span></code></pre></div><p>==<strong>抓包的<code>packet_type</code>被放在了<code>ptype_all</code>全局变量或者指定设备的<code>dev-&gt;ptype_all</code>中；协议栈的<code>packet_type</code>被放在了<code>ptype_base</code>或者指定设备的<code>dev-&gt;ptype_specific</code>中。</strong>==</p>
+<p>通过过滤<code>static struct packet_type</code>可以看到各个协议注册的<code>packet_type</code>类型，如IP协议：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="c1">// net/ipv4/af_inet.c
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">static</span> <span class="k">struct</span> <span class="n">packet_type</span> <span class="n">ip_packet_type</span> <span class="n">__read_mostly</span> <span class="o">=</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="p">.</span><span class="n">type</span> <span class="o">=</span> <span class="nf">cpu_to_be16</span><span class="p">(</span><span class="n">ETH_P_IP</span><span class="p">),</span>
+</span></span><span class="line"><span class="cl">  <span class="p">.</span><span class="n">func</span> <span class="o">=</span> <span class="n">ip_rcv</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">  <span class="p">.</span><span class="n">list_func</span> <span class="o">=</span> <span class="n">ip_list_rcv</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl"><span class="p">};</span>
+</span></span></code></pre></div><p>从中就可以找到对应协议的处理函数。</p>
+<h2 id="发包流程">发包流程<a href="#发包流程" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<h3 id="dev_queue_xmit"><code>dev_queue_xmit</code><a href="#dev_queue_xmit" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>内核中网卡驱动发包流程的起点是<code>dev_queue_xmit</code>函数。发包分两种方式：</p>
+<ul>
+<li>通过<strong>Traffic Control</strong>接口发送；</li>
+<li>直接调用<code>dev_hard_start_xmit</code>发送出去。</li>
+</ul>
+<h4 id="traffic-control-接口">Traffic Control 接口<a href="#traffic-control-接口" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">q</span><span class="o">-&gt;</span><span class="n">enqueue</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">rc</span> <span class="o">=</span> <span class="nf">__dev_xmit_skb</span><span class="p">(</span><span class="n">skb</span><span class="p">,</span> <span class="n">q</span><span class="p">,</span> <span class="n">dev</span><span class="p">,</span> <span class="n">txq</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="k">goto</span> <span class="n">out</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span></code></pre></div><p>通过Qdisc内的enqueue指针，判断<code>net_device</code>是否存在队列==（**TODO：**enqueue在哪初始化的）==。如果存在<code>dev_queue_xmit</code>就调用了<code>__dev_xmit_skb</code>。</p>
+<p><code>__dev_xmit_skb</code>主要是TC里的==<strong>queuing dispipline</strong>==的逻辑（TODO），发包的函数是<code>__qdisc_run</code>，<code>qdisc_run</code>是<code>__qdisc_run</code>的封装函数。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="c1">// net/core/dev.c
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kt">int</span> <span class="n">dev_tx_weight</span> <span class="n">__read_mostly</span> <span class="o">=</span> <span class="mi">64</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1">// net/sched/sch_generic.c
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">static</span> <span class="kr">inline</span> <span class="kt">bool</span> <span class="nf">qdisc_restart</span><span class="p">(</span><span class="k">struct</span> <span class="n">Qdisc</span> <span class="o">*</span><span class="n">q</span><span class="p">,</span> <span class="kt">int</span> <span class="o">*</span><span class="n">packets</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">spinlock_t</span> <span class="o">*</span><span class="n">root_lock</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">struct</span> <span class="n">netdev_queue</span> <span class="o">*</span><span class="n">txq</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">struct</span> <span class="n">net_device</span> <span class="o">*</span><span class="n">dev</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">struct</span> <span class="n">sk_buff</span> <span class="o">*</span><span class="n">skb</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">bool</span> <span class="n">validate</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="cm">/* Dequeue packet */</span>
+</span></span><span class="line"><span class="cl">    <span class="n">skb</span> <span class="o">=</span> <span class="nf">dequeue_skb</span><span class="p">(</span><span class="n">q</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">validate</span><span class="p">,</span> <span class="n">packets</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="nf">unlikely</span><span class="p">(</span><span class="o">!</span><span class="n">skb</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="nb">false</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="p">(</span><span class="n">q</span><span class="o">-&gt;</span><span class="n">flags</span> <span class="o">&amp;</span> <span class="n">TCQ_F_NOLOCK</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">        <span class="n">root_lock</span> <span class="o">=</span> <span class="nf">qdisc_lock</span><span class="p">(</span><span class="n">q</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">dev</span> <span class="o">=</span> <span class="nf">qdisc_dev</span><span class="p">(</span><span class="n">q</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="n">txq</span> <span class="o">=</span> <span class="nf">skb_get_tx_queue</span><span class="p">(</span><span class="n">dev</span><span class="p">,</span> <span class="n">skb</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nf">sch_direct_xmit</span><span class="p">(</span><span class="n">skb</span><span class="p">,</span> <span class="n">q</span><span class="p">,</span> <span class="n">dev</span><span class="p">,</span> <span class="n">txq</span><span class="p">,</span> <span class="n">root_lock</span><span class="p">,</span> <span class="n">validate</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kt">void</span> <span class="nf">__qdisc_run</span><span class="p">(</span><span class="k">struct</span> <span class="n">Qdisc</span> <span class="o">*</span><span class="n">q</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">int</span> <span class="n">quota</span> <span class="o">=</span> <span class="n">dev_tx_weight</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">int</span> <span class="n">packets</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">while</span> <span class="p">(</span><span class="nf">qdisc_restart</span><span class="p">(</span><span class="n">q</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">packets</span><span class="p">))</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">quota</span> <span class="o">-=</span> <span class="n">packets</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="n">quota</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">if</span> <span class="p">(</span><span class="n">q</span><span class="o">-&gt;</span><span class="n">flags</span> <span class="o">&amp;</span> <span class="n">TCQ_F_NOLOCK</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">                <span class="nf">set_bit</span><span class="p">(</span><span class="n">__QDISC_STATE_MISSED</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">q</span><span class="o">-&gt;</span><span class="n">state</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">            <span class="k">else</span>
+</span></span><span class="line"><span class="cl">                <span class="nf">__netif_schedule</span><span class="p">(</span><span class="n">q</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="k">break</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>可以看到，每次运行<code>__qdisc_run</code>有一个阈值<code>quota = 64</code>。每次循环调用<code>qdisc_restart</code>，从队列里面<code>dequeue_skb</code>，最后调用<code>sch_direct_xmit</code>发送出去。<code>sch_direct_xmit</code>里面发包和无队列的<code>net_device</code>一样，调用<code>dev_hard_start_xmit</code>。</p>
+<h4 id="直接发包">直接发包<a href="#直接发包" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<p>调用流程：<code>dev_hard_start_xmit</code> -&gt; <code>xmit_one</code> -&gt; <code>netdev_start_xmit</code> -&gt; <code>__netdev_start_xmit</code> -&gt; <code>ops-&gt;ndo_start_xmit</code></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="c1">// net/core/dev.c
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">static</span> <span class="kt">int</span> <span class="nf">xmit_one</span><span class="p">(</span><span class="k">struct</span> <span class="n">sk_buff</span> <span class="o">*</span><span class="n">skb</span><span class="p">,</span> <span class="k">struct</span> <span class="n">net_device</span> <span class="o">*</span><span class="n">dev</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">            <span class="k">struct</span> <span class="n">netdev_queue</span> <span class="o">*</span><span class="n">txq</span><span class="p">,</span> <span class="kt">bool</span> <span class="n">more</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">unsigned</span> <span class="kt">int</span> <span class="n">len</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">int</span> <span class="n">rc</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="nf">dev_nit_active</span><span class="p">(</span><span class="n">dev</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">        <span class="nf">dev_queue_xmit_nit</span><span class="p">(</span><span class="n">skb</span><span class="p">,</span> <span class="n">dev</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">len</span> <span class="o">=</span> <span class="n">skb</span><span class="o">-&gt;</span><span class="n">len</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="nf">PRANDOM_ADD_NOISE</span><span class="p">(</span><span class="n">skb</span><span class="p">,</span> <span class="n">dev</span><span class="p">,</span> <span class="n">txq</span><span class="p">,</span> <span class="n">len</span> <span class="o">+</span> <span class="n">jiffies</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="nf">trace_net_dev_start_xmit</span><span class="p">(</span><span class="n">skb</span><span class="p">,</span> <span class="n">dev</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="n">rc</span> <span class="o">=</span> <span class="nf">netdev_start_xmit</span><span class="p">(</span><span class="n">skb</span><span class="p">,</span> <span class="n">dev</span><span class="p">,</span> <span class="n">txq</span><span class="p">,</span> <span class="n">more</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="nf">trace_net_dev_xmit</span><span class="p">(</span><span class="n">skb</span><span class="p">,</span> <span class="n">rc</span><span class="p">,</span> <span class="n">dev</span><span class="p">,</span> <span class="n">len</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">rc</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">struct</span> <span class="n">sk_buff</span> <span class="o">*</span><span class="nf">dev_hard_start_xmit</span><span class="p">(</span><span class="k">struct</span> <span class="n">sk_buff</span> <span class="o">*</span><span class="n">first</span><span class="p">,</span> <span class="k">struct</span> <span class="n">net_device</span> <span class="o">*</span><span class="n">dev</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                    <span class="k">struct</span> <span class="n">netdev_queue</span> <span class="o">*</span><span class="n">txq</span><span class="p">,</span> <span class="kt">int</span> <span class="o">*</span><span class="n">ret</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">struct</span> <span class="n">sk_buff</span> <span class="o">*</span><span class="n">skb</span> <span class="o">=</span> <span class="n">first</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">int</span> <span class="n">rc</span> <span class="o">=</span> <span class="n">NETDEV_TX_OK</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">while</span> <span class="p">(</span><span class="n">skb</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">struct</span> <span class="n">sk_buff</span> <span class="o">*</span><span class="n">next</span> <span class="o">=</span> <span class="n">skb</span><span class="o">-&gt;</span><span class="n">next</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="nf">skb_mark_not_on_list</span><span class="p">(</span><span class="n">skb</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="n">rc</span> <span class="o">=</span> <span class="nf">xmit_one</span><span class="p">(</span><span class="n">skb</span><span class="p">,</span> <span class="n">dev</span><span class="p">,</span> <span class="n">txq</span><span class="p">,</span> <span class="n">next</span> <span class="o">!=</span> <span class="nb">NULL</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="nf">unlikely</span><span class="p">(</span><span class="o">!</span><span class="nf">dev_xmit_complete</span><span class="p">(</span><span class="n">rc</span><span class="p">)))</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">skb</span><span class="o">-&gt;</span><span class="n">next</span> <span class="o">=</span> <span class="n">next</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">            <span class="k">goto</span> <span class="n">out</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="n">skb</span> <span class="o">=</span> <span class="n">next</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="nf">netif_tx_queue_stopped</span><span class="p">(</span><span class="n">txq</span><span class="p">)</span> <span class="o">&amp;&amp;</span> <span class="n">skb</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">rc</span> <span class="o">=</span> <span class="n">NETDEV_TX_BUSY</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">            <span class="k">break</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="nl">out</span><span class="p">:</span>
+</span></span><span class="line"><span class="cl">    <span class="o">*</span><span class="n">ret</span> <span class="o">=</span> <span class="n">rc</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="n">skb</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>==<strong><code>ndo_start_xmit</code>是每个网卡设备注册的发包函数。</strong>==以ixgbe驱动为例，注册的函数是<code>ixgbe_xmit_frame</code>。</p>
+<p><code>ixgbe_xmit_frame</code> -&gt; <code>__ixgbe_xmit_frame</code> -&gt; <code>ixgbe_xmit_frame_ring</code> -&gt; <code>ixgbe_tx_map</code></p>
+<p>驱动发包完成后，调用<code>dev_kfree_skb_any</code>，如果当前在中断上下文内，调用<code>__dev_kfree_skb_irq</code>，否则直接释放skb。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="c1">// net/core/dev.c
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kt">void</span> <span class="nf">__dev_kfree_skb_irq</span><span class="p">(</span><span class="k">struct</span> <span class="n">sk_buff</span> <span class="o">*</span><span class="n">skb</span><span class="p">,</span> <span class="k">enum</span> <span class="n">skb_free_reason</span> <span class="n">reason</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">unsigned</span> <span class="kt">long</span> <span class="n">flags</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="nf">unlikely</span><span class="p">(</span><span class="o">!</span><span class="n">skb</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="nf">likely</span><span class="p">(</span><span class="nf">refcount_read</span><span class="p">(</span><span class="o">&amp;</span><span class="n">skb</span><span class="o">-&gt;</span><span class="n">users</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">))</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nf">smp_rmb</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">        <span class="nf">refcount_set</span><span class="p">(</span><span class="o">&amp;</span><span class="n">skb</span><span class="o">-&gt;</span><span class="n">users</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span> <span class="k">else</span> <span class="k">if</span> <span class="p">(</span><span class="nf">likely</span><span class="p">(</span><span class="o">!</span><span class="nf">refcount_dec_and_test</span><span class="p">(</span><span class="o">&amp;</span><span class="n">skb</span><span class="o">-&gt;</span><span class="n">users</span><span class="p">)))</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="nf">get_kfree_skb_cb</span><span class="p">(</span><span class="n">skb</span><span class="p">)</span><span class="o">-&gt;</span><span class="n">reason</span> <span class="o">=</span> <span class="n">reason</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="nf">local_irq_save</span><span class="p">(</span><span class="n">flags</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="n">skb</span><span class="o">-&gt;</span><span class="n">next</span> <span class="o">=</span> <span class="nf">__this_cpu_read</span><span class="p">(</span><span class="n">softnet_data</span><span class="p">.</span><span class="n">completion_queue</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="nf">__this_cpu_write</span><span class="p">(</span><span class="n">softnet_data</span><span class="p">.</span><span class="n">completion_queue</span><span class="p">,</span> <span class="n">skb</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="nf">raise_softirq_irqoff</span><span class="p">(</span><span class="n">NET_TX_SOFTIRQ</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="nf">local_irq_restore</span><span class="p">(</span><span class="n">flags</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kt">void</span> <span class="nf">__dev_kfree_skb_any</span><span class="p">(</span><span class="k">struct</span> <span class="n">sk_buff</span> <span class="o">*</span><span class="n">skb</span><span class="p">,</span> <span class="k">enum</span> <span class="n">skb_free_reason</span> <span class="n">reason</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="nf">in_irq</span><span class="p">()</span> <span class="o">||</span> <span class="nf">irqs_disabled</span><span class="p">())</span>
+</span></span><span class="line"><span class="cl">        <span class="nf">__dev_kfree_skb_irq</span><span class="p">(</span><span class="n">skb</span><span class="p">,</span> <span class="n">reason</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="k">else</span>
+</span></span><span class="line"><span class="cl">        <span class="nf">dev_kfree_skb</span><span class="p">(</span><span class="n">skb</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="nf">EXPORT_SYMBOL</span><span class="p">(</span><span class="n">__dev_kfree_skb_any</span><span class="p">);</span>
+</span></span></code></pre></div><p><code>__dev_kfree_skb_irq</code>把发送完的skb指针放到当前CPU的<code>softnet_data.completion_queue</code>中，然后唤醒软中断处理函数。</p>
+<h3 id="软中断处理函数net_tx_action">软中断处理函数<code>net_tx_action</code><a href="#软中断处理函数net_tx_action" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>发包软中断处理函数比较简单，由两部分组成：</p>
+<ol>
+<li>将网卡已经发送的skb释放掉；</li>
+<li>当设备允许发包后重新调度，进入发包流程。</li>
+</ol>
+<p><strong>之所以把skb释放放在软中断里而不是硬件发完后直接释放，是因为释放buffer可能需要耗费一些时间，而驱动发包代码运行在中断上下文内，耗时越少越好。</strong></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="c1">// net/core/dev.c:net_tx_action
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="k">if</span> <span class="p">(</span><span class="n">sd</span><span class="o">-&gt;</span><span class="n">completion_queue</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">struct</span> <span class="n">sk_buff</span> <span class="o">*</span><span class="n">clist</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="nf">local_irq_disable</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">        <span class="n">clist</span> <span class="o">=</span> <span class="n">sd</span><span class="o">-&gt;</span><span class="n">completion_queue</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="n">sd</span><span class="o">-&gt;</span><span class="n">completion_queue</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">        <span class="nf">local_irq_enable</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="k">while</span> <span class="p">(</span><span class="n">clist</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="k">struct</span> <span class="n">sk_buff</span> <span class="o">*</span><span class="n">skb</span> <span class="o">=</span> <span class="n">clist</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="n">clist</span> <span class="o">=</span> <span class="n">clist</span><span class="o">-&gt;</span><span class="n">next</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="nf">WARN_ON</span><span class="p">(</span><span class="nf">refcount_read</span><span class="p">(</span><span class="o">&amp;</span><span class="n">skb</span><span class="o">-&gt;</span><span class="n">users</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">            <span class="k">if</span> <span class="p">(</span><span class="nf">likely</span><span class="p">(</span><span class="nf">get_kfree_skb_cb</span><span class="p">(</span><span class="n">skb</span><span class="p">)</span><span class="o">-&gt;</span><span class="n">reason</span> <span class="o">==</span> <span class="n">SKB_REASON_CONSUMED</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">                <span class="nf">trace_consume_skb</span><span class="p">(</span><span class="n">skb</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">            <span class="k">else</span>
+</span></span><span class="line"><span class="cl">                <span class="nf">trace_kfree_skb</span><span class="p">(</span><span class="n">skb</span><span class="p">,</span> <span class="n">net_tx_action</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="k">if</span> <span class="p">(</span><span class="n">skb</span><span class="o">-&gt;</span><span class="n">fclone</span> <span class="o">!=</span> <span class="n">SKB_FCLONE_UNAVAILABLE</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">                <span class="nf">__kfree_skb</span><span class="p">(</span><span class="n">skb</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">            <span class="k">else</span>
+</span></span><span class="line"><span class="cl">                <span class="nf">__kfree_skb_defer</span><span class="p">(</span><span class="n">skb</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span></code></pre></div><p>第二部分的调度入口函数是<code>__netif_schedule</code>。因为各种原因（如网卡buffer不够，暂时禁用发包或者TC调度限制等）发包受到限制，等到恢复后，调用<code>__netif_schedule</code>进入软中断，使用<code>qdisc_run</code>重新开始发包。</p>
+<h3 id="抓包点">抓包点<a href="#抓包点" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>在<code>dev_hard_start_xmit</code>里面有egress方向的抓包点<code>dev_queue_xmit_nit</code>：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="c1">// net/core/dev.c:xmit_one
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="k">if</span> <span class="p">(</span><span class="nf">dev_nit_active</span><span class="p">(</span><span class="n">dev</span><span class="p">))</span>
+</span></span><span class="line"><span class="cl">        <span class="nf">dev_queue_xmit_nit</span><span class="p">(</span><span class="n">skb</span><span class="p">,</span> <span class="n">dev</span><span class="p">);</span>
+</span></span></code></pre></div><h3 id="bpf-hook点">BPF HOOK点<a href="#bpf-hook点" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>tc egress BPF HOOK点在<code>__dev_queue_xmit</code>内：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="c1">// net/core/dev.c:__dev_queue_xmit
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="cp"># ifdef CONFIG_NET_EGRESS
+</span></span></span><span class="line"><span class="cl"><span class="cp"></span>    <span class="k">if</span> <span class="p">(</span><span class="nf">static_branch_unlikely</span><span class="p">(</span><span class="o">&amp;</span><span class="n">egress_needed_key</span><span class="p">))</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">skb</span> <span class="o">=</span> <span class="nf">sch_handle_egress</span><span class="p">(</span><span class="n">skb</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">rc</span><span class="p">,</span> <span class="n">dev</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="n">skb</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="k">goto</span> <span class="n">out</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="cp"># endif
+</span></span></span></code></pre></div><p><code>sch_handle_egress</code> -&gt; <code>tcf_classify</code> -&gt; <code>__tcf_classify</code> -&gt; <code>tp-&gt;classify</code></p>
+<p>bpf的classify函数在<code>net/sched/cls_bpf.c</code>内注册：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="k">static</span> <span class="k">struct</span> <span class="n">tcf_proto_ops</span> <span class="n">cls_bpf_ops</span> <span class="n">__read_mostly</span> <span class="o">=</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="p">.</span><span class="n">kind</span>       <span class="o">=</span>   <span class="s">&#34;bpf&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="p">.</span><span class="n">owner</span>      <span class="o">=</span>   <span class="n">THIS_MODULE</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="p">.</span><span class="n">classify</span>   <span class="o">=</span>   <span class="n">cls_bpf_classify</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="p">.</span><span class="n">init</span>       <span class="o">=</span>   <span class="n">cls_bpf_init</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="p">.</span><span class="n">destroy</span>    <span class="o">=</span>   <span class="n">cls_bpf_destroy</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="p">.</span><span class="n">get</span>        <span class="o">=</span>   <span class="n">cls_bpf_get</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="p">.</span><span class="n">change</span>     <span class="o">=</span>   <span class="n">cls_bpf_change</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="p">.</span><span class="n">delete</span>     <span class="o">=</span>   <span class="n">cls_bpf_delete</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="p">.</span><span class="n">walk</span>       <span class="o">=</span>   <span class="n">cls_bpf_walk</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="p">.</span><span class="n">reoffload</span>  <span class="o">=</span>   <span class="n">cls_bpf_reoffload</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="p">.</span><span class="n">dump</span>       <span class="o">=</span>   <span class="n">cls_bpf_dump</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="p">.</span><span class="n">bind_class</span> <span class="o">=</span>   <span class="n">cls_bpf_bind_class</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl"><span class="p">};</span>
+</span></span></code></pre></div>
+      </div></div>
+
+  
+    
+
+  
+
+  
+    
+
+  
+</article>
+
+  </div>
+
+  
+    <footer class="footer">
+  <div class="footer__inner">
+    
+      <div class="copyright">
+        <span>© 2025 Powered by <a href="https://gohugo.io">Hugo</a></span>
+    
+      <span>:: <a href="https://github.com/panr/hugo-theme-terminal" target="_blank">Theme</a> made by <a href="https://github.com/panr" target="_blank">panr</a></span>
+      </div>
+  </div>
+</footer>
+
+
+
+
+
+
+<script type="text/javascript" src="/bundle.min.js"></script>
+
+
+
+
+
+  
+  </div>
+
+  <aside class="floating-sidebar">
+    
+<div class="sidebar time-archive">
+  <h3>Time Archives</h3>
+  <div class="archive-list">
+    
+    
+
+    
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+
+    
+    
+
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-10/" class="archive-link">
+          <span class="archive-date">2025-10</span>
+          <span class="archive-month-name">Oct</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-09/" class="archive-link">
+          <span class="archive-date">2025-09</span>
+          <span class="archive-month-name">Sep</span>
+          <span class="archive-count">(3)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-08/" class="archive-link">
+          <span class="archive-date">2025-08</span>
+          <span class="archive-month-name">Aug</span>
+          <span class="archive-count">(9)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-06/" class="archive-link">
+          <span class="archive-date">2025-06</span>
+          <span class="archive-month-name">Jun</span>
+          <span class="archive-count">(2)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-04/" class="archive-link">
+          <span class="archive-date">2025-04</span>
+          <span class="archive-month-name">Apr</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-03/" class="archive-link">
+          <span class="archive-date">2025-03</span>
+          <span class="archive-month-name">Mar</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2024-01/" class="archive-link">
+          <span class="archive-date">2024-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(2)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-10/" class="archive-link">
+          <span class="archive-date">2022-10</span>
+          <span class="archive-month-name">Oct</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-07/" class="archive-link">
+          <span class="archive-date">2022-07</span>
+          <span class="archive-month-name">Jul</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-06/" class="archive-link">
+          <span class="archive-date">2022-06</span>
+          <span class="archive-month-name">Jun</span>
+          <span class="archive-count">(4)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-05/" class="archive-link">
+          <span class="archive-date">2022-05</span>
+          <span class="archive-month-name">May</span>
+          <span class="archive-count">(4)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-03/" class="archive-link">
+          <span class="archive-date">2022-03</span>
+          <span class="archive-month-name">Mar</span>
+          <span class="archive-count">(4)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-01/" class="archive-link">
+          <span class="archive-date">2022-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-11/" class="archive-link">
+          <span class="archive-date">2021-11</span>
+          <span class="archive-month-name">Nov</span>
+          <span class="archive-count">(2)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-09/" class="archive-link">
+          <span class="archive-date">2021-09</span>
+          <span class="archive-month-name">Sep</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-06/" class="archive-link">
+          <span class="archive-date">2021-06</span>
+          <span class="archive-month-name">Jun</span>
+          <span class="archive-count">(3)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-01/" class="archive-link">
+          <span class="archive-date">2021-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+  </div>
+</div>
+
+<style>
+.sidebar.time-archive {
+  background: rgba(26, 23, 15, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--accent, #FFA86B);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+  max-width: var(--sidebar-component-width, 240px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.sidebar.time-archive h3 {
+  margin: 0 0 1rem 0;
+  color: var(--accent, #FFA86B);
+  font-size: 1.2rem;
+  border-bottom: 1px solid var(--accent-alpha-70, rgba(255, 168, 107, 0.7));
+  padding-bottom: 0.5rem;
+}
+
+
+.archive-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.archive-item {
+  display: block;
+}
+
+.archive-link {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  text-decoration: none;
+  color: var(--color, inherit);
+  padding: 0.5rem;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+}
+
+.archive-link:hover {
+  background-color: var(--accent-alpha-20, rgba(255, 168, 107, 0.2));
+  color: var(--accent, #FFA86B);
+}
+
+.archive-date {
+  font-family: var(--code-font-family, 'Fira Code', monospace);
+  font-weight: bold;
+  min-width: 60px;
+}
+
+.archive-month-name {
+  flex: 1;
+  margin-left: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.archive-count {
+  color: var(--accent, #FFA86B);
+  font-weight: bold;
+  font-size: 0.9rem;
+}
+
+ 
+</style>
+
+    
+<div class="sidebar tags-cloud">
+  <h3>Tags Cloud</h3>
+  <div class="tags-container">
+    
+    
+    
+    
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+    
+    
+    
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+    
+    
+    
+    
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+    
+    
+    
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+    
+    
+    
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/apisix/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          apisix
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/biography/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          biography
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/compile/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          compile
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/concurrency/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="7 articles">
+          Concurrency
+          <span class="tag-count">(7)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/csi/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          csi
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/debug/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          debug
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/dns/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          dns
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/ebpf/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          ebpf
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/elf/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          ELF
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/go/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          Go
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/kaist-cs431/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="7 articles">
+          KAIST-CS431
+          <span class="tag-count">(7)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/kernel/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Kernel
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/kubernetes/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          kubernetes
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/l7gateway/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          L7Gateway
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/linux/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="3 articles">
+          Linux
+          <span class="tag-count">(3)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/lua/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="3 articles">
+          Lua
+          <span class="tag-count">(3)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/makefile/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          makefile
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/mindfulness/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          mindfulness
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/network/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          Network
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/nonfiction/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="6 articles">
+          nonfiction
+          <span class="tag-count">(6)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/operatingsystem/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          OperatingSystem
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/philosophy/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          philosophy
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/rust/" 
+           class="tag-item" 
+           style="font-size: 1.5em;"
+           title="10 articles">
+          Rust
+          <span class="tag-count">(10)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/schedule/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Schedule
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/science/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          science
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/softwareengineering/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          SoftwareEngineering
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/wasm/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          wasm
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+  </div>
+</div>
+
+<style>
+.sidebar.tags-cloud {
+  background: rgba(26, 23, 15, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--accent, #FFA86B);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+  max-width: var(--sidebar-component-width, 240px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.sidebar.tags-cloud h3 {
+  margin: 0 0 1rem 0;
+  color: var(--accent, #FFA86B);
+  font-size: 1.2rem;
+  border-bottom: 1px solid var(--accent-alpha-70, rgba(255, 168, 107, 0.7));
+  padding-bottom: 0.5rem;
+}
+
+.tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  line-height: 1.6;
+}
+
+.tag-item {
+  display: inline-flex;
+  align-items: baseline;
+  text-decoration: none;
+  color: var(--color, inherit);
+  padding: 0.3rem 0.6rem;
+  border-radius: 16px;
+  background: rgba(255, 168, 107, 0.1);
+  border: 1px solid transparent;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.tag-item:hover {
+  background: rgba(255, 168, 107, 0.25);
+  border-color: var(--accent-alpha-50, rgba(255, 168, 107, 0.5));
+  color: var(--accent, #FFA86B);
+  transform: translateY(-1px);
+}
+
+.tag-count {
+  font-size: 0.75em;
+  margin-left: 0.3rem;
+  opacity: 0.7;
+  font-weight: normal;
+}
+
+.tag-item:hover .tag-count {
+  opacity: 1;
+}
+
+ 
+
+ 
+.tag-item {
+  font-weight: 400;
+}
+
+ 
+.tag-item[style*="1.5"], 
+.tag-item[style*="1.4"],
+.tag-item[style*="1.3"] {
+  font-weight: 600;
+}
+
+ 
+.tag-item[style*="1.2"],
+.tag-item[style*="1.1"] {
+  font-weight: 500;
+}
+
+ 
+.tag-item[style*="1.5"]:hover,
+.tag-item[style*="1.4"]:hover,
+.tag-item[style*="1.3"]:hover {
+  box-shadow: 0 3px 10px rgba(255, 168, 107, 0.4);
+  transform: translateY(-2px);
+}
+
+</style>
+
+  </aside>
+</div>
+
+<style>
+ 
+.page-wrapper {
+  position: relative;
+  width: 100%;
+  max-width: none;
+  --sidebar-top-offset: 150px;  
+  --sidebar-component-width: 240px;  
+}
+
+   
+.floating-sidebar {
+  position: absolute;
+   
+  top: var(--sidebar-top-offset, 175px);
+   
+  right: max(20px, calc((100vw - 864px) / 2 - 330px));
+  width: 300px;
+  z-index: 100;
+  opacity: 0.96;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+ 
+.floating-sidebar:hover {
+  opacity: 1;
+  transform: translateX(-5px);
+}
+
+ 
+.floating-sidebar {
+  display: none;
+}
+
+ 
+@media (min-width: 1524px) {
+  .floating-sidebar {
+    display: block;
+    position: absolute;
+    right: max(20px, calc((100vw - 864px) / 2 - 330px));
+  }
+}
+
+ 
+@media (max-width: 1523px) {
+  .floating-sidebar {
+    display: none !important;
+  }
+}
+
+</style>
+
+</body>
+</html>
