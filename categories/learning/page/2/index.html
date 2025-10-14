@@ -520,11 +520,11 @@ Key to Flags:
           
             <h2 id="流程图">流程图</h2>
 <p>From 《Understanding Linux Network Internals》</p>
-<p><img src="image-20220128172744059.png" alt="image-20220128172744059"></p>
-<p><img src="image-20220129171450456.png" alt="image-20220129171450456"></p>
+<p><img src="/images/notes/linux-%E6%94%B6%E5%8C%85%E5%92%8C%E5%8F%91%E5%8C%85%E6%B5%81%E7%A8%8B/image-20220128172744059.png" alt="image-20220128172744059"></p>
+<p><img src="/images/notes/linux-%E6%94%B6%E5%8C%85%E5%92%8C%E5%8F%91%E5%8C%85%E6%B5%81%E7%A8%8B/image-20220129171450456.png" alt="image-20220129171450456"></p>
 <h2 id="收包流程">收包流程</h2>
 <p>TL; DR</p>
-<p><img src="Linux_Packet_Receive_Flow.png" alt="image-20220129171450456"></p>
+<p><img src="/images/notes/linux-%E6%94%B6%E5%8C%85%E5%92%8C%E5%8F%91%E5%8C%85%E6%B5%81%E7%A8%8B/Linux_Packet_Receive_Flow.png" alt="image-20220129171450456"></p>
 <ul>
 <li><strong>收包<code>NET_RX_SOFTRQ</code>的软中断处理函数是<code>net_rx_action</code></strong></li>
 <li><strong><code>net_rx_action</code>中会调用网卡驱动注册的poll回调函数处理</strong></li>
