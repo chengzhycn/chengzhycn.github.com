@@ -1,0 +1,2629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  
+    <title>Introducing Kubernetes Gateway API :: chengzhycn&#39;s blog</title>
+  
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Kubernetes Gateway API 是一个由 SIG-Network 孵化和维护的 开放、标准、可扩展的 API，旨在为 Kubernetes 集群内部和外部的统一流量管理提供更强大、更灵活、更具表现力的方式。
+它被视为 Ingress API 的继任者和演进，解决了 Ingress 在灵活性、可扩展性、角色分离和 L4-L7 支持方面的诸多局限性。Gateway API 不仅仅关注 HTTP 流量，还支持 TCP、UDP 以及 TLS 路由，覆盖了更广泛的网络场景。
+为什么需要 Gateway API 在 Gateway API 出现之前，Kubernetes 主要使用 Ingress 来管理集群的 L7 HTTP/HTTPS 流量。然而，Ingress 存在一些固有的局限性，促使了 Gateway API 的诞生：
+功能有限： Ingress 本身功能非常基础，只支持主机和路径路由。任何高级功能（如流量拆分、重写、限速、认证等）都必须通过特定于 Ingress 控制器（如 NGINX Ingress, Traefik, AWS ALB Ingress 等）的 注解（Annotations） 来实现。 可移植性差： 注解是特定于实现的，这意味着用 NGINX Ingress 注解编写的规则无法直接移植到 Traefik 或其他 Ingress 控制器上，造成供应商锁定。 缺乏角色分离： Ingress 资源将网络基础设施的配置（例如暴露的端口、TLS 证书）与应用程序的路由规则混在一起，这使得集群管理员和应用开发者之间的职责难以清晰划分。 L4 流量支持不足： Ingress 仅专注于 HTTP/HTTPS (L7) 流量。对于 TCP、UDP 或 TLS 直通（Passthrough）等 L4 流量，通常需要使用 LoadBalancer 类型的 Service 或其他的解决方案。 表达能力有限： 难以表达复杂的路由策略，如基于请求头、查询参数的匹配，细粒度的流量权重分配等。 Gateway API 旨在解决这些问题，提供一个更加健壮和通用的流量管理框架。
+" />
+<meta name="keywords" content="" />
+
+  <meta name="robots" content="noodp" />
+
+<link rel="canonical" href="https://www.jinzhi.site/posts/2025-10/introducing-kubernetes-gateway-api/" />
+
+
+
+
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/buttons.min.86f6b4c106b6c6eb690ae5203d36b442c1f66f718ff4e8164fa86cf6c61ad641.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/code.min.d529ea4b2fb8d34328d7d31afc5466d5f7bc2f0bc9abdd98b69385335d7baee4.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/fonts.min.5bb7ed13e1d00d8ff39ea84af26737007eb5051b157b86fc24487c94f3dc8bbe.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/footer.min.eb8dfc2c6a7eafa36cd3ba92d63e69e849e2200e0002a228d137f236b09ecd75.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/gist.min.a751e8b0abe1ba8bc53ced52a38b19d8950fe78ca29454ea8c2595cf26aad5c0.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/header.min.75c7eb0e2872d95ff48109c6647d0223a38db52e2561dd87966eb5fc7c6bdac6.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/main.min.7984a754b43b7469d389c539410e90dff2870263de16b008dfc7e8170fcd0f5b.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/menu.min.3c17467ebeb3d38663dce68f71f519901124fa5cbb4519b2fb0667a21e9aca39.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/pagination.min.bbb986dbce00a5ce5aca0504b7925fc1c581992a4bf57f163e5d69cc1db7d836.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/post.min.e6dddd258e64c83e05cec0cd49c05216742d42fc8ecbfbe6b67083412b609bd3.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/syntax.min.a0773cce9310cb6d8ed23e50f005448facf29a53001b57e038828daa466b25c0.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/terminal.min.e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/terms.min.b81791663c3790e738e571cdbf802312390d30e4b1d8dc9d814a5b5454d0ac11.css">
+
+
+
+
+
+
+
+<link rel="shortcut icon" href="https://www.jinzhi.site/favicon.png">
+<link rel="apple-touch-icon" href="https://www.jinzhi.site/apple-touch-icon.png">
+
+
+<meta name="twitter:card" content="summary" />
+
+  
+    <meta name="twitter:site" content="" />
+  
+    <meta name="twitter:creator" content="" />
+
+
+
+<meta property="og:locale" content="en" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="Introducing Kubernetes Gateway API">
+<meta property="og:description" content="Kubernetes Gateway API 是一个由 SIG-Network 孵化和维护的 开放、标准、可扩展的 API，旨在为 Kubernetes 集群内部和外部的统一流量管理提供更强大、更灵活、更具表现力的方式。
+它被视为 Ingress API 的继任者和演进，解决了 Ingress 在灵活性、可扩展性、角色分离和 L4-L7 支持方面的诸多局限性。Gateway API 不仅仅关注 HTTP 流量，还支持 TCP、UDP 以及 TLS 路由，覆盖了更广泛的网络场景。
+为什么需要 Gateway API 在 Gateway API 出现之前，Kubernetes 主要使用 Ingress 来管理集群的 L7 HTTP/HTTPS 流量。然而，Ingress 存在一些固有的局限性，促使了 Gateway API 的诞生：
+功能有限： Ingress 本身功能非常基础，只支持主机和路径路由。任何高级功能（如流量拆分、重写、限速、认证等）都必须通过特定于 Ingress 控制器（如 NGINX Ingress, Traefik, AWS ALB Ingress 等）的 注解（Annotations） 来实现。 可移植性差： 注解是特定于实现的，这意味着用 NGINX Ingress 注解编写的规则无法直接移植到 Traefik 或其他 Ingress 控制器上，造成供应商锁定。 缺乏角色分离： Ingress 资源将网络基础设施的配置（例如暴露的端口、TLS 证书）与应用程序的路由规则混在一起，这使得集群管理员和应用开发者之间的职责难以清晰划分。 L4 流量支持不足： Ingress 仅专注于 HTTP/HTTPS (L7) 流量。对于 TCP、UDP 或 TLS 直通（Passthrough）等 L4 流量，通常需要使用 LoadBalancer 类型的 Service 或其他的解决方案。 表达能力有限： 难以表达复杂的路由策略，如基于请求头、查询参数的匹配，细粒度的流量权重分配等。 Gateway API 旨在解决这些问题，提供一个更加健壮和通用的流量管理框架。
+" />
+<meta property="og:url" content="https://www.jinzhi.site/posts/2025-10/introducing-kubernetes-gateway-api/" />
+<meta property="og:site_name" content="chengzhycn&#39;s blog" />
+
+  <meta property="og:image" content="https://www.jinzhi.site/og-image.png">
+
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="627">
+
+  <meta property="article:section" content="Learning" />
+
+
+  <meta property="article:published_time" content="2025-10-16 16:18:28 &#43;0800 &#43;0800" />
+
+
+
+
+
+
+
+
+
+<html>
+<head>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-screen-web/style.css" />
+  <style>
+    body {
+      font-family: "LXGW WenKai Screen";
+      font-weight: normal;
+    }
+  </style>
+</head>
+<body>
+
+</body>
+</html>
+
+
+</head>
+<body>
+
+
+<div class="page-wrapper">
+  <div class="container center">
+
+  <header class="header">
+  <div class="header__inner">
+    <div class="header__logo">
+      <a href="/">
+  <div class="logo">
+    chengzhycn&#39;s blog
+  </div>
+</a>
+
+    </div>
+    
+      <ul class="menu menu--mobile">
+  <li class="menu__trigger">Menu&nbsp;▾</li>
+  <li>
+    <ul class="menu__dropdown">
+      
+        
+          <li><a href="/">Home</a></li>
+        
+      
+        
+          <li><a href="/about">About</a></li>
+        
+      
+        
+          <li><a href="/categories/">Categories</a></li>
+        
+      
+        
+          <li><a href="/tags/">Tags</a></li>
+        
+      
+        
+          <li><a href="/archives/">Archives</a></li>
+        
+      
+      
+    </ul>
+  </li>
+</ul>
+
+    
+    
+  </div>
+  
+    <nav class="navigation-menu">
+  <ul class="navigation-menu__inner menu--desktop">
+    
+      
+        
+          <li><a href="/" >Home</a></li>
+        
+      
+        
+          <li><a href="/about" >About</a></li>
+        
+      
+        
+          <li><a href="/categories/" >Categories</a></li>
+        
+      
+        
+          <li><a href="/tags/" >Tags</a></li>
+        
+      
+        
+          <li><a href="/archives/" >Archives</a></li>
+        
+      
+      
+    
+  </ul>
+</nav>
+
+  
+</header>
+
+
+  <div class="content">
+    
+<article class="post">
+  <h1 class="post-title">
+    <a href="https://www.jinzhi.site/posts/2025-10/introducing-kubernetes-gateway-api/">Introducing Kubernetes Gateway API</a>
+  </h1>
+  <div class="post-meta"><time class="post-date">2025-10-16</time><span class="post-reading-time">5 min read (879 words)</span></div>
+
+  
+    <span class="post-tags">
+      
+      #<a href="https://www.jinzhi.site/tags/kubernetes/">kubernetes</a>&nbsp;
+      
+    </span>
+  
+  
+
+
+  
+    <div class="table-of-contents">
+      <h2>
+        Table of Contents
+      </h2>
+      <nav id="TableOfContents">
+  <ul>
+    <li><a href="#为什么需要-gateway-api">为什么需要 Gateway API</a></li>
+    <li><a href="#核心概念和资源抽象">核心概念和资源抽象</a>
+      <ul>
+        <li><a href="#httproute">HTTPRoute</a></li>
+        <li><a href="#referencegrant">ReferenceGrant</a></li>
+      </ul>
+    </li>
+    <li><a href="#核心特性与优势">核心特性与优势</a></li>
+    <li><a href="#reference">Reference</a></li>
+  </ul>
+</nav>
+    </div>
+  
+
+  <div class="post-content"><div>
+        <p>Kubernetes Gateway API 是一个由 SIG-Network 孵化和维护的 <strong>开放、标准、可扩展的 API</strong>，旨在为 Kubernetes 集群内部和外部的统一流量管理提供更强大、更灵活、更具表现力的方式。</p>
+<p>它被视为 <strong>Ingress API 的继任者和演进</strong>，解决了 Ingress 在灵活性、可扩展性、角色分离和 L4-L7 支持方面的诸多局限性。Gateway API 不仅仅关注 HTTP 流量，还支持 TCP、UDP 以及 TLS 路由，覆盖了更广泛的网络场景。</p>
+<h2 id="为什么需要-gateway-api">为什么需要 Gateway API<a href="#为什么需要-gateway-api" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>在 Gateway API 出现之前，Kubernetes 主要使用 <code>Ingress</code> 来管理集群的 L7 HTTP/HTTPS 流量。然而，Ingress 存在一些固有的局限性，促使了 Gateway API 的诞生：</p>
+<ol>
+<li><strong>功能有限：</strong> Ingress 本身功能非常基础，只支持主机和路径路由。任何高级功能（如流量拆分、重写、限速、认证等）都必须通过特定于 Ingress 控制器（如 NGINX Ingress, Traefik, AWS ALB Ingress 等）的 <strong>注解（Annotations）</strong> 来实现。</li>
+<li><strong>可移植性差：</strong> 注解是特定于实现的，这意味着用 NGINX Ingress 注解编写的规则无法直接移植到 Traefik 或其他 Ingress 控制器上，造成供应商锁定。</li>
+<li><strong>缺乏角色分离：</strong> Ingress 资源将网络基础设施的配置（例如暴露的端口、TLS 证书）与应用程序的路由规则混在一起，这使得集群管理员和应用开发者之间的职责难以清晰划分。</li>
+<li><strong>L4 流量支持不足：</strong> Ingress 仅专注于 HTTP/HTTPS (L7) 流量。对于 TCP、UDP 或 TLS 直通（Passthrough）等 L4 流量，通常需要使用 <code>LoadBalancer</code> 类型的 Service 或其他的解决方案。</li>
+<li><strong>表达能力有限：</strong> 难以表达复杂的路由策略，如基于请求头、查询参数的匹配，细粒度的流量权重分配等。</li>
+</ol>
+<p>Gateway API 旨在解决这些问题，提供一个更加健壮和通用的流量管理框架。</p>
+<h2 id="核心概念和资源抽象">核心概念和资源抽象<a href="#核心概念和资源抽象" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p><img src="/images/notes/introducing-kubernetes-gateway-api/b7bc67456d46c298701f7df89586462f_MD5.jpeg" alt="b7bc67456d46c298701f7df89586462f_MD5"></p>
+<p>Gateway API 定义了一组分层且互操作的资源对象，用于构建从网络入口到后端服务的完整流量路径。主要的关键资源包括：</p>
+<ol>
+<li><strong><code>GatewayClass</code></strong>
+<ul>
+<li><strong>目的：</strong> 定义了具体的网关实现类型（例如：NGINX, Istio, GKE, AWS ALB, Contour, Envoy 等）。</li>
+<li><strong>谁创建：</strong> 通常由<strong>基础设施提供商</strong>（如云服务商）或<strong>平台管理员</strong>创建，以注册他们的网关控制器。</li>
+<li><strong>作用：</strong> 类似于 IngressClass，通过 <code>controllerName</code> 指明由哪个控制器来处理此类的 Gateway 资源。</li>
+<li><strong>作用域：</strong> Cluster scope</li>
+</ul>
+</li>
+</ol>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-yaml" data-lang="yaml"><span class="line"><span class="cl"><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l">gateway.networking.k8s.io/v1</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l">GatewayClass</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="nt">metadata</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l">example-nginx</span><span class="w"> </span><span class="c"># GatewayClass 的名称，被 Gateway 引用</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="nt">spec</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">controllerName</span><span class="p">:</span><span class="w"> </span><span class="l">k8s.io/gateway-nginx</span><span class="w"> </span><span class="c"># 声明 Nginx Gateway 控制器会管理这类 Gateway</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s2">&#34;GatewayClass for Nginx based HTTP/HTTPS traffic management.&#34;</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="c"># parametersRef: # 可选，指向一个自定义资源，用于控制器特定的全局配置</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="c">#   group: gateway.nginx.org</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="c">#   kind: NginxGatewayParameters</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="c">#   name: nginx-global-config</span><span class="w">
+</span></span></span></code></pre></div><ol start="2">
+<li><strong><code>Gateway</code></strong>
+<ul>
+<li><strong>目的：</strong> 代表在集群中运行的<strong>网络监听器</strong>，例如一个真实的负载均衡器、代理服务器或边缘路由器。</li>
+<li><strong>谁创建：</strong> 通常由<strong>集群操作员</strong>或<strong>平台管理员</strong>创建。</li>
+<li><strong>作用：</strong> 定义了监听的协议 (HTTP, HTTPS, TLS, TCP, UDP)、端口，负责对外暴露集群的 IP 地址或 Hostname，以及绑定 TLS 证书。一个 <code>Gateway</code> 可以关联一个 <code>GatewayClass</code>。</li>
+</ul>
+</li>
+</ol>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-yaml" data-lang="yaml"><span class="line"><span class="cl"><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l">gateway.networking.k8s.io/v1</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l">Gateway</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="nt">metadata</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l">my-gateway</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">namespace</span><span class="p">:</span><span class="w"> </span><span class="l">gateway-system</span><span class="w"> </span><span class="c"># Gateway 通常部署在专用命名空间</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="nt">spec</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">gatewayClassName</span><span class="p">:</span><span class="w"> </span><span class="l">example-nginx</span><span class="w"> </span><span class="c"># 引用一个 GatewayClass</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">listeners</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span>- <span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l">http</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">      </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="m">80</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">      </span><span class="nt">protocol</span><span class="p">:</span><span class="w"> </span><span class="l">HTTP</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">      </span><span class="nt">hostname</span><span class="p">:</span><span class="w"> </span><span class="s2">&#34;www.example.com&#34;</span><span class="w"> </span><span class="c"># 监听此主机名</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">      </span><span class="nt">allowedRoutes</span><span class="p">:</span><span class="w"> </span><span class="c"># 允许哪些路由绑定</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">        </span><span class="nt">namespaces</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">          </span><span class="nt">from</span><span class="p">:</span><span class="w"> </span><span class="l">Same</span><span class="w"> </span><span class="c"># 仅允许 Gateway 所在命名空间的路由绑定</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">        </span><span class="c"># from: All # 允许所有命名空间的路由绑定 (需要 ReferenceGrant)</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">        </span><span class="nt">kinds</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">          </span>- <span class="nt">group</span><span class="p">:</span><span class="w"> </span><span class="l">gateway.networking.k8s.io</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">            </span><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l">HTTPRoute</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span>- <span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l">https</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">      </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="m">443</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">      </span><span class="nt">protocol</span><span class="p">:</span><span class="w"> </span><span class="l">HTTPS</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">      </span><span class="nt">hostname</span><span class="p">:</span><span class="w"> </span><span class="s2">&#34;*.example.com&#34;</span><span class="w"> </span><span class="c"># 监听所有子域名</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">      </span><span class="nt">tls</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">        </span><span class="nt">mode</span><span class="p">:</span><span class="w"> </span><span class="l">Terminate</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">        </span><span class="nt">certificateRefs</span><span class="p">:</span><span class="w"> </span><span class="c"># 引用 TLS 证书 Secret</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">          </span>- <span class="nt">group</span><span class="p">:</span><span class="w"> </span><span class="s2">&#34;&#34;</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">            </span><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l">Secret</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">            </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l">example-com-tls</span><span class="w"> </span><span class="c"># Secret 必须在 Gateway 同一命名空间</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">            </span><span class="c"># 可以是其他命名空间的 Secret，但需要 ReferenceGrant 授权</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">      </span><span class="nt">allowedRoutes</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">        </span><span class="nt">namespaces</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">          </span><span class="nt">from</span><span class="p">:</span><span class="w"> </span><span class="l">All</span><span class="w"> </span><span class="c"># 此 HTTPS 监听器允许所有命名空间的路由绑定</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">        </span><span class="nt">kinds</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">          </span>- <span class="nt">group</span><span class="p">:</span><span class="w"> </span><span class="l">gateway.networking.k8s.io</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">            </span><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l">HTTPRoute</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="c"># addresses: # 也可以在这里请求特定的 IP，但控制器可能不接受</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="c">#   - type: IPAddress</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="c">#     value: &#34;192.0.2.1&#34;</span><span class="w">
+</span></span></span></code></pre></div><ol start="3">
+<li>
+<p><strong><code>Route</code></strong></p>
+<ul>
+<li><strong>目的：</strong> 定义了从 <code>Gateway</code> 到后端服务的具体路由规则。这是 Gateway API 最具扩展性的部分，它根据不同的协议提供了多种路由类型：
+<ul>
+<li><strong><code>HTTPRoute</code>：</strong> 最常使用，用于 HTTP/HTTPS 流量。支持主机名、路径、HTTP 方法、请求头、查询参数等多种匹配规则，以及流量权重、重写、重定向等高级功能。</li>
+<li><strong><code>GRPCRoute</code></strong>：</li>
+</ul>
+</li>
+<li><strong>谁创建：</strong> 通常由<strong>应用程序开发者</strong>或<strong>服务所有者</strong>创建。</li>
+<li><strong>作用：</strong> 将流量从 <code>Gateway</code> 路由到一个或多个 Kubernetes <code>Service</code> 或其他后端端点。</li>
+</ul>
+</li>
+<li>
+<p><strong><code>ReferenceGrant</code> (引用授权)</strong></p>
+<ul>
+<li><strong>目的：</strong> 提供了一个<strong>安全机制</strong>，允许跨命名空间引用资源（例如，一个 <code>HTTPRoute</code> 在 <code>app-ns</code> 命名空间中引用 <code>Gateway</code> 命名空间中的 <code>Secret</code> 来获取 TLS 证书，或者引用 <code>backend-ns</code> 命名空间中的 <code>Service</code>）。</li>
+<li><strong>谁创建：</strong> 通常由<strong>拥有被引用资源的命名空间管理员</strong>创建。</li>
+<li><strong>作用：</strong> 增强了安全性，避免了恶意用户在其他命名空间中创建的路由来劫持流量或访问敏感信息。</li>
+</ul>
+</li>
+</ol>
+<h3 id="httproute">HTTPRoute<a href="#httproute" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<h4 id="关键字段">关键字段<a href="#关键字段" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<h5 id="parentrefs"><code>parentRefs</code> <a href="#parentrefs" class="hanchor" ariaLabel="Anchor">#</a> </h5>
+<ul>
+<li><strong>目的：</strong> 将 <code>HTTPRoute</code> 绑定到一个或多个 <code>Gateway</code> 资源上。这是路由生效的前提。</li>
+<li><strong>字段：</strong>
+<ul>
+<li><code>group</code>: (可选) 默认为 <code>gateway.networking.k8s.io</code>。</li>
+<li><code>kind</code>: (可选) 默认为 <code>Gateway</code>。</li>
+<li><code>name</code>: <strong>必须</strong>，指定 <code>Gateway</code> 的名称。</li>
+<li><code>namespace</code>: (可选) 如果 <code>Gateway</code> 在不同命名空间，必须指定。<strong>注意：</strong> 跨命名空间引用 <code>Gateway</code> 需要 <code>ReferenceGrant</code> 授权。</li>
+<li><code>sectionName</code>: (可选) 如果 <code>Gateway</code> 具有多个监听器 (Listener)，可以使用此字段指定要绑定到哪个特定的 Listener。如果未指定，通常会绑定到第一个兼容的 Listener，或者控制器会根据 <code>HTTPRoute</code> 的 <code>hostnames</code> 字段尝试匹配 Listener。</li>
+</ul>
+</li>
+</ul>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-yaml" data-lang="yaml"><span class="line"><span class="cl"><span class="nt">parentRefs</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span>- <span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l">my-gateway</span><span class="w"> </span><span class="c"># 引用名为 my-gateway 的 Gateway</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">namespace</span><span class="p">:</span><span class="w"> </span><span class="l">gateway-ns</span><span class="w"> </span><span class="c"># 如果 gateway 在 gateway-ns 命名空间</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">sectionName</span><span class="p">:</span><span class="w"> </span><span class="l">https-listener</span><span class="w"> </span><span class="c"># 绑定到 Gateway 中名为 https-listener 的监听器</span><span class="w">
+</span></span></span></code></pre></div><h5 id="hostnames"><code>hostnames</code><a href="#hostnames" class="hanchor" ariaLabel="Anchor">#</a> </h5>
+<ul>
+<li><strong>目的：</strong> 定义 <code>HTTPRoute</code> 匹配的域名或主机名。</li>
+<li><strong>字段：</strong> <code>hostnames</code> 是一个字符串数组。</li>
+<li><strong>匹配规则：</strong>
+<ul>
+<li><strong>精确匹配：</strong> 例如 <code>example.com</code>。</li>
+<li><strong>通配符匹配：</strong> 例如 <code>*.example.com</code> (匹配 <code>www.example.com</code>, <code>app.example.com</code> 等，但不会匹配 <code>example.com</code> 本身)。</li>
+</ul>
+</li>
+<li><strong>优先级：</strong> 精确匹配的 <code>hostnames</code> 优先级高于通配符匹配。如果一个请求同时匹配多个 <code>HTTPRoute</code> 的 <code>hostnames</code>，控制器将选择最精确的那个。</li>
+</ul>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-yaml" data-lang="yaml"><span class="line"><span class="cl"><span class="nt">hostnames</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span>- <span class="s2">&#34;www.example.com&#34;</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span>- <span class="s2">&#34;*.dev.example.com&#34;</span><span class="w">
+</span></span></span></code></pre></div><h5 id="rules"><code>rules</code><a href="#rules" class="hanchor" ariaLabel="Anchor">#</a> </h5>
+<p>这是 <code>HTTPRoute</code> 最核心的部分，它定义了一组匹配条件、可选的流量修改和最终的后端转发。一个 <code>HTTPRoute</code> 可以包含多个 <code>rules</code>，它们按顺序评估，直到找到第一个匹配的规则。</p>
+<p>每个 <code>rule</code> 包含以下子字段：</p>
+<h6 id="matches"><code>matches</code> <a href="#matches" class="hanchor" ariaLabel="Anchor">#</a> </h6>
+<ul>
+<li><strong>目的：</strong> 定义哪些 HTTP 请求属性必须满足，此规则才会被应用。所有 <code>matches</code> 字段都是可选的，如果未指定，则默认匹配所有请求。</li>
+<li><strong>字段：</strong> <code>matches</code> 是一个数组，每个元素可以包含：
+<ul>
+<li><code>path</code>:
+<ul>
+<li><code>type</code>: (可选) 匹配类型。
+<ul>
+<li><code>PathPrefix</code> (默认): 路径前缀匹配，例如 <code>/foo</code> 会匹配 <code>/foo</code>, <code>/foo/bar</code>。</li>
+<li><code>Exact</code>: 精确匹配，例如 <code>/foo</code> 只匹配 <code>/foo</code>。</li>
+<li><code>RegularExpression</code>: 正则表达式匹配，例如 <code>^/api/v1/.*</code>。</li>
+</ul>
+</li>
+<li><code>value</code>: 要匹配的路径字符串。</li>
+</ul>
+</li>
+<li><code>headers</code>:
+<ul>
+<li><code>type</code>: (可选) 匹配类型。
+<ul>
+<li><code>Exact</code> (默认): 精确匹配头部值。</li>
+<li><code>RegularExpression</code>: 正则表达式匹配头部值。</li>
+<li><code>Present</code>: 只要头部存在即可，不需要匹配值。</li>
+</ul>
+</li>
+<li><code>name</code>: HTTP 头部的名称 (不区分大小写)。</li>
+<li><code>value</code>: 要匹配的头部值 (如果 <code>type</code> 是 <code>Exact</code> 或 <code>RegularExpression</code>)。</li>
+</ul>
+</li>
+<li><code>queryParams</code>:
+<ul>
+<li><code>type</code>: 同 <code>headers</code>。</li>
+<li><code>name</code>: 查询参数的名称。</li>
+<li><code>value</code>: 要匹配的查询参数值。</li>
+</ul>
+</li>
+<li><code>method</code>:
+<ul>
+<li><code>type</code>: 匹配类型 (<code>Exact</code> 是唯一选项)。</li>
+<li><code>value</code>: 要匹配的 HTTP 方法 (GET, POST, PUT, DELETE, etc.)。</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-yaml" data-lang="yaml"><span class="line"><span class="cl"><span class="nt">matches</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span>- <span class="nt">path</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">      </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l">PathPrefix</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">      </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="s2">&#34;/api/v1/users&#34;</span><span class="w"> </span><span class="c"># 匹配 /api/v1/users 或 /api/v1/users/123</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">headers</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">      </span>- <span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l">X-Version</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">        </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="s2">&#34;v2&#34;</span><span class="w"> </span><span class="c"># 匹配头部 X-Version: v2</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">method</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">      </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="s2">&#34;GET&#34;</span><span class="w"> </span><span class="c"># 匹配 GET 请求</span><span class="w">
+</span></span></span></code></pre></div><h6 id="filters"><code>filters</code> <a href="#filters" class="hanchor" ariaLabel="Anchor">#</a> </h6>
+<ul>
+<li><strong>目的：</strong> 在请求被转发到后端服务之前，对请求或响应进行操作。</li>
+<li><strong>字段：</strong> <code>filters</code> 是一个数组，每个元素可以包含多种过滤器类型：
+<ul>
+<li><code>RequestHeaderModifier</code>: 修改请求头。
+<ul>
+<li><code>set</code>: 设置或替换请求头值。</li>
+<li><code>add</code>: 添加请求头值(如果已存在，则追加)。</li>
+<li><code>remove</code>: 移除指定的请求头。</li>
+</ul>
+</li>
+<li><code>ResponseHeaderModifier</code>: (部分实现支持) 修改响应头。同 <code>RequestHeaderModifier</code>。</li>
+<li><code>RequestRedirect</code>: 将请求重定向到另一个 URL。
+<ul>
+<li><code>scheme</code>: 协议 (http, https)。</li>
+<li><code>hostname</code>: 新主机名。</li>
+<li><code>port</code>: 新端口。</li>
+<li><code>path</code>: 路径重定向规则。
+<ul>
+<li><code>type</code>: <code>ReplaceFullPath</code>, <code>ReplacePrefixMatch</code> (替换匹配到的部分), <code>RewriteSubset</code> (重写部分路径)。</li>
+<li><code>value</code>: 新路径或前缀。</li>
+</ul>
+</li>
+<li><code>statusCode</code>: HTTP 状态码 (301, 302, etc.)。</li>
+</ul>
+</li>
+<li><code>URLRewrite</code>: 重写请求的 URL，但不会发送重定向。
+<ul>
+<li><code>hostname</code>: 重写请求的主机名。</li>
+<li><code>path</code>: 路径重写规则。
+<ul>
+<li><code>type</code>: <code>ReplaceFullPath</code>, <code>ReplacePrefixMatch</code>, <code>RewriteSubset</code>, <code>Exact</code>.</li>
+<li><code>value</code>: 新路径或前缀。</li>
+</ul>
+</li>
+</ul>
+</li>
+<li><code>RequestMirror</code>: (部分实现支持) 将请求镜像到另一个后端，通常用于测试或影子发布。镜像流量不会影响客户端响应。
+<ul>
+<li><code>backendRef</code>: 镜像到的后端服务引用。</li>
+</ul>
+</li>
+<li><code>ExtensionRef</code>: 允许通过扩展机制添加自定义过滤器。</li>
+</ul>
+</li>
+</ul>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-yaml" data-lang="yaml"><span class="line"><span class="cl"><span class="nt">filters</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span>- <span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l">RequestHeaderModifier</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">requestHeaderModifier</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">      </span><span class="nt">add</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">        </span>- <span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l">X-Internal-Request</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">          </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="s2">&#34;true&#34;</span><span class="w"> </span><span class="c"># 为请求添加一个内部头部</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span>- <span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l">URLRewrite</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">urlRewrite</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">      </span><span class="nt">path</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">        </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l">ReplacePrefixMatch</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">        </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="s2">&#34;/v2&#34;</span><span class="w"> </span><span class="c"># 如果匹配到 /api/v1/users（定义在 PathPrefix 中），重写为 /v2</span><span class="w">
+</span></span></span></code></pre></div><h6 id="backendrefs"><code>backendRefs</code> <a href="#backendrefs" class="hanchor" ariaLabel="Anchor">#</a> </h6>
+<ul>
+<li><strong>目的：</strong> 定义匹配到的请求应该转发到哪些后端服务。</li>
+<li><strong>字段：</strong> <code>backendRefs</code> 是一个数组，每个元素可以包含：
+<ul>
+<li><code>group</code>: (可选) 默认为 <code>&quot;&quot;</code> (核心 API 组，用于 <code>Service</code>)。</li>
+<li><code>kind</code>: (可选) 默认为 <code>Service</code>。</li>
+<li><code>name</code>: <strong>必须</strong>，后端服务的名称。</li>
+<li><code>namespace</code>: (可选) 如果 <code>Service</code> 在不同命名空间，必须指定。<strong>注意：</strong> 跨命名空间引用 <code>Service</code> 需要 <code>ReferenceGrant</code> 授权。</li>
+<li><code>port</code>: <strong>必须</strong>，后端服务监听的端口。</li>
+<li><code>weight</code>: (可选) 0 到 10000 之间的整数。如果指定了多个 <code>backendRefs</code>，可以设置权重进行流量百分比分配（A/B 测试、金丝雀发布）。所有 <code>backendRefs</code> 的 <code>weight</code> 总和通常为 100 或 10000 (取决于实现约定)，未指定的后端默认为 <code>1</code>。</li>
+</ul>
+</li>
+</ul>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-yaml" data-lang="yaml"><span class="line"><span class="cl"><span class="nt">backendRefs</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span>- <span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l">my-service-v1</span><span class="w"> </span><span class="c"># 转发到 my-service-v1</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="m">80</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">weight</span><span class="p">:</span><span class="w"> </span><span class="m">90</span><span class="w"> </span><span class="c"># 90% 流量</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span>- <span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l">my-service-v2</span><span class="w"> </span><span class="c"># 转发到 my-service-v2</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="m">80</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">weight</span><span class="p">:</span><span class="w"> </span><span class="m">10</span><span class="w"> </span><span class="c"># 10% 流量</span><span class="w">
+</span></span></span></code></pre></div><h4 id="备注">备注<a href="#备注" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<ol>
+<li>HTTPRoute 看上去只默认支持 wrr，对于其它类型的负载均衡算法没有原生支持。可能需要使用 Annotation 或者 ExtensionRef 来实现。</li>
+</ol>
+<h3 id="referencegrant">ReferenceGrant<a href="#referencegrant" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p><img src="/images/notes/introducing-kubernetes-gateway-api/6e7dffc7988ff656860d323100f9830f_MD5.svg" alt="6e7dffc7988ff656860d323100f9830f_MD5"></p>
+<p><code>ReferenceGrant</code> 是 Gateway API 中的一个<strong>核心安全机制</strong>，它解决了跨命名空间引用问题，即<strong>允许一个命名空间中的资源（例如 <code>HTTPRoute</code>）引用另一个命名空间中的资源（例如 <code>Service</code> 或 <code>Gateway</code>）</strong>。</p>
+<p>在 Kubernetes 中，默认情况下，资源是无法跨命名空间“看到”或“引用”彼此的，这是一种安全沙箱机制。Gateway API 中的路由和 Gateway 资源经常需要引用位于不同命名空间中的后端服务或 Gateway 本身。如果没有 <code>ReferenceGrant</code>，这种跨命名空间引用将被默认阻止，从而导致 Gateway 无法正确路由流量。</p>
+<p><code>ReferenceGrant</code> 的作用就是<strong>显式地授权一个命名空间中的资源引用另一个命名空间中的特定类型的资源</strong>。它是一个授权许可，而不是一个配置指令。</p>
+<p>一个配置样例如下：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-yaml" data-lang="yaml"><span class="line"><span class="cl"><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l">gateway.networking.k8s.io/v1</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l">HTTPRoute</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="nt">metadata</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l">foo</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">namespace</span><span class="p">:</span><span class="w"> </span><span class="l">foo</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="nt">spec</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">rules</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span>- <span class="nt">matches</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span>- <span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l">/bar</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">backendRefs</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">      </span>- <span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l">bar</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">        </span><span class="nt">namespace</span><span class="p">:</span><span class="w"> </span><span class="l">bar</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="nn">---</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l">gateway.networking.k8s.io/v1beta1</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l">ReferenceGrant</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="nt">metadata</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l">bar</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">namespace</span><span class="p">:</span><span class="w"> </span><span class="l">bar</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="nt">spec</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">from</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span>- <span class="nt">group</span><span class="p">:</span><span class="w"> </span><span class="l">gateway.networking.k8s.io</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l">HTTPRoute</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">namespace</span><span class="p">:</span><span class="w"> </span><span class="l">foo</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">to</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span>- <span class="nt">group</span><span class="p">:</span><span class="w"> </span><span class="s2">&#34;&#34;</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l">Service</span><span class="w">
+</span></span></span></code></pre></div><h4 id="备注-1">备注<a href="#备注-1" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<ol>
+<li><code>ReferenceGrant</code> 机制的实现<strong>完全依赖于 Gateway 控制器</strong>。如果一个 Gateway 控制器选择<strong>忽略</strong> <code>ReferenceGrant</code>，那么它可以<strong>直接实现跨命名空间引用</strong>，而不会依赖 <code>ReferenceGrant</code> 资源。这样带来的缺陷是对约定的 Gateway API 规范的违背和潜在的安全风险。</li>
+</ol>
+<h2 id="核心特性与优势">核心特性与优势<a href="#核心特性与优势" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<ol>
+<li>
+<p><strong>强大的表达能力：</strong></p>
+<ul>
+<li>支持更复杂的路由匹配条件（HTTP 方法、请求头、查询参数）。</li>
+<li>细粒度的流量权重分配，轻松实现 A/B 测试、金丝雀发布等。</li>
+<li>灵活的流量操纵（URL 重写、重定向）。</li>
+<li>多层次的规则定义，更好地组织和管理路由。</li>
+</ul>
+</li>
+<li>
+<p><strong>出色的可扩展性：</strong></p>
+<ul>
+<li>支持 <strong>Policy 附件</strong>：可以通过 <code>Policy</code> 资源将额外的配置（如限速、认证、WAF 规则）附加到 Gateway、Route 或 Service 上，而无需修改核心 API 对象。</li>
+<li><strong>自定义 Route 类型</strong>：允许开发者定义自己的 Route 类型来支持特殊的协议或路由需求。</li>
+</ul>
+</li>
+<li>
+<p><strong>清晰的角色分离：</strong></p>
+<ul>
+<li><strong>基础设施提供商：</strong> 负责注册 <code>GatewayClass</code>。</li>
+<li><strong>集群操作员：</strong> 负责部署和管理 <code>Gateway</code> 资源，定义对外暴露的方式、监听端口和协议。</li>
+<li><strong>应用程序开开发者：</strong> 专注于创建 <code>Route</code> 资源，定义如何将流量路由到他们的服务。</li>
+<li>这种分离降低了操作的复杂性，提高了安全性，并允许不同团队独立工作。</li>
+</ul>
+</li>
+<li>
+<p><strong>多协议支持：</strong></p>
+<ul>
+<li>原生支持 HTTP、HTTPS、TLS、TCP 和 UDP 流量的路由。</li>
+</ul>
+</li>
+<li>
+<p><strong>增强的安全性：</strong></p>
+<ul>
+<li><code>ReferenceGrant</code> 机制通过明确的授权来限制跨命名空间资源引用，防止未授权的访问和配置。</li>
+</ul>
+</li>
+<li>
+<p><strong>更好的可移植性：</strong></p>
+<ul>
+<li>作为标准 API，所有兼容 Gateway API 的控制器都将遵循相同的规范，这意味着路由配置在不同实现之间是高度可移植的。</li>
+</ul>
+</li>
+</ol>
+<h2 id="reference">Reference<a href="#reference" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<ul>
+<li><a href="https://gateway-api.sigs.k8s.io/">https://gateway-api.sigs.k8s.io/</a></li>
+</ul>
+
+      </div></div>
+
+  
+    
+<div class="pagination">
+  <div class="pagination__title">
+    <span class="pagination__title-h">Read other posts</span>
+    <hr />
+  </div>
+  <div class="pagination__buttons">
+    
+    
+    
+      <a href="https://www.jinzhi.site/posts/2025-10/apisix-balancer-%E6%94%AF%E6%8C%81-domain/" class="button inline next">
+         [<span class="button__text">APISIX balancer 支持 domain</span>] &gt;
+      </a>
+    
+  </div>
+</div>
+
+
+  
+
+  
+    
+
+  
+</article>
+
+  </div>
+
+  
+    <footer class="footer">
+  <div class="footer__inner">
+    
+      <div class="copyright">
+        <span>© 2025 Powered by <a href="https://gohugo.io">Hugo</a></span>
+    
+      <span>:: <a href="https://github.com/panr/hugo-theme-terminal" target="_blank">Theme</a> made by <a href="https://github.com/panr" target="_blank">panr</a></span>
+      </div>
+  </div>
+</footer>
+
+
+
+
+
+
+<script type="text/javascript" src="/bundle.min.js"></script>
+
+
+
+
+
+  
+  </div>
+
+  <aside class="floating-sidebar">
+    
+<div class="sidebar time-archive">
+  <h3>Time Archives</h3>
+  <div class="archive-list">
+    
+    
+
+    
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+
+    
+    
+
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-10/" class="archive-link">
+          <span class="archive-date">2025-10</span>
+          <span class="archive-month-name">Oct</span>
+          <span class="archive-count">(2)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-09/" class="archive-link">
+          <span class="archive-date">2025-09</span>
+          <span class="archive-month-name">Sep</span>
+          <span class="archive-count">(3)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-08/" class="archive-link">
+          <span class="archive-date">2025-08</span>
+          <span class="archive-month-name">Aug</span>
+          <span class="archive-count">(9)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-06/" class="archive-link">
+          <span class="archive-date">2025-06</span>
+          <span class="archive-month-name">Jun</span>
+          <span class="archive-count">(2)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-04/" class="archive-link">
+          <span class="archive-date">2025-04</span>
+          <span class="archive-month-name">Apr</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-03/" class="archive-link">
+          <span class="archive-date">2025-03</span>
+          <span class="archive-month-name">Mar</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2024-01/" class="archive-link">
+          <span class="archive-date">2024-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(2)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-10/" class="archive-link">
+          <span class="archive-date">2022-10</span>
+          <span class="archive-month-name">Oct</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-07/" class="archive-link">
+          <span class="archive-date">2022-07</span>
+          <span class="archive-month-name">Jul</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-06/" class="archive-link">
+          <span class="archive-date">2022-06</span>
+          <span class="archive-month-name">Jun</span>
+          <span class="archive-count">(4)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-05/" class="archive-link">
+          <span class="archive-date">2022-05</span>
+          <span class="archive-month-name">May</span>
+          <span class="archive-count">(4)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-03/" class="archive-link">
+          <span class="archive-date">2022-03</span>
+          <span class="archive-month-name">Mar</span>
+          <span class="archive-count">(4)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-01/" class="archive-link">
+          <span class="archive-date">2022-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-11/" class="archive-link">
+          <span class="archive-date">2021-11</span>
+          <span class="archive-month-name">Nov</span>
+          <span class="archive-count">(2)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-09/" class="archive-link">
+          <span class="archive-date">2021-09</span>
+          <span class="archive-month-name">Sep</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-06/" class="archive-link">
+          <span class="archive-date">2021-06</span>
+          <span class="archive-month-name">Jun</span>
+          <span class="archive-count">(3)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-01/" class="archive-link">
+          <span class="archive-date">2021-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+  </div>
+</div>
+
+<style>
+.sidebar.time-archive {
+  background: rgba(26, 23, 15, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--accent, #FFA86B);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+  max-width: var(--sidebar-component-width, 240px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.sidebar.time-archive h3 {
+  margin: 0 0 1rem 0;
+  color: var(--accent, #FFA86B);
+  font-size: 1.2rem;
+  border-bottom: 1px solid var(--accent-alpha-70, rgba(255, 168, 107, 0.7));
+  padding-bottom: 0.5rem;
+}
+
+
+.archive-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.archive-item {
+  display: block;
+}
+
+.archive-link {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  text-decoration: none;
+  color: var(--color, inherit);
+  padding: 0.5rem;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+}
+
+.archive-link:hover {
+  background-color: var(--accent-alpha-20, rgba(255, 168, 107, 0.2));
+  color: var(--accent, #FFA86B);
+}
+
+.archive-date {
+  font-family: var(--code-font-family, 'Fira Code', monospace);
+  font-weight: bold;
+  min-width: 60px;
+}
+
+.archive-month-name {
+  flex: 1;
+  margin-left: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.archive-count {
+  color: var(--accent, #FFA86B);
+  font-weight: bold;
+  font-size: 0.9rem;
+}
+
+ 
+</style>
+
+    
+<div class="sidebar tags-cloud">
+  <h3>Tags Cloud</h3>
+  <div class="tags-container">
+    
+    
+    
+    
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+    
+    
+    
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+    
+    
+    
+    
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+    
+    
+    
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+    
+    
+    
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/apisix/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          apisix
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/biography/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          biography
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/compile/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          compile
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/concurrency/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="7 articles">
+          Concurrency
+          <span class="tag-count">(7)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/csi/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          csi
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/debug/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          debug
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/dns/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          dns
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/ebpf/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          ebpf
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/elf/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          ELF
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/go/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          Go
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/kaist-cs431/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="7 articles">
+          KAIST-CS431
+          <span class="tag-count">(7)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/kernel/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Kernel
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/kubernetes/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          kubernetes
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/l7gateway/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          L7Gateway
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/linux/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="3 articles">
+          Linux
+          <span class="tag-count">(3)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/lua/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="3 articles">
+          Lua
+          <span class="tag-count">(3)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/makefile/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          makefile
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/mindfulness/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          mindfulness
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/network/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          Network
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/nonfiction/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="6 articles">
+          nonfiction
+          <span class="tag-count">(6)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/operatingsystem/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          OperatingSystem
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/philosophy/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          philosophy
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/rust/" 
+           class="tag-item" 
+           style="font-size: 1.5em;"
+           title="10 articles">
+          Rust
+          <span class="tag-count">(10)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/schedule/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Schedule
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/science/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          science
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/softwareengineering/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          SoftwareEngineering
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/wasm/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          wasm
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+  </div>
+</div>
+
+<style>
+.sidebar.tags-cloud {
+  background: rgba(26, 23, 15, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--accent, #FFA86B);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+  max-width: var(--sidebar-component-width, 240px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.sidebar.tags-cloud h3 {
+  margin: 0 0 1rem 0;
+  color: var(--accent, #FFA86B);
+  font-size: 1.2rem;
+  border-bottom: 1px solid var(--accent-alpha-70, rgba(255, 168, 107, 0.7));
+  padding-bottom: 0.5rem;
+}
+
+.tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  line-height: 1.6;
+}
+
+.tag-item {
+  display: inline-flex;
+  align-items: baseline;
+  text-decoration: none;
+  color: var(--color, inherit);
+  padding: 0.3rem 0.6rem;
+  border-radius: 16px;
+  background: rgba(255, 168, 107, 0.1);
+  border: 1px solid transparent;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.tag-item:hover {
+  background: rgba(255, 168, 107, 0.25);
+  border-color: var(--accent-alpha-50, rgba(255, 168, 107, 0.5));
+  color: var(--accent, #FFA86B);
+  transform: translateY(-1px);
+}
+
+.tag-count {
+  font-size: 0.75em;
+  margin-left: 0.3rem;
+  opacity: 0.7;
+  font-weight: normal;
+}
+
+.tag-item:hover .tag-count {
+  opacity: 1;
+}
+
+ 
+
+ 
+.tag-item {
+  font-weight: 400;
+}
+
+ 
+.tag-item[style*="1.5"], 
+.tag-item[style*="1.4"],
+.tag-item[style*="1.3"] {
+  font-weight: 600;
+}
+
+ 
+.tag-item[style*="1.2"],
+.tag-item[style*="1.1"] {
+  font-weight: 500;
+}
+
+ 
+.tag-item[style*="1.5"]:hover,
+.tag-item[style*="1.4"]:hover,
+.tag-item[style*="1.3"]:hover {
+  box-shadow: 0 3px 10px rgba(255, 168, 107, 0.4);
+  transform: translateY(-2px);
+}
+
+</style>
+
+  </aside>
+</div>
+
+<style>
+ 
+.page-wrapper {
+  position: relative;
+  width: 100%;
+  max-width: none;
+  --sidebar-top-offset: 150px;  
+  --sidebar-component-width: 240px;  
+}
+
+   
+.floating-sidebar {
+  position: absolute;
+   
+  top: var(--sidebar-top-offset, 175px);
+   
+  right: max(20px, calc((100vw - 864px) / 2 - 330px));
+  width: 300px;
+  z-index: 100;
+  opacity: 0.96;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+ 
+.floating-sidebar:hover {
+  opacity: 1;
+  transform: translateX(-5px);
+}
+
+ 
+.floating-sidebar {
+  display: none;
+}
+
+ 
+@media (min-width: 1524px) {
+  .floating-sidebar {
+    display: block;
+    position: absolute;
+    right: max(20px, calc((100vw - 864px) / 2 - 330px));
+  }
+}
+
+ 
+@media (max-width: 1523px) {
+  .floating-sidebar {
+    display: none !important;
+  }
+}
+
+</style>
+
+</body>
+</html>
