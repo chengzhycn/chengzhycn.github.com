@@ -446,7 +446,8 @@ Policy Routing VRF Net Namespace 隔离路由表 隔离三层网络 整个协议
 </ul>
 <blockquote>
 <p><a href="https://docs.kernel.org/networking/vrf.html">https://docs.kernel.org/networking/vrf.html</a></p>
-<p><!-- raw HTML omitted -->Using VRF-aware applications (applications which simultaneously create sockets outside and inside VRFs) in conjunction with <!-- raw HTML omitted --><code>&lt;font style=&quot;color:rgb(34, 34, 34);background-color:rgb(236, 240, 243);&quot;&gt;net.ipv4.tcp_l3mdev_accept=1&lt;/font&gt;</code><!-- raw HTML omitted --> is possible but may lead to problems in some situations. With that sysctl value, it is unspecified which listening socket will be selected to handle connections for VRF traffic; ie. either a socket bound to the VRF or an unbound socket may be used to accept new connections from a VRF. <!-- raw HTML omitted --></p></blockquote>
+<p><!-- raw HTML omitted -->Using VRF-aware applications (applications which simultaneously create sockets outside and inside VRFs) in conjunction with <!-- raw HTML omitted --><code>&lt;font style=&quot;color:rgb(34, 34, 34);background-color:rgb(236, 240, 243);&quot;&gt;net.ipv4.tcp_l3mdev_accept=1&lt;/font&gt;</code><!-- raw HTML omitted --> is possible but may lead to problems in some situations. With that sysctl value, it is unspecified which listening socket will be selected to handle connections for VRF traffic; ie. either a socket bound to the VRF or an unbound socket may be used to accept new connections from a VRF. <!-- raw HTML omitted --></p>
+</blockquote>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">root@test1:~# sysctl -w net.ipv4.tcp_l3mdev_accept<span class="o">=</span><span class="m">1</span>
 </span></span><span class="line"><span class="cl">root@test1:~# python3 server.py wg0
 </span></span><span class="line"><span class="cl">Server is listening on port <span class="m">8888</span>

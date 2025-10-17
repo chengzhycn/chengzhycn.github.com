@@ -324,7 +324,8 @@ instructions. In this Readme, we will shortly summarize the most important rules
 <p>Since our brains are sieves, try to remember the underlying philosophy of this guide:</p>
 <blockquote>
 <p>Keep it simple and solid, let the toolchain be smart,<br>
-code correctness is the duty, readability the art.</p></blockquote>
+code correctness is the duty, readability the art.</p>
+</blockquote>
 <h2 id="general-clarifications"><a href="/posts/2025-03/c-common-coding-conventions/#user-content-general-clarifications">General Clarifications</a><a href="#general-clarifications" class="hanchor" ariaLabel="Anchor">#</a> </h2>
 <h3 id="be-consistent-with-the-existent">Be consistent with the existent.<a href="#be-consistent-with-the-existent" class="hanchor" ariaLabel="Anchor">#</a> </h3>
 <p>“Consistency with this guide is important. Consistency within a project is more important. Consistency within one module or function is the most important” [PEP8].</p>
@@ -362,7 +363,8 @@ identifiers:</p>
 </span></span><span class="line"><span class="cl"><span class="n">warnings</span> <span class="o">=</span> <span class="n">engine</span><span class="o">.</span><span class="n">warnings</span><span class="p">()</span>
 </span></span><span class="line"><span class="cl"><span class="n">dashboard</span><span class="o">.</span><span class="n">show</span><span class="p">(</span> <span class="n">warnings</span> <span class="p">)</span>
 </span></span></code></pre></div><blockquote>
-<p>⚠ <strong>Caution:</strong> <em>Mixing abstraction levels creates confusion and introduces unnecessary dependencies.</em></p></blockquote>
+<p>⚠ <strong>Caution:</strong> <em>Mixing abstraction levels creates confusion and introduces unnecessary dependencies.</em></p>
+</blockquote>
 <h2 id="additional-architecture-rules">Additional Architecture Rules<a href="#additional-architecture-rules" class="hanchor" ariaLabel="Anchor">#</a> </h2>
 <h3 id="be-open-for-extension-but-closed-for-modification">Be open for extension, but closed for modification.<a href="#be-open-for-extension-but-closed-for-modification" class="hanchor" ariaLabel="Anchor">#</a> </h3>
 <p>If you need to add a new feature (logic), the architecture should only be extended with no or little modification. How? Separate class methods that could have several behaviors and encapsulate them behind a new interface. Creating multiple, specific interfaces is better than one giant, general-purpose interface that needs to change. Ask yourself: If you add a new class (e.g. new feature) to your design, how many classes have to change?</p>
@@ -449,7 +451,8 @@ subprogram. At best, any atomic change in program logic should only affect a sin
 <h2 id="naming"><a href="/posts/2025-03/c-common-coding-conventions/#user-content-naming">Naming</a><a href="#naming" class="hanchor" ariaLabel="Anchor">#</a> </h2>
 <p>Code should communicate behavior to other humans with lower complexity than the behavior it inherits. Abstracting with meaningful names is therefore most important for readability.</p>
 <blockquote>
-<p>⚠ <strong>Avoid inappropriate terms:</strong> Many organizations discourage the use of <code>master/slave</code> due to their negative association in different cultures. See <a href="https://www.drupal.org/node/2275877">1</a> and <a href="https://bugs.python.org/issue34605">2</a>.</p></blockquote>
+<p>⚠ <strong>Avoid inappropriate terms:</strong> Many organizations discourage the use of <code>master/slave</code> due to their negative association in different cultures. See <a href="https://www.drupal.org/node/2275877">1</a> and <a href="https://bugs.python.org/issue34605">2</a>.</p>
+</blockquote>
 <h3 id="subprograms-procedurefunction">Subprograms (=Procedure/Function)<a href="#subprograms-procedurefunction" class="hanchor" ariaLabel="Anchor">#</a> </h3>
 <p>Procedures <em>may</em> return values, functions always return a value. Methods are subprograms of a class.</p>
 <ul>
@@ -458,7 +461,8 @@ subprogram. At best, any atomic change in program logic should only affect a sin
 <li>class methods should not repeat or include the name of the class. Define <code>Line.length()</code>, not <code>Line.getLineLength()</code></li>
 </ul>
 <blockquote>
-<p>⚠ <strong>Caution:</strong> <em>Single noun subprograms should be pure functions! Never let e.g. <code>x.length()</code> change a state.</em></p></blockquote>
+<p>⚠ <strong>Caution:</strong> <em>Single noun subprograms should be pure functions! Never let e.g. <code>x.length()</code> change a state.</em></p>
+</blockquote>
 <h3 id="types-classstructsubtypes">Types (=Class/Struct/Subtypes)<a href="#types-classstructsubtypes" class="hanchor" ariaLabel="Anchor">#</a> </h3>
 <ul>
 <li>type names should be capitalized nouns. E.g. <code>Integer</code>, <code>Date</code>, <code>Line2D</code></li>

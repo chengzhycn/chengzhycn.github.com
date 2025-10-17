@@ -360,7 +360,8 @@ or model suboptions) when you specify this option.(1)</p>
 <p>If the GOT size for the linked executable exceeds a machine-specific maximum size, you get an error message from the linker indicating that -fpic does not work; in that case, recompile with -fPIC instead. (These maximums are 8k on the SPARC and 32k on the m68k and RS/6000. The 386 has no such limit.)
 -fPIC       If supported for the target machine, emit position-independent code, suitable for dynamic linking and avoiding any limit on the size of the global offset table. This option makes a difference on the m68k, PowerPC and SPARC. Position-independent code requires special support, and therefore works only on certain machines.
 关键在于GOT全局偏移量表里面的跳转项大小。intel处理器应该是统一4字节，没有问题。powerpc上由于汇编码或者机器码的特殊要求，所以跳转项分为短、长两种。
--fpic为了节约内存，在GOT里面预留了“短”长度。而-fPIC则采用了更大的跳转项。</p></blockquote>
+-fpic为了节约内存，在GOT里面预留了“短”长度。而-fPIC则采用了更大的跳转项。</p>
+</blockquote>
 <h3 id="命令">命令<a href="#命令" class="hanchor" ariaLabel="Anchor">#</a> </h3>
 <h4 id="ldd查看依赖的动态库">ldd：查看依赖的动态库<a href="#ldd查看依赖的动态库" class="hanchor" ariaLabel="Anchor">#</a> </h4>
 <pre tabindex="0"><code>┌─[root@develop] - [/usr/local/nginx] - [Fri Jul 19, 10:10]
@@ -490,7 +491,8 @@ GLIBCXX_3.4.25
 <li>
 <p><strong>程序运行时出现libxxx.so.y =&gt; not found</strong></p>
 <blockquote>
-<p>a</p></blockquote>
+<p>a</p>
+</blockquote>
 </li>
 <li>
 <p>/usr/bin/ld: /usr/local/openssl-1.0.2s/lib//libcrypto.a(cryptlib.o): relocation R_X86_64_32 against `OPENSSL_ia32cap_P&rsquo; can not be used when making a shared object; recompile with -fPIC</p>

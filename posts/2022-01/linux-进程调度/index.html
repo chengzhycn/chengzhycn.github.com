@@ -413,7 +413,8 @@ $$</p>
 <p>任务的运行时长怎么确定？</p>
 <h4 id="基本思想-1">基本思想<a href="#基本思想-1" class="hanchor" ariaLabel="Anchor">#</a> </h4>
 <blockquote>
-<p>CFS basically models an &lsquo;ideal, precise multitasking CPU&rsquo; on real hardware.                        - Ingo Molnar, the author of the CFS</p></blockquote>
+<p>CFS basically models an &lsquo;ideal, precise multitasking CPU&rsquo; on real hardware.                        - Ingo Molnar, the author of the CFS</p>
+</blockquote>
 <p>对于一个理想的多任务CPU，所有的任务的运行时间在任意时间段内应该是相同的。但是现实情况是，一个CPU同一时间只能执行一个任务的指令，所以理想情况是不可实现的。现代CPU采用分时调度来使多任务在同一CPU上看起来是并行执行的。</p>
 <p><img src="/images/notes/linux-%E8%BF%9B%E7%A8%8B%E8%B0%83%E5%BA%A6/multitasking.png" alt="img"></p>
 <p>左图为理想状态，右图为实际运行情况。</p>
@@ -472,7 +473,8 @@ $$</p>
 <ul>
 <li>Remove it (which requires heapifying of O(log(n)))</li>
 <li>Update vruntime, and insert it back to runqueue which needs O(log(n)), too</li>
-</ul></blockquote>
+</ul>
+</blockquote>
 <p><img src="/images/notes/linux-%E8%BF%9B%E7%A8%8B%E8%B0%83%E5%BA%A6/routines.png" alt="img"></p>
 <h2 id="references">References<a href="#references" class="hanchor" ariaLabel="Anchor">#</a> </h2>
 <ul>
