@@ -3,24 +3,30 @@
   xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url>
     <loc>https://www.jinzhi.site/categories/</loc>
-    <lastmod>2025-10-16T16:18:28+08:00</lastmod>
+    <lastmod>2025-10-21T15:18:28+08:00</lastmod>
   </url><url>
     <loc>https://www.jinzhi.site/</loc>
-    <lastmod>2025-10-16T16:18:28+08:00</lastmod>
+    <lastmod>2025-10-21T15:18:28+08:00</lastmod>
+  </url><url>
+    <loc>https://www.jinzhi.site/tags/http/</loc>
+    <lastmod>2025-10-21T15:18:28+08:00</lastmod>
+  </url><url>
+    <loc>https://www.jinzhi.site/categories/learning/</loc>
+    <lastmod>2025-10-21T15:18:28+08:00</lastmod>
+  </url><url>
+    <loc>https://www.jinzhi.site/posts/</loc>
+    <lastmod>2025-10-21T15:18:28+08:00</lastmod>
+  </url><url>
+    <loc>https://www.jinzhi.site/tags/</loc>
+    <lastmod>2025-10-21T15:18:28+08:00</lastmod>
+  </url><url>
+    <loc>https://www.jinzhi.site/posts/2025-10/websocket-origin-header-%E6%A0%A1%E9%AA%8C%E5%A4%B1%E8%B4%A5/</loc>
+    <lastmod>2025-10-21T15:18:28+08:00</lastmod>
   </url><url>
     <loc>https://www.jinzhi.site/posts/2025-10/introducing-kubernetes-gateway-api/</loc>
     <lastmod>2025-10-16T16:18:28+08:00</lastmod>
   </url><url>
     <loc>https://www.jinzhi.site/tags/kubernetes/</loc>
-    <lastmod>2025-10-16T16:18:28+08:00</lastmod>
-  </url><url>
-    <loc>https://www.jinzhi.site/categories/learning/</loc>
-    <lastmod>2025-10-16T16:18:28+08:00</lastmod>
-  </url><url>
-    <loc>https://www.jinzhi.site/posts/</loc>
-    <lastmod>2025-10-16T16:18:28+08:00</lastmod>
-  </url><url>
-    <loc>https://www.jinzhi.site/tags/</loc>
     <lastmod>2025-10-16T16:18:28+08:00</lastmod>
   </url><url>
     <loc>https://www.jinzhi.site/tags/apisix/</loc>

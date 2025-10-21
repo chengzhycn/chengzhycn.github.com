@@ -1,0 +1,2525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  
+    <title>WebSocket Origin Header 校验失败 :: chengzhycn&#39;s blog</title>
+  
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="最近做 APISIX 线上服务时遇到一个场景：业务使用 websocket 转发时，在浏览器会出现 WebSocket close with status code 1006 的错误。打开调试工具查看发现在 websocket 握手时服务端返回了 403。
+非常奇怪的是，如果业务不经过 APISIX 直接访问后端 code-server 是没有问题的（中间也得经过一层 Ingress 转发）。
+简单的流量模型如下：
+&#43;--------------&#43; &#43;--------------&#43; &#43;-------------&#43; https://domain.com:9443/xxx | | http://domain.com:23480/xxx | | | | -------------------------------- APISIX -------------------------------&#43; Ingress -----------&#43; code-server | | | | | | | &#43;--------------&#43; &#43;--------------&#43; &#43;-------------&#43; 经过对比发现，两者的请求头里面 Host 和 Origin 是存在差异的。尝试在 APISIX 中强制修改 Host 头部，问题没有解决。然后利用 proxy-rewrite 强制修改 Origin 头部，请求恢复正常。
+&#34;plugins&#34;: { &#34;proxy-rewrite&#34;: { &#34;uri&#34;: &#34;/anything&#34;, &#34;headers&#34;: { &#34;set&#34;: { &#34;Origin&#34;: &#34;http://domain.com&#34; } } } }, 那么问题来了，为什么改完 Origin Header 就行了？code-server 是如何处理 Origin Header 的？为什么 Ingress 可以，APISIX 不行？
+" />
+<meta name="keywords" content="" />
+
+  <meta name="robots" content="noodp" />
+
+<link rel="canonical" href="https://www.jinzhi.site/posts/2025-10/websocket-origin-header-%E6%A0%A1%E9%AA%8C%E5%A4%B1%E8%B4%A5/" />
+
+
+
+
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/buttons.min.86f6b4c106b6c6eb690ae5203d36b442c1f66f718ff4e8164fa86cf6c61ad641.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/code.min.d529ea4b2fb8d34328d7d31afc5466d5f7bc2f0bc9abdd98b69385335d7baee4.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/fonts.min.5bb7ed13e1d00d8ff39ea84af26737007eb5051b157b86fc24487c94f3dc8bbe.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/footer.min.eb8dfc2c6a7eafa36cd3ba92d63e69e849e2200e0002a228d137f236b09ecd75.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/gist.min.a751e8b0abe1ba8bc53ced52a38b19d8950fe78ca29454ea8c2595cf26aad5c0.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/header.min.75c7eb0e2872d95ff48109c6647d0223a38db52e2561dd87966eb5fc7c6bdac6.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/main.min.7984a754b43b7469d389c539410e90dff2870263de16b008dfc7e8170fcd0f5b.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/menu.min.3c17467ebeb3d38663dce68f71f519901124fa5cbb4519b2fb0667a21e9aca39.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/pagination.min.bbb986dbce00a5ce5aca0504b7925fc1c581992a4bf57f163e5d69cc1db7d836.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/post.min.e6dddd258e64c83e05cec0cd49c05216742d42fc8ecbfbe6b67083412b609bd3.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/syntax.min.a0773cce9310cb6d8ed23e50f005448facf29a53001b57e038828daa466b25c0.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/terminal.min.e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/terms.min.b81791663c3790e738e571cdbf802312390d30e4b1d8dc9d814a5b5454d0ac11.css">
+
+
+
+
+
+
+
+<link rel="shortcut icon" href="https://www.jinzhi.site/favicon.png">
+<link rel="apple-touch-icon" href="https://www.jinzhi.site/apple-touch-icon.png">
+
+
+<meta name="twitter:card" content="summary" />
+
+  
+    <meta name="twitter:site" content="" />
+  
+    <meta name="twitter:creator" content="" />
+
+
+
+<meta property="og:locale" content="en" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="WebSocket Origin Header 校验失败">
+<meta property="og:description" content="最近做 APISIX 线上服务时遇到一个场景：业务使用 websocket 转发时，在浏览器会出现 WebSocket close with status code 1006 的错误。打开调试工具查看发现在 websocket 握手时服务端返回了 403。
+非常奇怪的是，如果业务不经过 APISIX 直接访问后端 code-server 是没有问题的（中间也得经过一层 Ingress 转发）。
+简单的流量模型如下：
+&#43;--------------&#43; &#43;--------------&#43; &#43;-------------&#43; https://domain.com:9443/xxx | | http://domain.com:23480/xxx | | | | -------------------------------- APISIX -------------------------------&#43; Ingress -----------&#43; code-server | | | | | | | &#43;--------------&#43; &#43;--------------&#43; &#43;-------------&#43; 经过对比发现，两者的请求头里面 Host 和 Origin 是存在差异的。尝试在 APISIX 中强制修改 Host 头部，问题没有解决。然后利用 proxy-rewrite 强制修改 Origin 头部，请求恢复正常。
+&#34;plugins&#34;: { &#34;proxy-rewrite&#34;: { &#34;uri&#34;: &#34;/anything&#34;, &#34;headers&#34;: { &#34;set&#34;: { &#34;Origin&#34;: &#34;http://domain.com&#34; } } } }, 那么问题来了，为什么改完 Origin Header 就行了？code-server 是如何处理 Origin Header 的？为什么 Ingress 可以，APISIX 不行？
+" />
+<meta property="og:url" content="https://www.jinzhi.site/posts/2025-10/websocket-origin-header-%E6%A0%A1%E9%AA%8C%E5%A4%B1%E8%B4%A5/" />
+<meta property="og:site_name" content="chengzhycn&#39;s blog" />
+
+  <meta property="og:image" content="https://www.jinzhi.site/og-image.png">
+
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="627">
+
+  <meta property="article:section" content="Learning" />
+
+
+  <meta property="article:published_time" content="2025-10-21 15:18:28 &#43;0800 &#43;0800" />
+
+
+
+
+
+
+
+
+
+<html>
+<head>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-screen-web/style.css" />
+  <style>
+    body {
+      font-family: "LXGW WenKai Screen";
+      font-weight: normal;
+    }
+  </style>
+</head>
+<body>
+
+</body>
+</html>
+
+
+</head>
+<body>
+
+
+<div class="page-wrapper">
+  <div class="container center">
+
+  <header class="header">
+  <div class="header__inner">
+    <div class="header__logo">
+      <a href="/">
+  <div class="logo">
+    chengzhycn&#39;s blog
+  </div>
+</a>
+
+    </div>
+    
+      <ul class="menu menu--mobile">
+  <li class="menu__trigger">Menu&nbsp;▾</li>
+  <li>
+    <ul class="menu__dropdown">
+      
+        
+          <li><a href="/">Home</a></li>
+        
+      
+        
+          <li><a href="/about">About</a></li>
+        
+      
+        
+          <li><a href="/categories/">Categories</a></li>
+        
+      
+        
+          <li><a href="/tags/">Tags</a></li>
+        
+      
+        
+          <li><a href="/archives/">Archives</a></li>
+        
+      
+      
+    </ul>
+  </li>
+</ul>
+
+    
+    
+  </div>
+  
+    <nav class="navigation-menu">
+  <ul class="navigation-menu__inner menu--desktop">
+    
+      
+        
+          <li><a href="/" >Home</a></li>
+        
+      
+        
+          <li><a href="/about" >About</a></li>
+        
+      
+        
+          <li><a href="/categories/" >Categories</a></li>
+        
+      
+        
+          <li><a href="/tags/" >Tags</a></li>
+        
+      
+        
+          <li><a href="/archives/" >Archives</a></li>
+        
+      
+      
+    
+  </ul>
+</nav>
+
+  
+</header>
+
+
+  <div class="content">
+    
+<article class="post">
+  <h1 class="post-title">
+    <a href="https://www.jinzhi.site/posts/2025-10/websocket-origin-header-%E6%A0%A1%E9%AA%8C%E5%A4%B1%E8%B4%A5/">WebSocket Origin Header 校验失败</a>
+  </h1>
+  <div class="post-meta"><time class="post-date">2025-10-21</time><span class="post-reading-time">4 min read (787 words)</span></div>
+
+  
+    <span class="post-tags">
+      
+      #<a href="https://www.jinzhi.site/tags/http/">HTTP</a>&nbsp;
+      
+    </span>
+  
+  
+
+
+  
+    <div class="table-of-contents">
+      <h2>
+        Table of Contents
+      </h2>
+      <nav id="TableOfContents">
+  <ul>
+    <li><a href="#origin-header-和-cors-机制">Origin Header 和 CORS 机制</a>
+      <ul>
+        <li><a href="#工作流程">工作流程</a></li>
+        <li><a href="#websocket-中的-origin-header">Websocket 中的 Origin Header</a></li>
+      </ul>
+    </li>
+    <li><a href="#code-server-对-origin-的处理">code-server 对 Origin 的处理</a></li>
+    <li><a href="#为什么经过-ingress-可以经过-apisix-不行">为什么经过 Ingress 可以，经过 APISIX 不行</a></li>
+  </ul>
+</nav>
+    </div>
+  
+
+  <div class="post-content"><div>
+        <p>最近做 APISIX 线上服务时遇到一个场景：业务使用 websocket 转发时，在浏览器会出现 WebSocket close with status code 1006 的错误。打开调试工具查看发现在 websocket 握手时服务端返回了 403。</p>
+<p><img src="/images/notes/websocket-origin-header-%E6%A0%A1%E9%AA%8C%E5%A4%B1%E8%B4%A5/76f75e967736245ec923202987a22482_MD5.jpeg" alt="76f75e967736245ec923202987a22482_MD5"></p>
+<p><img src="/images/notes/websocket-origin-header-%E6%A0%A1%E9%AA%8C%E5%A4%B1%E8%B4%A5/4efbf4b7a2093ed4f1d6e522139dc92e_MD5.jpeg" alt="4efbf4b7a2093ed4f1d6e522139dc92e_MD5"></p>
+<p>非常奇怪的是，如果业务不经过 APISIX 直接访问后端 code-server 是没有问题的（中间也得经过一层 Ingress 转发）。</p>
+<p>简单的流量模型如下：</p>
+<pre tabindex="0"><code>                                                                                                                      
+                                                                                                                      
+                               +--------------+                              +--------------+          +-------------+
+  https://domain.com:9443/xxx  |              |  http://domain.com:23480/xxx |              |          |             |
+--------------------------------   APISIX     -------------------------------+   Ingress    -----------+ code-server |
+                               |              |                              |              |          |             |
+                               +--------------+                              +--------------+          +-------------+
+</code></pre><p>经过对比发现，两者的请求头里面 Host 和 Origin 是存在差异的。尝试在 APISIX 中强制修改 Host 头部，问题没有解决。然后利用 proxy-rewrite 强制修改 Origin 头部，请求恢复正常。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-json" data-lang="json"><span class="line"><span class="cl">    <span class="s2">&#34;plugins&#34;</span><span class="err">:</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">      <span class="nt">&#34;proxy-rewrite&#34;</span><span class="p">:</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="nt">&#34;uri&#34;</span><span class="p">:</span> <span class="s2">&#34;/anything&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="nt">&#34;headers&#34;</span><span class="p">:</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">          <span class="nt">&#34;set&#34;</span><span class="p">:</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	        <span class="nt">&#34;Origin&#34;</span><span class="p">:</span> <span class="s2">&#34;http://domain.com&#34;</span>
+</span></span><span class="line"><span class="cl">          <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">      <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span><span class="err">,</span>
+</span></span></code></pre></div><p>那么问题来了，为什么改完 Origin Header 就行了？code-server 是如何处理 Origin Header 的？为什么 Ingress 可以，APISIX 不行？</p>
+<h2 id="origin-header-和-cors-机制">Origin Header 和 CORS 机制<a href="#origin-header-和-cors-机制" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>先来简单看下 Origin Header 和 CORS 的基础知识。</p>
+<p><code>Origin</code> 头部是一个请求头部，由<strong>浏览器自动添加</strong>到所有跨域请求和一些同源请求中（如 POST、PUT 等）。它表示<strong>发起请求的文档的源（协议、域名和端口）</strong>。</p>
+<p><strong>示例：</strong></p>
+<ul>
+<li>如果你的前端应用运行在 <code>http://www.frontend.com:8080</code>，那么浏览器发出的请求的 <code>Origin</code> 头部就是 <code>http://www.frontend.com:8080</code>。</li>
+<li>这个 <code>Origin</code> 头部会随着请求一起发送到服务器。</li>
+</ul>
+<p>CORS (Cross-Origin Resource Sharing) 是一种基于 HTTP 头的机制，它允许<strong>浏览器</strong>向一个与当前文档<strong>不同源</strong>的服务器发起请求，并获取响应。它是<strong>浏览器同源策略</strong>的一种安全增强，允许服务器明确地告诉浏览器“我允许来自某个特定源的请求”。</p>
+<p><strong>总结一下，Origin Header 是浏览器通知服务器端源是什么，CORS Header 是服务器端返回给浏览器，告知允许的 Origin 有哪些，让浏览器允许/拒绝跨域连接。</strong></p>
+<h3 id="工作流程">工作流程<a href="#工作流程" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>整个流程可以分为两种主要情况：<strong>简单请求</strong> 和 <strong>非简单请求</strong>。</p>
+<h4 id="1-简单请求-simple-requests">1. 简单请求 (Simple Requests)<a href="#1-简单请求-simple-requests" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<p>满足以下所有条件的请求是简单请求：</p>
+<ul>
+<li><strong>方法：</strong> 只能是 <code>GET</code>、<code>HEAD</code>、<code>POST</code>。</li>
+<li><strong>请求头：</strong> 除了浏览器自动设置的头部（如 <code>Accept</code>、<code>Accept-Language</code>、<code>Content-Language</code>、<code>Content-Type</code>、<code>Origin</code>）之外，不能有其他自定义头部。</li>
+<li><strong><code>Content-Type</code>：</strong> 只能是 <code>application/x-www-form-urlencoded</code>、<code>multipart/form-data</code> 或 <code>text/plain</code>。</li>
+</ul>
+<p><strong>工作流程：</strong></p>
+<ol>
+<li><strong>浏览器发送请求：</strong>
+<ul>
+<li>浏览器判断这是一个跨域请求（例如，前端在 <code>A.com</code>，请求目标是 <code>B.com</code>）。</li>
+<li>浏览器直接发送实际的请求给目标服务器 <code>B.com</code>。</li>
+<li>请求中会自动包含 <code>Origin</code> 头部（例如 <code>Origin: http://A.com</code>）。</li>
+</ul>
+</li>
+<li><strong>服务器处理请求并响应：</strong>
+<ul>
+<li>服务器 <code>B.com</code> 收到请求，检查 <code>Origin</code> 头部 (<code>http://A.com</code>)。</li>
+<li>如果服务器允许来自 <code>http://A.com</code> 的跨域请求，它会在响应头部中添加：
+<ul>
+<li><code>Access-Control-Allow-Origin: http://A.com</code> (或 <code>*</code> 表示允许所有源，但不推荐用于带凭据的请求)</li>
+<li>可选地，还可以添加 <code>Access-Control-Allow-Credentials: true</code> (如果请求带了 cookie 等凭据)</li>
+<li>可选地，<code>Access-Control-Expose-Headers</code> (暴露自定义响应头给浏览器)</li>
+</ul>
+</li>
+<li>服务器将响应（包含 CORS 头部）发送回浏览器。</li>
+</ul>
+</li>
+<li><strong>浏览器接收响应并检查：</strong>
+<ul>
+<li>浏览器收到响应。</li>
+<li>它会检查响应头部中是否存在 <code>Access-Control-Allow-Origin</code>。</li>
+<li><strong>如果存在，且其值与当前请求的 <code>Origin</code> 头部 (<code>http://A.com</code>) 匹配</strong>，或者值为 <code>*</code>，则浏览器允许 JavaScript 访问响应内容。</li>
+<li><strong>如果不存在，或不匹配</strong>，浏览器会拦截响应，并抛出 CORS 错误，JavaScript 无法获取到响应内容。</li>
+</ul>
+</li>
+</ol>
+<h4 id="2-非简单请求-non-simple-requests">2. 非简单请求 (Non-Simple Requests)<a href="#2-非简单请求-non-simple-requests" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<p>所有不满足简单请求条件的请求都是非简单请求。例如：</p>
+<ul>
+<li>使用 <code>PUT</code>、<code>DELETE</code> 等 HTTP 方法。</li>
+<li>发送 <code>JSON</code> 格式数据 (<code>Content-Type: application/json</code>)。</li>
+<li>包含自定义请求头。</li>
+</ul>
+<p><strong>工作流程（多了一个“预检请求”阶段）：</strong></p>
+<ol>
+<li><strong>浏览器发送“预检请求” (Preflight Request)：</strong>
+<ul>
+<li>浏览器判断这是一个跨域的非简单请求。</li>
+<li><strong>在发送实际请求之前</strong>，浏览器会先发送一个 <code>OPTIONS</code> 方法的请求到目标服务器 <code>B.com</code>。</li>
+<li>这个 <code>OPTIONS</code> 请求中会包含：
+<ul>
+<li><code>Origin: http://A.com</code></li>
+<li><code>Access-Control-Request-Method: POST</code> (告知服务器实际请求将使用的方法)</li>
+<li><code>Access-Control-Request-Headers: Content-Type, Custom-Header</code> (告知服务器实际请求将包含的自定义头部)</li>
+</ul>
+</li>
+</ul>
+</li>
+<li><strong>服务器处理预检请求并响应：</strong>
+<ul>
+<li>服务器 <code>B.com</code> 收到 <code>OPTIONS</code> 请求。</li>
+<li>它检查 <code>Origin</code>、<code>Access-Control-Request-Method</code>、<code>Access-Control-Request-Headers</code>。</li>
+<li>如果服务器允许这种跨域、这种方法、这种头部的请求，它会在 <code>OPTIONS</code> 响应头部中添加：
+<ul>
+<li><code>Access-Control-Allow-Origin: http://A.com</code></li>
+<li><code>Access-Control-Allow-Methods: GET, POST, PUT, DELETE</code> (允许的 HTTP 方法)</li>
+<li><code>Access-Control-Allow-Headers: Content-Type, Custom-Header</code> (允许的自定义头部)</li>
+<li><code>Access-Control-Max-Age: 86400</code> (可选，预检结果的缓存时间，单位秒)</li>
+<li>可选地，<code>Access-Control-Allow-Credentials: true</code></li>
+</ul>
+</li>
+<li>服务器将预检响应发送回浏览器。</li>
+</ul>
+</li>
+<li><strong>浏览器检查预检响应：</strong>
+<ul>
+<li>浏览器收到预检响应。</li>
+<li><strong>如果预检响应中的 CORS 头部符合预期</strong>（<code>Allow-Origin</code> 匹配，<code>Allow-Methods</code> 包含实际请求的方法，<code>Allow-Headers</code> 包含实际请求的自定义头部），则浏览器认为可以安全地发送实际请求。</li>
+<li><strong>如果预检响应不符合预期</strong>（例如 <code>Allow-Origin</code> 不匹配，或者缺少必要的 <code>Allow-Methods</code>），浏览器会拦截<strong>实际请求的发送</strong>，并抛出 CORS 错误。</li>
+</ul>
+</li>
+<li><strong>浏览器发送实际请求 (如果预检通过)：</strong>
+<ul>
+<li>如果预检通过，浏览器才会发送实际的 <code>POST</code> (或 <code>PUT</code> 等) 请求给服务器 <code>B.com</code>。</li>
+<li>这个实际请求中同样会包含 <code>Origin: http://A.com</code>。</li>
+</ul>
+</li>
+<li><strong>服务器处理实际请求并响应：</strong>
+<ul>
+<li>服务器 <code>B.com</code> 收到实际请求。</li>
+<li>处理请求，并在响应头部中再次添加：
+<ul>
+<li><code>Access-Control-Allow-Origin: http://A.com</code></li>
+<li>可选地，<code>Access-Control-Allow-Credentials: true</code></li>
+</ul>
+</li>
+<li>发送实际响应。</li>
+</ul>
+</li>
+<li><strong>浏览器接收实际响应并检查：</strong>
+<ul>
+<li>浏览器收到实际响应。</li>
+<li>再次检查 <code>Access-Control-Allow-Origin</code> 头部。</li>
+<li>如果通过，允许 JavaScript 访问响应内容。否则，拦截并抛出 CORS 错误。</li>
+</ul>
+</li>
+</ol>
+<h3 id="websocket-中的-origin-header">Websocket 中的 Origin Header<a href="#websocket-中的-origin-header" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>在 <a href="https://datatracker.ietf.org/doc/html/rfc6455#section-10.2">RFC 6455 10.2 节</a> 中，描述了 WebSocket Server 端对 Origin Header 的考虑：</p>
+<blockquote>
+<p>Servers that are not intended to process input from any web page but
+only for certain sites SHOULD verify the |Origin| field is an origin
+they expect.  If the origin indicated is unacceptable to the server,
+then it SHOULD respond to the WebSocket handshake with a reply
+containing HTTP 403 Forbidden status code.</p>
+<p>The |Origin| header field protects from the attack cases when the
+untrusted party is typically the author of a JavaScript application
+that is executing in the context of the trusted client.  The client
+itself can contact the server and, via the mechanism of the |Origin| header field, determine whether to extend those communication
+privileges to the JavaScript application.  The intent is not to
+prevent non-browsers from establishing connections but rather to
+ensure that trusted browsers under the control of potentially
+malicious JavaScript cannot fake a WebSocket handshake.</p>
+</blockquote>
+<p>简单来说，服务器端推荐检查 Origin Header，如果不是可信的来源，WebSocket 会返回一个 403。</p>
+<h2 id="code-server-对-origin-的处理">code-server 对 Origin 的处理<a href="#code-server-对-origin-的处理" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>直接看代码： <a href="https://github.com/coder/code-server/blob/v4.104.3/src/node/http.ts#L338-L419">https://github.com/coder/code-server/blob/v4.104.3/src/node/http.ts#L338-L419</a></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-typescript" data-lang="typescript"><span class="line"><span class="cl"><span class="kr">export</span> <span class="kd">function</span> <span class="nx">authenticateOrigin</span><span class="p">(</span><span class="nx">req</span>: <span class="kt">express.Request</span><span class="p">)</span><span class="o">:</span> <span class="k">void</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="c1">// A missing origin probably means the source is non-browser.  Not sure we
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">// have a use case for this but let it through.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="kr">const</span> <span class="nx">originRaw</span> <span class="o">=</span> <span class="nx">getFirstHeader</span><span class="p">(</span><span class="nx">req</span><span class="p">,</span> <span class="s2">&#34;origin&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="nx">originRaw</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="kd">let</span> <span class="nx">origin</span>: <span class="kt">string</span>
+</span></span><span class="line"><span class="cl">  <span class="k">try</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">origin</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">URL</span><span class="p">(</span><span class="nx">originRaw</span><span class="p">).</span><span class="nx">host</span><span class="p">.</span><span class="nx">trim</span><span class="p">().</span><span class="nx">toLowerCase</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span> <span class="k">catch</span> <span class="p">(</span><span class="nx">error</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="sb">`unable to parse malformed origin &#34;</span><span class="si">${</span><span class="nx">originRaw</span><span class="si">}</span><span class="sb">&#34;`</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="kr">const</span> <span class="nx">trustedOrigins</span> <span class="o">=</span> <span class="nx">req</span><span class="p">.</span><span class="nx">args</span><span class="p">[</span><span class="s2">&#34;trusted-origins&#34;</span><span class="p">]</span> <span class="o">||</span> <span class="p">[]</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="p">(</span><span class="nx">trustedOrigins</span><span class="p">.</span><span class="nx">includes</span><span class="p">(</span><span class="nx">origin</span><span class="p">)</span> <span class="o">||</span> <span class="nx">trustedOrigins</span><span class="p">.</span><span class="nx">includes</span><span class="p">(</span><span class="s2">&#34;*&#34;</span><span class="p">))</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="kr">const</span> <span class="nx">host</span> <span class="o">=</span> <span class="nx">getHost</span><span class="p">(</span><span class="nx">req</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="p">(</span><span class="k">typeof</span> <span class="nx">host</span> <span class="o">===</span> <span class="s2">&#34;undefined&#34;</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// A missing host likely means the reverse proxy has not been configured to
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">// forward the host which means we cannot perform the check.  Emit an error
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">// so an admin can fix the issue.
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="nx">logger</span><span class="p">.</span><span class="nx">error</span><span class="p">(</span><span class="s2">&#34;No host headers found&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="nx">logger</span><span class="p">.</span><span class="nx">error</span><span class="p">(</span><span class="s2">&#34;Are you behind a reverse proxy that does not forward the host?&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="s2">&#34;no host headers found&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="p">(</span><span class="nx">host</span> <span class="o">!==</span> <span class="nx">origin</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="sb">`host &#34;</span><span class="si">${</span><span class="nx">host</span><span class="si">}</span><span class="sb">&#34; does not match origin &#34;</span><span class="si">${</span><span class="nx">origin</span><span class="si">}</span><span class="sb">&#34;`</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>从代码中可以看到，通过配置参数 <code>trusted-origins</code> 可以添加指定域名的白名单，跳过 Origin 认证。</p>
+<p>在重新配置 code-server 的启动参数后，即使不修改 Origin Header，也能够正常访问了。</p>
+<p>对于不在白名单中的 origin，code-server 会对比 Origin Header 和 host，如果不一致，认为是非法请求。</p>
+<p>其中，host 会依次从 Forwarded Header，X-Forwarded-Host 和 Host 中取值。而 origin 会经过 ts URL 方法解析，<strong>取出来的 host 是带端口的（关键点）</strong>。</p>
+<h2 id="为什么经过-ingress-可以经过-apisix-不行">为什么经过 Ingress 可以，经过 APISIX 不行<a href="#为什么经过-ingress-可以经过-apisix-不行" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>Ingress 和 APISIX 底层都是 Nginx，显然，两者对于 X-Forwarded-Host 头部的设置存在差异。</p>
+<p>通过抓包发现，对于非标端口请求，APISIX 设置的 X-Forwarded-Host 不带端口，而 Ingress 设置的是带端口的：</p>
+<p><img src="/images/notes/websocket-origin-header-%E6%A0%A1%E9%AA%8C%E5%A4%B1%E8%B4%A5/8788f54476bde8436be49a26d9edea28_MD5.jpeg" alt="8788f54476bde8436be49a26d9edea28_MD5"></p>
+<p><img src="/images/notes/websocket-origin-header-%E6%A0%A1%E9%AA%8C%E5%A4%B1%E8%B4%A5/d75b17bd7db484153544f34ab689de80_MD5.jpeg" alt="d75b17bd7db484153544f34ab689de80_MD5"></p>
+<p>从源码看，APISIX 设置的是 $host 变量：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-lua" data-lang="lua"><span class="line"><span class="cl">        <span class="c1">-- trusted ones</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">-- ref: ngx_tpl.lua#L831-L840</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">--</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">-- these values are observed directly by APISIX and cannot be forged,</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">-- making them highly credible.</span>
+</span></span><span class="line"><span class="cl">        <span class="kd">local</span> <span class="n">proto</span> <span class="o">=</span> <span class="n">api_ctx.var</span><span class="p">.</span><span class="n">scheme</span>
+</span></span><span class="line"><span class="cl">        <span class="kd">local</span> <span class="n">host</span> <span class="o">=</span> <span class="n">api_ctx.var</span><span class="p">.</span><span class="n">host</span>
+</span></span><span class="line"><span class="cl">        <span class="kd">local</span> <span class="n">port</span> <span class="o">=</span> <span class="n">api_ctx.var</span><span class="p">.</span><span class="n">server_port</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">-- override the x-forwarded-* headers to the trusted ones.</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">-- make sure that the correct values ​​are obtained</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">-- in the subsequent stages using `core.request.header`.</span>
+</span></span><span class="line"><span class="cl">        <span class="n">core.request</span><span class="p">.</span><span class="n">set_header</span><span class="p">(</span><span class="n">api_ctx</span><span class="p">,</span> <span class="s2">&#34;X-Forwarded-Proto&#34;</span><span class="p">,</span> <span class="n">proto</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="n">core.request</span><span class="p">.</span><span class="n">set_header</span><span class="p">(</span><span class="n">api_ctx</span><span class="p">,</span> <span class="s2">&#34;X-Forwarded-Host&#34;</span><span class="p">,</span> <span class="n">host</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="n">core.request</span><span class="p">.</span><span class="n">set_header</span><span class="p">(</span><span class="n">api_ctx</span><span class="p">,</span> <span class="s2">&#34;X-Forwarded-Port&#34;</span><span class="p">,</span> <span class="n">port</span><span class="p">)</span>
+</span></span></code></pre></div><p>Ingress 使用的是 $http_host <a href="https://github.com/kubernetes/ingress-nginx/blob/652bfff4b4a766e73a6646c29df25f524f7dd75a/rootfs/etc/nginx/template/nginx.tmpl#L1309">https://github.com/kubernetes/ingress-nginx/blob/652bfff4b4a766e73a6646c29df25f524f7dd75a/rootfs/etc/nginx/template/nginx.tmpl#L1309</a>：</p>
+<pre tabindex="0"><code>            set $best_http_host      $http_host;
+            {{ $proxySetHeader }} X-Forwarded-Host       $best_http_host;
+</code></pre><p>而上面的分析，浏览器写入和 code-server 处理 Origin 是带端口的，所以 code-server 无法匹配 APISIX 的请求。</p>
+
+      </div></div>
+
+  
+    
+<div class="pagination">
+  <div class="pagination__title">
+    <span class="pagination__title-h">Read other posts</span>
+    <hr />
+  </div>
+  <div class="pagination__buttons">
+    
+    
+    
+      <a href="https://www.jinzhi.site/posts/2025-10/introducing-kubernetes-gateway-api/" class="button inline next">
+         [<span class="button__text">Introducing Kubernetes Gateway API</span>] &gt;
+      </a>
+    
+  </div>
+</div>
+
+
+  
+
+  
+    
+
+  
+</article>
+
+  </div>
+
+  
+    <footer class="footer">
+  <div class="footer__inner">
+    
+      <div class="copyright">
+        <span>© 2025 Powered by <a href="https://gohugo.io">Hugo</a></span>
+    
+      <span>:: <a href="https://github.com/panr/hugo-theme-terminal" target="_blank">Theme</a> made by <a href="https://github.com/panr" target="_blank">panr</a></span>
+      </div>
+  </div>
+</footer>
+
+
+
+
+
+
+<script type="text/javascript" src="/bundle.min.js"></script>
+
+
+
+
+
+  
+  </div>
+
+  <aside class="floating-sidebar">
+    
+<div class="sidebar time-archive">
+  <h3>Time Archives</h3>
+  <div class="archive-list">
+    
+    
+
+    
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+
+    
+    
+
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-10/" class="archive-link">
+          <span class="archive-date">2025-10</span>
+          <span class="archive-month-name">Oct</span>
+          <span class="archive-count">(3)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-09/" class="archive-link">
+          <span class="archive-date">2025-09</span>
+          <span class="archive-month-name">Sep</span>
+          <span class="archive-count">(3)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-08/" class="archive-link">
+          <span class="archive-date">2025-08</span>
+          <span class="archive-month-name">Aug</span>
+          <span class="archive-count">(9)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-06/" class="archive-link">
+          <span class="archive-date">2025-06</span>
+          <span class="archive-month-name">Jun</span>
+          <span class="archive-count">(2)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-04/" class="archive-link">
+          <span class="archive-date">2025-04</span>
+          <span class="archive-month-name">Apr</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-03/" class="archive-link">
+          <span class="archive-date">2025-03</span>
+          <span class="archive-month-name">Mar</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2024-01/" class="archive-link">
+          <span class="archive-date">2024-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(2)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-10/" class="archive-link">
+          <span class="archive-date">2022-10</span>
+          <span class="archive-month-name">Oct</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-07/" class="archive-link">
+          <span class="archive-date">2022-07</span>
+          <span class="archive-month-name">Jul</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-06/" class="archive-link">
+          <span class="archive-date">2022-06</span>
+          <span class="archive-month-name">Jun</span>
+          <span class="archive-count">(4)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-05/" class="archive-link">
+          <span class="archive-date">2022-05</span>
+          <span class="archive-month-name">May</span>
+          <span class="archive-count">(4)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-03/" class="archive-link">
+          <span class="archive-date">2022-03</span>
+          <span class="archive-month-name">Mar</span>
+          <span class="archive-count">(4)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-01/" class="archive-link">
+          <span class="archive-date">2022-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-11/" class="archive-link">
+          <span class="archive-date">2021-11</span>
+          <span class="archive-month-name">Nov</span>
+          <span class="archive-count">(2)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-09/" class="archive-link">
+          <span class="archive-date">2021-09</span>
+          <span class="archive-month-name">Sep</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-06/" class="archive-link">
+          <span class="archive-date">2021-06</span>
+          <span class="archive-month-name">Jun</span>
+          <span class="archive-count">(3)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-01/" class="archive-link">
+          <span class="archive-date">2021-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+  </div>
+</div>
+
+<style>
+.sidebar.time-archive {
+  background: rgba(26, 23, 15, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--accent, #FFA86B);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+  max-width: var(--sidebar-component-width, 240px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.sidebar.time-archive h3 {
+  margin: 0 0 1rem 0;
+  color: var(--accent, #FFA86B);
+  font-size: 1.2rem;
+  border-bottom: 1px solid var(--accent-alpha-70, rgba(255, 168, 107, 0.7));
+  padding-bottom: 0.5rem;
+}
+
+
+.archive-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.archive-item {
+  display: block;
+}
+
+.archive-link {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  text-decoration: none;
+  color: var(--color, inherit);
+  padding: 0.5rem;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+}
+
+.archive-link:hover {
+  background-color: var(--accent-alpha-20, rgba(255, 168, 107, 0.2));
+  color: var(--accent, #FFA86B);
+}
+
+.archive-date {
+  font-family: var(--code-font-family, 'Fira Code', monospace);
+  font-weight: bold;
+  min-width: 60px;
+}
+
+.archive-month-name {
+  flex: 1;
+  margin-left: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.archive-count {
+  color: var(--accent, #FFA86B);
+  font-weight: bold;
+  font-size: 0.9rem;
+}
+
+ 
+</style>
+
+    
+<div class="sidebar tags-cloud">
+  <h3>Tags Cloud</h3>
+  <div class="tags-container">
+    
+    
+    
+    
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+    
+    
+    
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+    
+    
+    
+    
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+    
+    
+    
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+    
+    
+    
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/apisix/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          apisix
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/biography/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          biography
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/compile/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          compile
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/concurrency/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="7 articles">
+          Concurrency
+          <span class="tag-count">(7)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/csi/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          csi
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/debug/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          debug
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/dns/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          dns
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/ebpf/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          ebpf
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/elf/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          ELF
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/go/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          Go
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/http/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          HTTP
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/kaist-cs431/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="7 articles">
+          KAIST-CS431
+          <span class="tag-count">(7)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/kernel/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Kernel
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/kubernetes/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          kubernetes
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/l7gateway/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          L7Gateway
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/linux/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="3 articles">
+          Linux
+          <span class="tag-count">(3)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/lua/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="3 articles">
+          Lua
+          <span class="tag-count">(3)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/makefile/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          makefile
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/mindfulness/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          mindfulness
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/network/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          Network
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/nonfiction/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="6 articles">
+          nonfiction
+          <span class="tag-count">(6)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/operatingsystem/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          OperatingSystem
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/philosophy/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          philosophy
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/rust/" 
+           class="tag-item" 
+           style="font-size: 1.5em;"
+           title="10 articles">
+          Rust
+          <span class="tag-count">(10)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/schedule/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Schedule
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/science/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          science
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/softwareengineering/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          SoftwareEngineering
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/wasm/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          wasm
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+  </div>
+</div>
+
+<style>
+.sidebar.tags-cloud {
+  background: rgba(26, 23, 15, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--accent, #FFA86B);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+  max-width: var(--sidebar-component-width, 240px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.sidebar.tags-cloud h3 {
+  margin: 0 0 1rem 0;
+  color: var(--accent, #FFA86B);
+  font-size: 1.2rem;
+  border-bottom: 1px solid var(--accent-alpha-70, rgba(255, 168, 107, 0.7));
+  padding-bottom: 0.5rem;
+}
+
+.tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  line-height: 1.6;
+}
+
+.tag-item {
+  display: inline-flex;
+  align-items: baseline;
+  text-decoration: none;
+  color: var(--color, inherit);
+  padding: 0.3rem 0.6rem;
+  border-radius: 16px;
+  background: rgba(255, 168, 107, 0.1);
+  border: 1px solid transparent;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.tag-item:hover {
+  background: rgba(255, 168, 107, 0.25);
+  border-color: var(--accent-alpha-50, rgba(255, 168, 107, 0.5));
+  color: var(--accent, #FFA86B);
+  transform: translateY(-1px);
+}
+
+.tag-count {
+  font-size: 0.75em;
+  margin-left: 0.3rem;
+  opacity: 0.7;
+  font-weight: normal;
+}
+
+.tag-item:hover .tag-count {
+  opacity: 1;
+}
+
+ 
+
+ 
+.tag-item {
+  font-weight: 400;
+}
+
+ 
+.tag-item[style*="1.5"], 
+.tag-item[style*="1.4"],
+.tag-item[style*="1.3"] {
+  font-weight: 600;
+}
+
+ 
+.tag-item[style*="1.2"],
+.tag-item[style*="1.1"] {
+  font-weight: 500;
+}
+
+ 
+.tag-item[style*="1.5"]:hover,
+.tag-item[style*="1.4"]:hover,
+.tag-item[style*="1.3"]:hover {
+  box-shadow: 0 3px 10px rgba(255, 168, 107, 0.4);
+  transform: translateY(-2px);
+}
+
+</style>
+
+  </aside>
+</div>
+
+<style>
+ 
+.page-wrapper {
+  position: relative;
+  width: 100%;
+  max-width: none;
+  --sidebar-top-offset: 150px;  
+  --sidebar-component-width: 240px;  
+}
+
+   
+.floating-sidebar {
+  position: absolute;
+   
+  top: var(--sidebar-top-offset, 175px);
+   
+  right: max(20px, calc((100vw - 864px) / 2 - 330px));
+  width: 300px;
+  z-index: 100;
+  opacity: 0.96;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+ 
+.floating-sidebar:hover {
+  opacity: 1;
+  transform: translateX(-5px);
+}
+
+ 
+.floating-sidebar {
+  display: none;
+}
+
+ 
+@media (min-width: 1524px) {
+  .floating-sidebar {
+    display: block;
+    position: absolute;
+    right: max(20px, calc((100vw - 864px) / 2 - 330px));
+  }
+}
+
+ 
+@media (max-width: 1523px) {
+  .floating-sidebar {
+    display: none !important;
+  }
+}
+
+</style>
+
+</body>
+</html>
