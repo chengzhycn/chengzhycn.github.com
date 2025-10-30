@@ -1,0 +1,2772 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  
+    <title>APISIX 插件体系 :: chengzhycn&#39;s blog</title>
+  
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="背景知识 APISIX 基于 Openresty 和 Nginx 开发，了解 APISIX 的插件体系也有必要先了解下 Nginx 和 Openresty 的基础知识。
+Nginx 请求处理阶段 Nginx 将一个 HTTP 请求的处理过程精心划分为一系列有序的阶段（Phases），就像一个工厂的流水线。每个阶段都有特定的任务，不同的模块可以将自己的处理程序（handler）注册到感兴趣的阶段。这种设计使得 Nginx 的功能高度模块化、可扩展，并且处理流程非常清晰高效。
+一个请求在 Nginx 中主要会经过以下 11 个处理阶段：
+1. NGX_HTTP_POST_READ_PHASE (请求读取后阶段) 任务: 接收到完整的请求头（Request Header）之后，第一个被执行的阶段。 常用模块: ngx_http_realip_module。 作用举例: 在这个阶段，realip 模块会根据 X-Forwarded-For 或 X-Real-IP 等请求头，将客户端的真实 IP 地址替换掉代理服务器的 IP 地址。这对后续的访问控制和日志记录至关重要。 2. NGX_HTTP_SERVER_REWRITE_PHASE (Server 级别地址重写阶段) 任务: 在 server 配置块中执行 URL 重写。 常用模块/指令: rewrite 指令（当它定义在 server 块中时）。 作用举例: 在请求进入具体的 location 匹配之前，对 URL 进行全局的、初步的改写。例如，将所有 http 请求强制重定向到 https。 server { listen 80; server_name example.com; # 这个 rewrite 就工作在 SERVER_REWRITE 阶段 rewrite ^/(.*)$ https://example.com/$1 permanent; } 3. NGX_HTTP_FIND_CONFIG_PHASE (配置查找阶段) 任务: 根据上个阶段处理完的 URI，查找并匹配对应的 location 配置块。 核心功能: 这是 Nginx 路由的核心。Nginx 会用请求的 URI 与 location 指令定义的规则进行匹配，找到最合适的 location。这个阶段没有模块可以注册 handler，是 Nginx 核心自己完成的。 4. NGX_HTTP_REWRITE_PHASE (Location 级别地址重写阶段) 任务: 在上一步匹配到的 location 块内部，执行 URL 重写。 常用模块/指令: rewrite 指令（当它定义在 location 块中时）、set 指令。 作用举例: 对特定 location 的请求进行更精细的 URL 改写。这个阶段的 rewrite 可能会导致 Nginx 重新回到 FIND_CONFIG 阶段去匹配新的 location，可能会有循环，最多执行 10 次以防止死循环。 location /app/ { # 这个 rewrite 工作在 REWRITE 阶段 rewrite ^/app/(.*)$ /v2/app/$1 break; } 5. NGX_HTTP_POST_REWRITE_PHASE (地址重写后阶段) 任务: 防止 rewrite 阶段的重写指令导致死循环。如果 URI 在上一个阶段被重写，这个阶段会把重写后的 URI 交给 Nginx，让其重新开始 FIND_CONFIG 阶段，查找新的 location。这是一个内部阶段，用户通常不直接感知。 6. NGX_HTTP_PREACCESS_PHASE (访问权限控制前置阶段) 任务: 在正式的访问权限检查之前，做一些准备工作。 常用模块: ngx_http_limit_conn_module (连接数限制), ngx_http_limit_req_module (请求速率限制)。 作用举例: 在检查用户名密码之前，先检查客户端的请求速率是否过快，如果过快，直接拒绝，不必再执行后面的阶段。 7. NGX_HTTP_ACCESS_PHASE (访问权限控制阶段) 任务: 对请求进行权限验证。 常用模块/指令: ngx_http_access_module (allow, deny), ngx_http_auth_basic_module (HTTP 基本认证)。 作用举例: 检查客户端 IP 是否在允许列表中，或者验证用户提供的用户名和密码是否正确。如果这个阶段有任何模块拒绝了请求，处理就会立即中断并返回错误（如 403 Forbidden）。 8. NGX_HTTP_POST_ACCESS_PHASE (访问权限控制后置阶段) 任务: 主要用于配合 ACCESS 阶段的 satisfy 指令。 作用举例: 当 satisfy any; 被使用时，如果 ACCESS 阶段有模块允许了访问（例如 IP 匹配成功），POST_ACCESS 阶段的处理就可以被跳过。如果 ACCESS 阶段没有明确允许，这个阶段的处理（例如 HTTP 基本认证）就会被执行。 9. NGX_HTTP_TRY_FILES_PHASE (Try_files 阶段) 任务: try_files 指令专属的特殊阶段。 常用模块/指令: try_files。 作用举例: 按顺序检查文件或目录是否存在，如果找到，则内部重定向到该文件，如果都找不到，则执行最后一个参数（通常是内部重定向到一个 location 或返回一个状态码）。 location / { # 这个指令工作在 TRY_FILES 阶段 try_files $uri $uri/ /index.html; } 10. NGX_HTTP_CONTENT_PHASE (内容生成阶段) 任务: 核心阶段，负责生成最终的响应内容并发送给客户端。 重要特性: 每个 location 只有一个模块能成为“内容处理模块”（Content Handler）。 常用模块: ngx_http_static_module: 处理静态文件。 ngx_http_proxy_module: 将请求反向代理到后端服务器 (proxy_pass)。 ngx_http_fastcgi_module: 将请求转发给 FastCGI 应用（如 PHP-FPM）。 ngx_http_index_module: 处理目录索引文件。 return: 直接返回指定的状态码或内容。 执行逻辑: Nginx 会调用在 location 中找到的内容处理模块。例如，如果配置了 proxy_pass，那么 proxy_module 就会接管请求。如果没有特定的内容处理模块，默认会由 static_module 尝试提供静态文件服务。 11. NGX_HTTP_LOG_PHASE (日志记录阶段) 任务: 请求处理完成后，记录访问日志。 常用模块/指令: ngx_http_log_module (access_log)。 作用举-例: 无论请求成功还是失败，这个阶段都会被执行（除非有严重错误），用于将请求的相关信息（如客户端IP、请求时间、状态码等）写入到日志文件中。 过滤器模块 (Filter Modules) 当 CONTENT 阶段生成了响应内容后，在发送给客户端之前，响应数据还会经过一系列的 过滤器（Filter） 链处理。过滤器负责对响应头和响应体进行修改或加工。
+" />
+<meta name="keywords" content="" />
+
+  <meta name="robots" content="noodp" />
+
+<link rel="canonical" href="https://www.jinzhi.site/posts/2025-10/apisix-%E6%8F%92%E4%BB%B6%E4%BD%93%E7%B3%BB/" />
+
+
+
+
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/buttons.min.86f6b4c106b6c6eb690ae5203d36b442c1f66f718ff4e8164fa86cf6c61ad641.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/code.min.d529ea4b2fb8d34328d7d31afc5466d5f7bc2f0bc9abdd98b69385335d7baee4.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/fonts.min.5bb7ed13e1d00d8ff39ea84af26737007eb5051b157b86fc24487c94f3dc8bbe.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/footer.min.eb8dfc2c6a7eafa36cd3ba92d63e69e849e2200e0002a228d137f236b09ecd75.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/gist.min.a751e8b0abe1ba8bc53ced52a38b19d8950fe78ca29454ea8c2595cf26aad5c0.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/header.min.75c7eb0e2872d95ff48109c6647d0223a38db52e2561dd87966eb5fc7c6bdac6.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/main.min.7984a754b43b7469d389c539410e90dff2870263de16b008dfc7e8170fcd0f5b.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/menu.min.3c17467ebeb3d38663dce68f71f519901124fa5cbb4519b2fb0667a21e9aca39.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/pagination.min.bbb986dbce00a5ce5aca0504b7925fc1c581992a4bf57f163e5d69cc1db7d836.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/post.min.e6dddd258e64c83e05cec0cd49c05216742d42fc8ecbfbe6b67083412b609bd3.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/syntax.min.a0773cce9310cb6d8ed23e50f005448facf29a53001b57e038828daa466b25c0.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/terminal.min.e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/terms.min.b81791663c3790e738e571cdbf802312390d30e4b1d8dc9d814a5b5454d0ac11.css">
+
+
+
+
+
+
+
+<link rel="shortcut icon" href="https://www.jinzhi.site/favicon.png">
+<link rel="apple-touch-icon" href="https://www.jinzhi.site/apple-touch-icon.png">
+
+
+<meta name="twitter:card" content="summary" />
+
+  
+    <meta name="twitter:site" content="" />
+  
+    <meta name="twitter:creator" content="" />
+
+
+
+<meta property="og:locale" content="en" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="APISIX 插件体系">
+<meta property="og:description" content="背景知识 APISIX 基于 Openresty 和 Nginx 开发，了解 APISIX 的插件体系也有必要先了解下 Nginx 和 Openresty 的基础知识。
+Nginx 请求处理阶段 Nginx 将一个 HTTP 请求的处理过程精心划分为一系列有序的阶段（Phases），就像一个工厂的流水线。每个阶段都有特定的任务，不同的模块可以将自己的处理程序（handler）注册到感兴趣的阶段。这种设计使得 Nginx 的功能高度模块化、可扩展，并且处理流程非常清晰高效。
+一个请求在 Nginx 中主要会经过以下 11 个处理阶段：
+1. NGX_HTTP_POST_READ_PHASE (请求读取后阶段) 任务: 接收到完整的请求头（Request Header）之后，第一个被执行的阶段。 常用模块: ngx_http_realip_module。 作用举例: 在这个阶段，realip 模块会根据 X-Forwarded-For 或 X-Real-IP 等请求头，将客户端的真实 IP 地址替换掉代理服务器的 IP 地址。这对后续的访问控制和日志记录至关重要。 2. NGX_HTTP_SERVER_REWRITE_PHASE (Server 级别地址重写阶段) 任务: 在 server 配置块中执行 URL 重写。 常用模块/指令: rewrite 指令（当它定义在 server 块中时）。 作用举例: 在请求进入具体的 location 匹配之前，对 URL 进行全局的、初步的改写。例如，将所有 http 请求强制重定向到 https。 server { listen 80; server_name example.com; # 这个 rewrite 就工作在 SERVER_REWRITE 阶段 rewrite ^/(.*)$ https://example.com/$1 permanent; } 3. NGX_HTTP_FIND_CONFIG_PHASE (配置查找阶段) 任务: 根据上个阶段处理完的 URI，查找并匹配对应的 location 配置块。 核心功能: 这是 Nginx 路由的核心。Nginx 会用请求的 URI 与 location 指令定义的规则进行匹配，找到最合适的 location。这个阶段没有模块可以注册 handler，是 Nginx 核心自己完成的。 4. NGX_HTTP_REWRITE_PHASE (Location 级别地址重写阶段) 任务: 在上一步匹配到的 location 块内部，执行 URL 重写。 常用模块/指令: rewrite 指令（当它定义在 location 块中时）、set 指令。 作用举例: 对特定 location 的请求进行更精细的 URL 改写。这个阶段的 rewrite 可能会导致 Nginx 重新回到 FIND_CONFIG 阶段去匹配新的 location，可能会有循环，最多执行 10 次以防止死循环。 location /app/ { # 这个 rewrite 工作在 REWRITE 阶段 rewrite ^/app/(.*)$ /v2/app/$1 break; } 5. NGX_HTTP_POST_REWRITE_PHASE (地址重写后阶段) 任务: 防止 rewrite 阶段的重写指令导致死循环。如果 URI 在上一个阶段被重写，这个阶段会把重写后的 URI 交给 Nginx，让其重新开始 FIND_CONFIG 阶段，查找新的 location。这是一个内部阶段，用户通常不直接感知。 6. NGX_HTTP_PREACCESS_PHASE (访问权限控制前置阶段) 任务: 在正式的访问权限检查之前，做一些准备工作。 常用模块: ngx_http_limit_conn_module (连接数限制), ngx_http_limit_req_module (请求速率限制)。 作用举例: 在检查用户名密码之前，先检查客户端的请求速率是否过快，如果过快，直接拒绝，不必再执行后面的阶段。 7. NGX_HTTP_ACCESS_PHASE (访问权限控制阶段) 任务: 对请求进行权限验证。 常用模块/指令: ngx_http_access_module (allow, deny), ngx_http_auth_basic_module (HTTP 基本认证)。 作用举例: 检查客户端 IP 是否在允许列表中，或者验证用户提供的用户名和密码是否正确。如果这个阶段有任何模块拒绝了请求，处理就会立即中断并返回错误（如 403 Forbidden）。 8. NGX_HTTP_POST_ACCESS_PHASE (访问权限控制后置阶段) 任务: 主要用于配合 ACCESS 阶段的 satisfy 指令。 作用举例: 当 satisfy any; 被使用时，如果 ACCESS 阶段有模块允许了访问（例如 IP 匹配成功），POST_ACCESS 阶段的处理就可以被跳过。如果 ACCESS 阶段没有明确允许，这个阶段的处理（例如 HTTP 基本认证）就会被执行。 9. NGX_HTTP_TRY_FILES_PHASE (Try_files 阶段) 任务: try_files 指令专属的特殊阶段。 常用模块/指令: try_files。 作用举例: 按顺序检查文件或目录是否存在，如果找到，则内部重定向到该文件，如果都找不到，则执行最后一个参数（通常是内部重定向到一个 location 或返回一个状态码）。 location / { # 这个指令工作在 TRY_FILES 阶段 try_files $uri $uri/ /index.html; } 10. NGX_HTTP_CONTENT_PHASE (内容生成阶段) 任务: 核心阶段，负责生成最终的响应内容并发送给客户端。 重要特性: 每个 location 只有一个模块能成为“内容处理模块”（Content Handler）。 常用模块: ngx_http_static_module: 处理静态文件。 ngx_http_proxy_module: 将请求反向代理到后端服务器 (proxy_pass)。 ngx_http_fastcgi_module: 将请求转发给 FastCGI 应用（如 PHP-FPM）。 ngx_http_index_module: 处理目录索引文件。 return: 直接返回指定的状态码或内容。 执行逻辑: Nginx 会调用在 location 中找到的内容处理模块。例如，如果配置了 proxy_pass，那么 proxy_module 就会接管请求。如果没有特定的内容处理模块，默认会由 static_module 尝试提供静态文件服务。 11. NGX_HTTP_LOG_PHASE (日志记录阶段) 任务: 请求处理完成后，记录访问日志。 常用模块/指令: ngx_http_log_module (access_log)。 作用举-例: 无论请求成功还是失败，这个阶段都会被执行（除非有严重错误），用于将请求的相关信息（如客户端IP、请求时间、状态码等）写入到日志文件中。 过滤器模块 (Filter Modules) 当 CONTENT 阶段生成了响应内容后，在发送给客户端之前，响应数据还会经过一系列的 过滤器（Filter） 链处理。过滤器负责对响应头和响应体进行修改或加工。
+" />
+<meta property="og:url" content="https://www.jinzhi.site/posts/2025-10/apisix-%E6%8F%92%E4%BB%B6%E4%BD%93%E7%B3%BB/" />
+<meta property="og:site_name" content="chengzhycn&#39;s blog" />
+
+  <meta property="og:image" content="https://www.jinzhi.site/og-image.png">
+
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="627">
+
+  <meta property="article:section" content="Learning" />
+
+
+  <meta property="article:published_time" content="2025-10-30 12:18:28 &#43;0800 &#43;0800" />
+
+
+
+
+
+
+
+
+
+<html>
+<head>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-screen-web/style.css" />
+  <style>
+    body {
+      font-family: "LXGW WenKai Screen";
+      font-weight: normal;
+    }
+  </style>
+</head>
+<body>
+
+</body>
+</html>
+
+
+</head>
+<body>
+
+
+<div class="page-wrapper">
+  <div class="container center">
+
+  <header class="header">
+  <div class="header__inner">
+    <div class="header__logo">
+      <a href="/">
+  <div class="logo">
+    chengzhycn&#39;s blog
+  </div>
+</a>
+
+    </div>
+    
+      <ul class="menu menu--mobile">
+  <li class="menu__trigger">Menu&nbsp;▾</li>
+  <li>
+    <ul class="menu__dropdown">
+      
+        
+          <li><a href="/">Home</a></li>
+        
+      
+        
+          <li><a href="/about">About</a></li>
+        
+      
+        
+          <li><a href="/categories/">Categories</a></li>
+        
+      
+        
+          <li><a href="/tags/">Tags</a></li>
+        
+      
+        
+          <li><a href="/archives/">Archives</a></li>
+        
+      
+      
+    </ul>
+  </li>
+</ul>
+
+    
+    
+  </div>
+  
+    <nav class="navigation-menu">
+  <ul class="navigation-menu__inner menu--desktop">
+    
+      
+        
+          <li><a href="/" >Home</a></li>
+        
+      
+        
+          <li><a href="/about" >About</a></li>
+        
+      
+        
+          <li><a href="/categories/" >Categories</a></li>
+        
+      
+        
+          <li><a href="/tags/" >Tags</a></li>
+        
+      
+        
+          <li><a href="/archives/" >Archives</a></li>
+        
+      
+      
+    
+  </ul>
+</nav>
+
+  
+</header>
+
+
+  <div class="content">
+    
+<article class="post">
+  <h1 class="post-title">
+    <a href="https://www.jinzhi.site/posts/2025-10/apisix-%E6%8F%92%E4%BB%B6%E4%BD%93%E7%B3%BB/">APISIX 插件体系</a>
+  </h1>
+  <div class="post-meta"><time class="post-date">2025-10-30</time><span class="post-reading-time">6 min read (1202 words)</span></div>
+
+  
+    <span class="post-tags">
+      
+      #<a href="https://www.jinzhi.site/tags/apisix/">apisix</a>&nbsp;
+      
+      #<a href="https://www.jinzhi.site/tags/l7gateway/">L7Gateway</a>&nbsp;
+      
+    </span>
+  
+  
+
+
+  
+    <div class="table-of-contents">
+      <h2>
+        Table of Contents
+      </h2>
+      <nav id="TableOfContents">
+  <ul>
+    <li><a href="#背景知识">背景知识</a>
+      <ul>
+        <li><a href="#nginx-请求处理阶段">Nginx 请求处理阶段</a></li>
+        <li><a href="#openresty-lua-处理阶段">Openresty Lua 处理阶段</a></li>
+      </ul>
+    </li>
+    <li><a href="#lua-插件">Lua 插件</a></li>
+    <li><a href="#rpc-插件">RPC 插件</a></li>
+    <li><a href="#wasm-插件">Wasm 插件</a></li>
+  </ul>
+</nav>
+    </div>
+  
+
+  <div class="post-content"><div>
+        <h2 id="背景知识">背景知识<a href="#背景知识" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>APISIX 基于 Openresty 和 Nginx 开发，了解 APISIX 的插件体系也有必要先了解下 Nginx 和 Openresty 的基础知识。</p>
+<h3 id="nginx-请求处理阶段">Nginx 请求处理阶段<a href="#nginx-请求处理阶段" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>Nginx 将一个 HTTP 请求的处理过程精心划分为一系列有序的阶段（Phases），就像一个工厂的流水线。每个阶段都有特定的任务，不同的模块可以将自己的处理程序（handler）注册到感兴趣的阶段。这种设计使得 Nginx 的功能高度模块化、可扩展，并且处理流程非常清晰高效。</p>
+<p>一个请求在 Nginx 中主要会经过以下 <strong>11 个处理阶段</strong>：</p>
+<h4 id="1ngx_http_post_read_phase请求读取后阶段">1. <code>NGX_HTTP_POST_READ_PHASE</code> (请求读取后阶段)<a href="#1ngx_http_post_read_phase请求读取后阶段" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<ul>
+<li><strong>任务</strong>: 接收到完整的请求头（Request Header）之后，第一个被执行的阶段。</li>
+<li><strong>常用模块</strong>: <code>ngx_http_realip_module</code>。</li>
+<li><strong>作用举例</strong>: 在这个阶段，<code>realip</code> 模块会根据 <code>X-Forwarded-For</code> 或 <code>X-Real-IP</code> 等请求头，将客户端的真实 IP 地址替换掉代理服务器的 IP 地址。这对后续的访问控制和日志记录至关重要。</li>
+</ul>
+<h4 id="2ngx_http_server_rewrite_phaseserver-级别地址重写阶段">2. <code>NGX_HTTP_SERVER_REWRITE_PHASE</code> (Server 级别地址重写阶段)<a href="#2ngx_http_server_rewrite_phaseserver-级别地址重写阶段" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<ul>
+<li><strong>任务</strong>: 在 <code>server</code> 配置块中执行 URL 重写。</li>
+<li><strong>常用模块/指令</strong>: <code>rewrite</code> 指令（当它定义在 <code>server</code> 块中时）。</li>
+<li><strong>作用举例</strong>: 在请求进入具体的 <code>location</code> 匹配之前，对 URL 进行全局的、初步的改写。例如，将所有 <code>http</code> 请求强制重定向到 <code>https</code>。</li>
+</ul>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-nginx" data-lang="nginx"><span class="line"><span class="cl"><span class="k">server</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kn">listen</span> <span class="mi">80</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="kn">server_name</span> <span class="s">example.com</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="c1"># 这个 rewrite 就工作在 SERVER_REWRITE 阶段
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="kn">rewrite</span> <span class="s">^/(.*)</span>$ <span class="s">https://example.com/</span><span class="nv">$1</span> <span class="s">permanent</span><span class="p">;</span> 
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><h4 id="3ngx_http_find_config_phase配置查找阶段">3. <code>NGX_HTTP_FIND_CONFIG_PHASE</code> (配置查找阶段)<a href="#3ngx_http_find_config_phase配置查找阶段" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<ul>
+<li><strong>任务</strong>: 根据上个阶段处理完的 URI，查找并匹配对应的 <code>location</code> 配置块。</li>
+<li><strong>核心功能</strong>: 这是 Nginx 路由的核心。Nginx 会用请求的 URI 与 <code>location</code> 指令定义的规则进行匹配，找到最合适的 <code>location</code>。这个阶段没有模块可以注册 handler，是 Nginx 核心自己完成的。</li>
+</ul>
+<h4 id="4ngx_http_rewrite_phaselocation-级别地址重写阶段">4. <code>NGX_HTTP_REWRITE_PHASE</code> (Location 级别地址重写阶段)<a href="#4ngx_http_rewrite_phaselocation-级别地址重写阶段" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<ul>
+<li><strong>任务</strong>: 在上一步匹配到的 <code>location</code> 块内部，执行 URL 重写。</li>
+<li><strong>常用模块/指令</strong>: <code>rewrite</code> 指令（当它定义在 <code>location</code> 块中时）、<code>set</code> 指令。</li>
+<li><strong>作用举例</strong>: 对特定 <code>location</code> 的请求进行更精细的 URL 改写。这个阶段的 <code>rewrite</code> 可能会导致 Nginx 重新回到 <code>FIND_CONFIG</code> 阶段去匹配新的 <code>location</code>，可能会有循环，最多执行 10 次以防止死循环。</li>
+</ul>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-nginx" data-lang="nginx"><span class="line"><span class="cl"><span class="k">location</span> <span class="s">/app/</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1"># 这个 rewrite 工作在 REWRITE 阶段
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="kn">rewrite</span> <span class="s">^/app/(.*)</span>$ <span class="s">/v2/app/</span><span class="nv">$1</span> <span class="s">break</span><span class="p">;</span> 
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><h4 id="5ngx_http_post_rewrite_phase地址重写后阶段">5. <code>NGX_HTTP_POST_REWRITE_PHASE</code> (地址重写后阶段)<a href="#5ngx_http_post_rewrite_phase地址重写后阶段" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<ul>
+<li><strong>任务</strong>: 防止 <code>rewrite</code> 阶段的重写指令导致死循环。如果 URI 在上一个阶段被重写，这个阶段会把重写后的 URI 交给 Nginx，让其重新开始 <code>FIND_CONFIG</code> 阶段，查找新的 <code>location</code>。这是一个内部阶段，用户通常不直接感知。</li>
+</ul>
+<h4 id="6ngx_http_preaccess_phase访问权限控制前置阶段">6. <code>NGX_HTTP_PREACCESS_PHASE</code> (访问权限控制前置阶段)<a href="#6ngx_http_preaccess_phase访问权限控制前置阶段" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<ul>
+<li><strong>任务</strong>: 在正式的访问权限检查之前，做一些准备工作。</li>
+<li><strong>常用模块</strong>: <code>ngx_http_limit_conn_module</code> (连接数限制), <code>ngx_http_limit_req_module</code> (请求速率限制)。</li>
+<li><strong>作用举例</strong>: 在检查用户名密码之前，先检查客户端的请求速率是否过快，如果过快，直接拒绝，不必再执行后面的阶段。</li>
+</ul>
+<h4 id="7ngx_http_access_phase访问权限控制阶段">7. <code>NGX_HTTP_ACCESS_PHASE</code> (访问权限控制阶段)<a href="#7ngx_http_access_phase访问权限控制阶段" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<ul>
+<li><strong>任务</strong>: 对请求进行权限验证。</li>
+<li><strong>常用模块/指令</strong>: <code>ngx_http_access_module</code> (<code>allow</code>, <code>deny</code>), <code>ngx_http_auth_basic_module</code> (HTTP 基本认证)。</li>
+<li><strong>作用举例</strong>: 检查客户端 IP 是否在允许列表中，或者验证用户提供的用户名和密码是否正确。如果这个阶段有任何模块拒绝了请求，处理就会立即中断并返回错误（如 403 Forbidden）。</li>
+</ul>
+<h4 id="8ngx_http_post_access_phase访问权限控制后置阶段">8. <code>NGX_HTTP_POST_ACCESS_PHASE</code> (访问权限控制后置阶段)<a href="#8ngx_http_post_access_phase访问权限控制后置阶段" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<ul>
+<li><strong>任务</strong>: 主要用于配合 <code>ACCESS</code> 阶段的 <code>satisfy</code> 指令。</li>
+<li><strong>作用举例</strong>: 当 <code>satisfy any;</code> 被使用时，如果 <code>ACCESS</code> 阶段有模块允许了访问（例如 IP 匹配成功），<code>POST_ACCESS</code> 阶段的处理就可以被跳过。如果 <code>ACCESS</code> 阶段没有明确允许，这个阶段的处理（例如 HTTP 基本认证）就会被执行。</li>
+</ul>
+<h4 id="9ngx_http_try_files_phasetry_files-阶段">9. <code>NGX_HTTP_TRY_FILES_PHASE</code> (Try_files 阶段)<a href="#9ngx_http_try_files_phasetry_files-阶段" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<ul>
+<li><strong>任务</strong>: <code>try_files</code> 指令专属的特殊阶段。</li>
+<li><strong>常用模块/指令</strong>: <code>try_files</code>。</li>
+<li><strong>作用举例</strong>: 按顺序检查文件或目录是否存在，如果找到，则内部重定向到该文件，如果都找不到，则执行最后一个参数（通常是内部重定向到一个 <code>location</code> 或返回一个状态码）。</li>
+</ul>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-nginx" data-lang="nginx"><span class="line"><span class="cl"><span class="k">location</span> <span class="s">/</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1"># 这个指令工作在 TRY_FILES 阶段
+</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="kn">try_files</span> <span class="nv">$uri</span> <span class="nv">$uri/</span> <span class="s">/index.html</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><h4 id="10ngx_http_content_phase内容生成阶段">10. <code>NGX_HTTP_CONTENT_PHASE</code> (内容生成阶段)<a href="#10ngx_http_content_phase内容生成阶段" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<ul>
+<li><strong>任务</strong>: <strong>核心阶段</strong>，负责生成最终的响应内容并发送给客户端。</li>
+<li><strong>重要特性</strong>: 每个 <code>location</code> 只有一个模块能成为“内容处理模块”（Content Handler）。</li>
+<li><strong>常用模块</strong>:
+<ul>
+<li><code>ngx_http_static_module</code>: 处理静态文件。</li>
+<li><code>ngx_http_proxy_module</code>: 将请求反向代理到后端服务器 (<code>proxy_pass</code>)。</li>
+<li><code>ngx_http_fastcgi_module</code>: 将请求转发给 FastCGI 应用（如 PHP-FPM）。</li>
+<li><code>ngx_http_index_module</code>: 处理目录索引文件。</li>
+<li><code>return</code>: 直接返回指定的状态码或内容。</li>
+</ul>
+</li>
+<li><strong>执行逻辑</strong>: Nginx 会调用在 <code>location</code> 中找到的内容处理模块。例如，如果配置了 <code>proxy_pass</code>，那么 <code>proxy_module</code> 就会接管请求。如果没有特定的内容处理模块，默认会由 <code>static_module</code> 尝试提供静态文件服务。</li>
+</ul>
+<h4 id="11ngx_http_log_phase日志记录阶段">11. <code>NGX_HTTP_LOG_PHASE</code> (日志记录阶段)<a href="#11ngx_http_log_phase日志记录阶段" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<ul>
+<li><strong>任务</strong>: 请求处理完成后，记录访问日志。</li>
+<li><strong>常用模块/指令</strong>: <code>ngx_http_log_module</code> (<code>access_log</code>)。</li>
+<li><strong>作用举-例</strong>: 无论请求成功还是失败，这个阶段都会被执行（除非有严重错误），用于将请求的相关信息（如客户端IP、请求时间、状态码等）写入到日志文件中。</li>
+</ul>
+<h4 id="过滤器模块-filter-modules">过滤器模块 (Filter Modules)<a href="#过滤器模块-filter-modules" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<p>当 <code>CONTENT</code> 阶段生成了响应内容后，在发送给客户端之前，响应数据还会经过一系列的 <strong>过滤器（Filter）</strong> 链处理。过滤器负责对响应头和响应体进行修改或加工。</p>
+<ul>
+<li><strong>Header Filters (头部过滤器)</strong>: 修改响应头。例如，添加 <code>Server</code>、<code>Date</code> 等头信息，或者处理 <code>Cookie</code>。</li>
+<li><strong>Body Filters (包体过滤器)</strong>: 修改响应体。例如：
+<ul>
+<li><code>ngx_http_gzip_filter_module</code>: 对响应内容进行 Gzip 压缩。</li>
+<li><code>ngx_http_ssi_filter_module</code>: 解析并处理服务端包含（SSI）指令。</li>
+<li><code>ngx_http_chunked_filter_module</code>: 将响应体分块（Chunked）传输。</li>
+</ul>
+</li>
+</ul>
+<p><strong>重要特点</strong>: 过滤器的执行顺序与它们在 Nginx 编译时定义的顺序 <strong>相反</strong>。</p>
+<h4 id="总结流程图">总结流程图<a href="#总结流程图" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<pre tabindex="0"><code>客户端请求
+      ↓
+[NGX_HTTP_POST_READ_PHASE]      (获取真实IP)
+      ↓
+[NGX_HTTP_SERVER_REWRITE_PHASE] (Server级URL重写)
+      ↓
+[NGX_HTTP_FIND_CONFIG_PHASE]    (查找Location)
+      ↓
+[NGX_HTTP_REWRITE_PHASE]        (Location级URL重写, 可能循环)
+      ↓
+[NGX_HTTP_PREACCESS_PHASE]      (限速、限流)
+      ↓
+[NGX_HTTP_ACCESS_PHASE]         (IP准入、用户认证)
+      ↓
+[NGX_HTTP_TRY_FILES_PHASE]      (处理 try_files)
+      ↓
+[NGX_HTTP_CONTENT_PHASE]        (生成响应内容: 静态文件、反向代理...)
+      ↓
+  响应内容生成
+      ↓
+[Header Filters]                (修改响应头: Gzip头, Cookie等)
+      ↓
+[Body Filters]                  (修改响应体: Gzip压缩, 内容替换)
+      ↓
+[NGX_HTTP_LOG_PHASE]            (记录访问日志)
+      ↓
+  响应发送给客户端
+</code></pre><h3 id="openresty-lua-处理阶段">Openresty Lua 处理阶段<a href="#openresty-lua-处理阶段" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p><a href="https://openresty-reference.readthedocs.io/en/latest/Directives/">https://openresty-reference.readthedocs.io/en/latest/Directives/</a></p>
+<p><img src="/images/notes/apisix-%E6%8F%92%E4%BB%B6%E4%BD%93%E7%B3%BB/6a520bcb1707362129c5117bea1f0f49_MD5.jpeg" alt="6a520bcb1707362129c5117bea1f0f49_MD5"></p>
+<p>Openresty 在 Nginx 的几乎所有关键处理阶段都<strong>植入了钩子（Hooks）</strong>，允许开发者通过编写 Lua 脚本来介入和控制请求的处理流程。</p>
+<p>相比于原生 Nginx，Openresty 利用 Lua 提供了更强大的动态能力，简化了定制化功能的开发流程。</p>
+<p>以下是 OpenResty 提供的核心 <code>*_by_lua</code> 指令，按照它们在 Nginx 请求生命周期中的执行顺序列出：</p>
+<h4 id="1-初始化阶段-master-和-worker-进程启动时">1. 初始化阶段 (Master 和 Worker 进程启动时)<a href="#1-初始化阶段-master-和-worker-进程启动时" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<ul>
+<li><code>init_by_lua*</code>
+<ul>
+<li><strong>对应 Nginx 阶段</strong>: Master 进程加载配置时。</li>
+<li><strong>作用</strong>: 在 Nginx Master 进程启动时执行。通常用于初始化全局配置、预加载 Lua 模块、或注册定时任务。此时还不能操作网络。</li>
+</ul>
+</li>
+<li><code>init_worker_by_lua*</code>
+<ul>
+<li><strong>对应 Nginx 阶段</strong>: 每个 Worker 进程启动时。</li>
+<li><strong>作用</strong>: 每个 Nginx Worker 进程启动时执行一次。非常适合做一些每个 Worker 进程独立的初始化工作，比如创建定时器、初始化共享内存数据、或建立到数据库的连接池。</li>
+</ul>
+</li>
+</ul>
+<h4 id="2-ssl-阶段">2. SSL 阶段<a href="#2-ssl-阶段" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<ul>
+<li><code>ssl_certificate_by_lua*</code>
+<ul>
+<li><strong>对应 Nginx 阶段</strong>: SSL 握手期间。</li>
+<li><strong>作用</strong>: 允许动态加载 SSL 证书和私钥。可以根据客户端的 SNI (Server Name Indication) 信息，从 Redis、数据库或其他服务中动态获取对应的证书，实现大规模虚拟主机的 HTTPS 服务。</li>
+</ul>
+</li>
+</ul>
+<h4 id="3-请求处理阶段-按执行顺序">3. 请求处理阶段 (按执行顺序)<a href="#3-请求处理阶段-按执行顺序" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<ul>
+<li><code>set_by_lua*</code>
+<ul>
+<li><strong>对应 Nginx 阶段</strong>: <code>NGX_HTTP_REWRITE_PHASE</code> (地址重写阶段)。</li>
+<li><strong>作用</strong>: 专门用于设置 Nginx 变量。它的执行时机很早，但功能受限，主要是为了给其他 Nginx 模块（如 <code>proxy_pass</code>）提供动态变量值。它不能产生输出或中断请求。</li>
+</ul>
+</li>
+<li><code>rewrite_by_lua*</code>
+<ul>
+<li><strong>对应 Nginx 阶段</strong>: <code>NGX_HTTP_REWRITE_PHASE</code> (地址重写阶段)。</li>
+<li><strong>作用</strong>: 这是进行复杂重写、重定向、内部跳转的核心阶段。可以执行 API 调用、访问数据库等网络操作来决定如何处理请求。功能比 <code>set_by_lua</code> 强大得多。</li>
+</ul>
+</li>
+<li><code>access_by_lua*</code>
+<ul>
+<li><strong>对应 Nginx 阶段</strong>: <code>NGX_HTTP_ACCESS_PHASE</code> (访问控制阶段)。</li>
+<li><strong>作用</strong>: 用于实现复杂的访问控制逻辑。例如：自定义身份认证、API 密钥验证、动态黑白名单、权限校验等。如果在这里拒绝访问，请求会立即中断。</li>
+</ul>
+</li>
+<li><code>content_by_lua*</code>
+<ul>
+<li><strong>对应 Nginx 阶段</strong>: <code>NGX_HTTP_CONTENT_PHASE</code> (内容生成阶段)。</li>
+<li><strong>作用</strong>: 作为内容处理器，直接生成响应并发送给客户端。这个阶段的脚本将接管 Nginx 的内容生成。非常适合用来构建动态 API 服务、Web 应用的后端逻辑等。如果一个 <code>location</code> 中使用了 <code>content_by_lua</code>，那么像 <code>proxy_pass</code> 这样的其他内容处理指令就不会执行。</li>
+</ul>
+</li>
+<li><code>balancer_by_lua*</code>
+<ul>
+<li><strong>对应 Nginx 阶段</strong>: Upstream 负载均衡阶段。</li>
+<li><strong>作用</strong>: 当使用 <code>proxy_pass</code> 指向一个 upstream 块时，可以用这个钩子实现自定义的负载均衡策略。可以根据请求的特定参数（如用户 ID、请求头）来动态选择后端服务器。</li>
+</ul>
+</li>
+</ul>
+<h4 id="4-响应过滤阶段">4. 响应过滤阶段<a href="#4-响应过滤阶段" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<ul>
+<li><code>header_filter_by_lua*</code>
+<ul>
+<li><strong>对应 Nginx 阶段</strong>: 响应头过滤阶段 (Header Filter)。</li>
+<li><strong>作用</strong>: 修改从后端服务器返回（或由 <code>content_by_lua</code> 生成）的响应头。例如，添加/删除/修改 <code>Cookie</code>、CORS 相关的头等。</li>
+</ul>
+</li>
+<li><code>body_filter_by_lua*</code>
+<ul>
+<li><strong>对应 Nginx 阶段</strong>: 响应体过滤阶段 (Body Filter)。</li>
+<li><strong>作用</strong>: 流式地处理和修改响应体。例如，内容替换、数据脱敏、在页面底部动态插入 JavaScript 代码等。</li>
+</ul>
+</li>
+<li><code>log_by_lua*</code>
+<ul>
+<li><strong>对应 Nginx 阶段</strong>: <code>NGX_HTTP_LOG_PHASE</code> (日志记录阶段)。</li>
+<li><strong>作用</strong>: 实现自定义的日志记录。可以将请求的详细信息以 JSON 格式发送到 Kafka、Elasticsearch 或其他日志聚合服务，而不是简单地写入本地文件。</li>
+</ul>
+</li>
+</ul>
+<h2 id="lua-插件">Lua 插件<a href="#lua-插件" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p><img src="/images/notes/apisix-%E6%8F%92%E4%BB%B6%E4%BD%93%E7%B3%BB/31162774fd572a06a629559aec999166_MD5.jpeg" alt="31162774fd572a06a629559aec999166_MD5"></p>
+<p>APISIX 官方提供了如上的流程图描述 Lua 插件的调用流程。从命名上可以很清楚地和 Openresty Lua 体系相对应。</p>
+<p>而实现的核心代码在 <a href="https://github.com/apache/apisix/blob/release/3.14/apisix/cli/ngx_tpl.lua">ngx_tpl.lua</a> 和 <a href="https://github.com/apache/apisix/blob/release/3.14/apisix/init.lua">init.lua</a> 中。</p>
+<p>ngx_tpl.lua 用于生成底层 nginx 的 conf 文件。从模版中，可以看到 apisix 在多处地方插入了调用点，以 http 为例：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-lua" data-lang="lua"><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">-- upstream </span>
+</span></span><span class="line"><span class="cl">    <span class="n">upstream</span> <span class="n">apisix_backend</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	    <span class="c1">-- ... </span>
+</span></span><span class="line"><span class="cl">        <span class="n">balancer_by_lua_block</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">apisix.http_balancer_phase</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="c1">-- 模块初始化</span>
+</span></span><span class="line"><span class="cl">    <span class="n">init_by_lua_block</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">require</span> <span class="s2">&#34;resty.core&#34;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span><span class="o">%</span> <span class="kr">if</span> <span class="n">lua_module_hook</span> <span class="kr">then</span> <span class="o">%</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="n">require</span> <span class="s2">&#34;{* lua_module_hook *}&#34;</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span><span class="o">%</span> <span class="kr">end</span> <span class="o">%</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="n">apisix</span> <span class="o">=</span> <span class="n">require</span><span class="p">(</span><span class="s2">&#34;apisix&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="kd">local</span> <span class="n">dns_resolver</span> <span class="o">=</span> <span class="p">{</span> <span class="p">{</span><span class="o">%</span> <span class="kr">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">dns_addr</span> <span class="kr">in</span> <span class="n">ipairs</span><span class="p">(</span><span class="n">dns_resolver</span> <span class="ow">or</span> <span class="p">{})</span> <span class="kr">do</span> <span class="o">%</span><span class="p">}</span> <span class="s2">&#34;{*dns_addr*}&#34;</span><span class="p">,</span> <span class="p">{</span><span class="o">%</span> <span class="kr">end</span> <span class="o">%</span><span class="p">}</span> <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="kd">local</span> <span class="n">args</span> <span class="o">=</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">dns_resolver</span> <span class="o">=</span> <span class="n">dns_resolver</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="n">apisix.http_init</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="c1">-- set apisix_lua_home into constants module</span>
+</span></span><span class="line"><span class="cl">        <span class="c1">-- it may be used by plugins to determine the work path of apisix</span>
+</span></span><span class="line"><span class="cl">        <span class="kd">local</span> <span class="n">constants</span> <span class="o">=</span> <span class="n">require</span><span class="p">(</span><span class="s2">&#34;apisix.constants&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="n">constants.apisix_lua_home</span> <span class="o">=</span> <span class="s2">&#34;{*apisix_lua_home*}&#34;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">-- worker 进程初始化</span>
+</span></span><span class="line"><span class="cl">    <span class="n">init_worker_by_lua_block</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">apisix.http_init_worker</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">	<span class="c1">-- worker 退出</span>
+</span></span><span class="line"><span class="cl">    <span class="n">exit_worker_by_lua_block</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">apisix.http_exit_worker</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="c1">-- server 块配置</span>
+</span></span><span class="line"><span class="cl">    <span class="n">server</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">	    <span class="c1">-- ssl phase</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span><span class="o">%</span> <span class="kr">if</span> <span class="n">ssl.enable</span> <span class="kr">then</span> <span class="o">%</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="n">ssl_client_hello_by_lua_block</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">apisix.ssl_client_hello_phase</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="n">ssl_certificate_by_lua_block</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">apisix.ssl_phase</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="p">{</span><span class="o">%</span> <span class="kr">end</span> <span class="o">%</span><span class="p">}</span>
+</span></span><span class="line"><span class="cl">        
+</span></span><span class="line"><span class="cl">        <span class="n">location</span> <span class="o">/</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">            <span class="n">access_by_lua_block</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="n">apisix.http_access_phase</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">            
+</span></span><span class="line"><span class="cl">            <span class="n">header_filter_by_lua_block</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="n">apisix.http_header_filter_phase</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="n">body_filter_by_lua_block</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="n">apisix.http_body_filter_phase</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="n">log_by_lua_block</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">                <span class="n">apisix.http_log_phase</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">            <span class="p">}</span>
+</span></span><span class="line"><span class="cl">        <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span></code></pre></div><p>可以看到，apisix 在 Openresty 请求的主要阶段都设置了 hook 点调用。</p>
+<p>这些调用的 <code>*_phase</code> 都放置在 init.lua 中。<code>http_access_phase</code> 实现了对 <code>rewrite</code> plugin 和 <code>access</code> plugin 的调用：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-lua" data-lang="lua"><span class="line"><span class="cl"><span class="kr">function</span> <span class="nf">http_access_phase</span><span class="p">()</span>
+</span></span><span class="line"><span class="cl">		<span class="c1">-- ...</span>
+</span></span><span class="line"><span class="cl">        <span class="kd">local</span> <span class="n">plugins</span> <span class="o">=</span> <span class="n">plugin.filter</span><span class="p">(</span><span class="n">api_ctx</span><span class="p">,</span> <span class="n">route</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="n">api_ctx.plugins</span> <span class="o">=</span> <span class="n">plugins</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">        <span class="n">plugin.run_plugin</span><span class="p">(</span><span class="s2">&#34;rewrite&#34;</span><span class="p">,</span> <span class="n">plugins</span><span class="p">,</span> <span class="n">api_ctx</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="kr">if</span> <span class="n">api_ctx.consumer</span> <span class="kr">then</span>
+</span></span><span class="line"><span class="cl">            <span class="kd">local</span> <span class="n">changed</span>
+</span></span><span class="line"><span class="cl">            <span class="kd">local</span> <span class="n">group_conf</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="kr">if</span> <span class="n">api_ctx.consumer</span><span class="p">.</span><span class="n">group_id</span> <span class="kr">then</span>
+</span></span><span class="line"><span class="cl">                <span class="n">group_conf</span> <span class="o">=</span> <span class="n">consumer_group.get</span><span class="p">(</span><span class="n">api_ctx.consumer</span><span class="p">.</span><span class="n">group_id</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">                <span class="kr">if</span> <span class="ow">not</span> <span class="n">group_conf</span> <span class="kr">then</span>
+</span></span><span class="line"><span class="cl">                    <span class="n">core.log</span><span class="p">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&#34;failed to fetch consumer group config by &#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                        <span class="s2">&#34;id: &#34;</span><span class="p">,</span> <span class="n">api_ctx.consumer</span><span class="p">.</span><span class="n">group_id</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">                    <span class="kr">return</span> <span class="n">core.response</span><span class="p">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">503</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">                <span class="kr">end</span>
+</span></span><span class="line"><span class="cl">            <span class="kr">end</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="n">route</span><span class="p">,</span> <span class="n">changed</span> <span class="o">=</span> <span class="n">plugin.merge_consumer_route</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">                <span class="n">route</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                <span class="n">api_ctx.consumer</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                <span class="n">group_conf</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                <span class="n">api_ctx</span>
+</span></span><span class="line"><span class="cl">            <span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="n">core.log</span><span class="p">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&#34;find consumer &#34;</span><span class="p">,</span> <span class="n">api_ctx.consumer</span><span class="p">.</span><span class="n">username</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                          <span class="s2">&#34;, config changed: &#34;</span><span class="p">,</span> <span class="n">changed</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">            <span class="kr">if</span> <span class="n">changed</span> <span class="kr">then</span>
+</span></span><span class="line"><span class="cl">                <span class="n">api_ctx.matched_route</span> <span class="o">=</span> <span class="n">route</span>
+</span></span><span class="line"><span class="cl">                <span class="n">core.table</span><span class="p">.</span><span class="n">clear</span><span class="p">(</span><span class="n">api_ctx.plugins</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">                <span class="kd">local</span> <span class="n">phase</span> <span class="o">=</span> <span class="s2">&#34;rewrite_in_consumer&#34;</span>
+</span></span><span class="line"><span class="cl">                <span class="n">api_ctx.plugins</span> <span class="o">=</span> <span class="n">plugin.filter</span><span class="p">(</span><span class="n">api_ctx</span><span class="p">,</span> <span class="n">route</span><span class="p">,</span> <span class="n">api_ctx.plugins</span><span class="p">,</span> <span class="kc">nil</span><span class="p">,</span> <span class="n">phase</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">                <span class="c1">-- rerun rewrite phase for newly added plugins in consumer</span>
+</span></span><span class="line"><span class="cl">                <span class="n">plugin.run_plugin</span><span class="p">(</span><span class="n">phase</span><span class="p">,</span> <span class="n">api_ctx.plugins</span><span class="p">,</span> <span class="n">api_ctx</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="kr">end</span>
+</span></span><span class="line"><span class="cl">        <span class="kr">end</span>
+</span></span><span class="line"><span class="cl">        <span class="n">plugin.run_plugin</span><span class="p">(</span><span class="s2">&#34;access&#34;</span><span class="p">,</span> <span class="n">plugins</span><span class="p">,</span> <span class="n">api_ctx</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        
+</span></span><span class="line"><span class="cl">        <span class="c1">-- ...</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">_M.handle_upstream</span><span class="p">(</span><span class="n">api_ctx</span><span class="p">,</span> <span class="n">route</span><span class="p">,</span> <span class="n">enable_websocket</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">set_upstream_x_forwarded_headers</span><span class="p">(</span><span class="n">api_ctx</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="kr">end</span>
+</span></span></code></pre></div><p>在 <code>handle_upstream</code> 中，会对 upstream 进行预处理，如 dns 解析，预选 node(<code>load_balancer.pick_server</code>)等。同时对于某些插件（如 ai 相关），会直接使用 http client 访问 upstream，设置 <code>bypass_nginx_upstream</code> 跳过 APISIX Upstream 的处理。</p>
+<p>在这些做完后，会对 <code>before_proxy</code> plugin 实施调用。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-lua" data-lang="lua"><span class="line"><span class="cl"><span class="kr">function</span> <span class="nc">_M</span><span class="p">.</span><span class="nf">handle_upstream</span><span class="p">(</span><span class="n">api_ctx</span><span class="p">,</span> <span class="n">route</span><span class="p">,</span> <span class="n">enable_websocket</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">-- some plugins(ai-proxy...) request upstream by http client directly</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">if</span> <span class="n">api_ctx.bypass_nginx_upstream</span> <span class="kr">then</span>
+</span></span><span class="line"><span class="cl">        <span class="n">common_phase</span><span class="p">(</span><span class="s2">&#34;before_proxy&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="kr">return</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">end</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="c1">-- ...</span>
+</span></span><span class="line"><span class="cl">    <span class="kd">local</span> <span class="n">code</span><span class="p">,</span> <span class="n">err</span> <span class="o">=</span> <span class="n">set_upstream</span><span class="p">(</span><span class="n">route</span><span class="p">,</span> <span class="n">api_ctx</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">if</span> <span class="n">code</span> <span class="kr">then</span>
+</span></span><span class="line"><span class="cl">        <span class="n">core.log</span><span class="p">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&#34;failed to set upstream: &#34;</span><span class="p">,</span> <span class="n">err</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="n">core.response</span><span class="p">.</span><span class="n">exit</span><span class="p">(</span><span class="n">code</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">end</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="kd">local</span> <span class="n">server</span><span class="p">,</span> <span class="n">err</span> <span class="o">=</span> <span class="n">load_balancer.pick_server</span><span class="p">(</span><span class="n">route</span><span class="p">,</span> <span class="n">api_ctx</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">if</span> <span class="ow">not</span> <span class="n">server</span> <span class="kr">then</span>
+</span></span><span class="line"><span class="cl">        <span class="n">core.log</span><span class="p">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&#34;failed to pick server: &#34;</span><span class="p">,</span> <span class="n">err</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="kr">return</span> <span class="n">core.response</span><span class="p">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">502</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">end</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">api_ctx.picked_server</span> <span class="o">=</span> <span class="n">server</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">set_upstream_headers</span><span class="p">(</span><span class="n">api_ctx</span><span class="p">,</span> <span class="n">server</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    
+</span></span><span class="line"><span class="cl">    <span class="c1">-- run the before_proxy method in access phase first to avoid always reinit request</span>
+</span></span><span class="line"><span class="cl">    <span class="n">common_phase</span><span class="p">(</span><span class="s2">&#34;before_proxy&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kr">end</span>
+</span></span></code></pre></div><h2 id="rpc-插件">RPC 插件<a href="#rpc-插件" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p><img src="/images/notes/apisix-%E6%8F%92%E4%BB%B6%E4%BD%93%E7%B3%BB/12e494401d05e9925fa86b52b7769831_MD5.jpeg" alt="12e494401d05e9925fa86b52b7769831_MD5"></p>
+<p>APISIX 支持启动独立的 plugin runner，worker 进程通过 RPC 与之交互，实现多语言插件的支持。目前已经支持的语言 runner 包括 java，go，nodejs，python 等。</p>
+<p>从上面官方的架构图可以看到，RPC 插件支持 3 个 Hook 点：</p>
+<ul>
+<li>ext-plugin-pre-req: 接收请求时调用</li>
+<li>ext-plugin-post-req：请求处理完成后调用</li>
+<li>ext-plugin-post-resp：接收响应后调用</li>
+</ul>
+<p>相关的执行框架以插件的形式注入到 apisix 的执行流程中。如 <code>ext-plugin-pre-req</code>：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-lua" data-lang="lua"><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">core</span> <span class="o">=</span> <span class="n">require</span><span class="p">(</span><span class="s2">&#34;apisix.core&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">ext</span> <span class="o">=</span> <span class="n">require</span><span class="p">(</span><span class="s2">&#34;apisix.plugins.ext-plugin.init&#34;</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">name</span> <span class="o">=</span> <span class="s2">&#34;ext-plugin-pre-req&#34;</span>
+</span></span><span class="line"><span class="cl"><span class="kd">local</span> <span class="n">_M</span> <span class="o">=</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">version</span> <span class="o">=</span> <span class="mf">0.1</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="n">priority</span> <span class="o">=</span> <span class="mi">12000</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="n">name</span> <span class="o">=</span> <span class="n">name</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="n">schema</span> <span class="o">=</span> <span class="n">ext.schema</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kr">function</span> <span class="nc">_M</span><span class="p">.</span><span class="nf">check_schema</span><span class="p">(</span><span class="n">conf</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">return</span> <span class="n">core.schema</span><span class="p">.</span><span class="n">check</span><span class="p">(</span><span class="n">_M.schema</span><span class="p">,</span> <span class="n">conf</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="kr">end</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kr">function</span> <span class="nc">_M</span><span class="p">.</span><span class="nf">rewrite</span><span class="p">(</span><span class="n">conf</span><span class="p">,</span> <span class="n">ctx</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">return</span> <span class="n">ext.communicate</span><span class="p">(</span><span class="n">conf</span><span class="p">,</span> <span class="n">ctx</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="kr">end</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kr">return</span> <span class="n">_M</span>
+</span></span></code></pre></div><p><code>ext-plugin-post-req</code> 和 <code>ext-plugin-pre-req</code> 类似，只不过注册在 <code>access</code> 阶段。</p>
+<p>对于 <code>ext-plugin-post-resp</code>，它的执行阶段是 <code>before-proxy</code>，它直接使用 <code>handle_upstream</code> 中预选的 server，使用 http client 请求后端获取响应结果，绕过了 nginx 本身的 forward 机制。另外，目前插件中还存在很多 TODO，实现并不完善。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-lua" data-lang="lua"><span class="line"><span class="cl"><span class="kd">local</span> <span class="kr">function</span> <span class="nf">get_response</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">http_obj</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="kd">local</span> <span class="n">ok</span><span class="p">,</span> <span class="n">err</span> <span class="o">=</span> <span class="n">http_obj</span><span class="p">:</span><span class="n">connect</span><span class="p">({</span>
+</span></span><span class="line"><span class="cl">        <span class="n">scheme</span> <span class="o">=</span> <span class="n">ctx.upstream_scheme</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">host</span> <span class="o">=</span> <span class="n">ctx.picked_server</span><span class="p">.</span><span class="n">host</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">port</span> <span class="o">=</span> <span class="n">ctx.picked_server</span><span class="p">.</span><span class="n">port</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="p">})</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">-- ...</span>
+</span></span><span class="line"><span class="cl"><span class="kr">end</span>
+</span></span></code></pre></div><h2 id="wasm-插件">Wasm 插件<a href="#wasm-插件" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>Wasm 插件目前看起来实现了跟 lua 插件一样的处理阶段模式，可能还不够完善。优点是可以使用非 lua 语言来编写插件。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-lua" data-lang="lua"><span class="line"><span class="cl"><span class="kr">function</span> <span class="nc">_M</span><span class="p">.</span><span class="nf">require</span><span class="p">(</span><span class="n">attrs</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">if</span> <span class="ow">not</span> <span class="n">support_wasm</span> <span class="kr">then</span>
+</span></span><span class="line"><span class="cl">        <span class="kr">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="s2">&#34;need to build APISIX-Runtime to support wasm&#34;</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">end</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="kd">local</span> <span class="n">name</span> <span class="o">=</span> <span class="n">attrs.name</span>
+</span></span><span class="line"><span class="cl">    <span class="kd">local</span> <span class="n">priority</span> <span class="o">=</span> <span class="n">attrs.priority</span>
+</span></span><span class="line"><span class="cl">    <span class="kd">local</span> <span class="n">plugin</span><span class="p">,</span> <span class="n">err</span> <span class="o">=</span> <span class="n">wasm.load</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">attrs.file</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">if</span> <span class="ow">not</span> <span class="n">plugin</span> <span class="kr">then</span>
+</span></span><span class="line"><span class="cl">        <span class="kr">return</span> <span class="kc">nil</span><span class="p">,</span> <span class="n">err</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">end</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="kd">local</span> <span class="n">mod</span> <span class="o">=</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">version</span> <span class="o">=</span> <span class="mf">0.1</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">name</span> <span class="o">=</span> <span class="n">name</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">priority</span> <span class="o">=</span> <span class="n">priority</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">schema</span> <span class="o">=</span> <span class="n">schema</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">check_schema</span> <span class="o">=</span> <span class="n">check_schema</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">plugin</span> <span class="o">=</span> <span class="n">plugin</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">        <span class="n">type</span> <span class="o">=</span> <span class="s2">&#34;wasm&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="kr">if</span> <span class="n">attrs.http_request_phase</span> <span class="o">==</span> <span class="s2">&#34;rewrite&#34;</span> <span class="kr">then</span>
+</span></span><span class="line"><span class="cl">        <span class="n">mod.rewrite</span> <span class="o">=</span> <span class="kr">function</span> <span class="p">(</span><span class="n">conf</span><span class="p">,</span> <span class="n">ctx</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="kr">return</span> <span class="n">http_request_wrapper</span><span class="p">(</span><span class="n">mod</span><span class="p">,</span> <span class="n">conf</span><span class="p">,</span> <span class="n">ctx</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="kr">end</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">else</span>
+</span></span><span class="line"><span class="cl">        <span class="n">mod.access</span> <span class="o">=</span> <span class="kr">function</span> <span class="p">(</span><span class="n">conf</span><span class="p">,</span> <span class="n">ctx</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">            <span class="kr">return</span> <span class="n">http_request_wrapper</span><span class="p">(</span><span class="n">mod</span><span class="p">,</span> <span class="n">conf</span><span class="p">,</span> <span class="n">ctx</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="kr">end</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">end</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">mod.header_filter</span> <span class="o">=</span> <span class="kr">function</span> <span class="p">(</span><span class="n">conf</span><span class="p">,</span> <span class="n">ctx</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="kr">return</span> <span class="n">header_filter_wrapper</span><span class="p">(</span><span class="n">mod</span><span class="p">,</span> <span class="n">conf</span><span class="p">,</span> <span class="n">ctx</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">end</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="n">mod.body_filter</span> <span class="o">=</span> <span class="kr">function</span> <span class="p">(</span><span class="n">conf</span><span class="p">,</span> <span class="n">ctx</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">        <span class="kr">return</span> <span class="n">body_filter_wrapper</span><span class="p">(</span><span class="n">mod</span><span class="p">,</span> <span class="n">conf</span><span class="p">,</span> <span class="n">ctx</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">end</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">-- the returned values need to be the same as the Lua&#39;s &#39;require&#39;</span>
+</span></span><span class="line"><span class="cl">    <span class="kr">return</span> <span class="kc">true</span><span class="p">,</span> <span class="n">mod</span>
+</span></span><span class="line"><span class="cl"><span class="kr">end</span>
+</span></span></code></pre></div><p>文档参考：<a href="https://github.com/apache/apisix/blob/release/3.14/docs/en/latest/wasm.md">wasm.md</a></p>
+
+      </div></div>
+
+  
+    
+<div class="pagination">
+  <div class="pagination__title">
+    <span class="pagination__title-h">Read other posts</span>
+    <hr />
+  </div>
+  <div class="pagination__buttons">
+    
+    
+    
+      <a href="https://www.jinzhi.site/posts/2025-10/websocket-origin-header-%E6%A0%A1%E9%AA%8C%E5%A4%B1%E8%B4%A5/" class="button inline next">
+         [<span class="button__text">WebSocket Origin Header 校验失败</span>] &gt;
+      </a>
+    
+  </div>
+</div>
+
+
+  
+
+  
+    
+
+  
+</article>
+
+  </div>
+
+  
+    <footer class="footer">
+  <div class="footer__inner">
+    
+      <div class="copyright">
+        <span>© 2025 Powered by <a href="https://gohugo.io">Hugo</a></span>
+    
+      <span>:: <a href="https://github.com/panr/hugo-theme-terminal" target="_blank">Theme</a> made by <a href="https://github.com/panr" target="_blank">panr</a></span>
+      </div>
+  </div>
+</footer>
+
+
+
+
+
+
+<script type="text/javascript" src="/bundle.min.js"></script>
+
+
+
+
+
+  
+  </div>
+
+  <aside class="floating-sidebar">
+    
+<div class="sidebar time-archive">
+  <h3>Time Archives</h3>
+  <div class="archive-list">
+    
+    
+
+    
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+
+    
+    
+
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-10/" class="archive-link">
+          <span class="archive-date">2025-10</span>
+          <span class="archive-month-name">Oct</span>
+          <span class="archive-count">(4)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-09/" class="archive-link">
+          <span class="archive-date">2025-09</span>
+          <span class="archive-month-name">Sep</span>
+          <span class="archive-count">(3)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-08/" class="archive-link">
+          <span class="archive-date">2025-08</span>
+          <span class="archive-month-name">Aug</span>
+          <span class="archive-count">(9)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-06/" class="archive-link">
+          <span class="archive-date">2025-06</span>
+          <span class="archive-month-name">Jun</span>
+          <span class="archive-count">(2)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-04/" class="archive-link">
+          <span class="archive-date">2025-04</span>
+          <span class="archive-month-name">Apr</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-03/" class="archive-link">
+          <span class="archive-date">2025-03</span>
+          <span class="archive-month-name">Mar</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2024-01/" class="archive-link">
+          <span class="archive-date">2024-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(2)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-10/" class="archive-link">
+          <span class="archive-date">2022-10</span>
+          <span class="archive-month-name">Oct</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-07/" class="archive-link">
+          <span class="archive-date">2022-07</span>
+          <span class="archive-month-name">Jul</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-06/" class="archive-link">
+          <span class="archive-date">2022-06</span>
+          <span class="archive-month-name">Jun</span>
+          <span class="archive-count">(4)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-05/" class="archive-link">
+          <span class="archive-date">2022-05</span>
+          <span class="archive-month-name">May</span>
+          <span class="archive-count">(4)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-03/" class="archive-link">
+          <span class="archive-date">2022-03</span>
+          <span class="archive-month-name">Mar</span>
+          <span class="archive-count">(4)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-01/" class="archive-link">
+          <span class="archive-date">2022-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-11/" class="archive-link">
+          <span class="archive-date">2021-11</span>
+          <span class="archive-month-name">Nov</span>
+          <span class="archive-count">(2)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-09/" class="archive-link">
+          <span class="archive-date">2021-09</span>
+          <span class="archive-month-name">Sep</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-06/" class="archive-link">
+          <span class="archive-date">2021-06</span>
+          <span class="archive-month-name">Jun</span>
+          <span class="archive-count">(3)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-01/" class="archive-link">
+          <span class="archive-date">2021-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+  </div>
+</div>
+
+<style>
+.sidebar.time-archive {
+  background: rgba(26, 23, 15, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--accent, #FFA86B);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+  max-width: var(--sidebar-component-width, 240px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.sidebar.time-archive h3 {
+  margin: 0 0 1rem 0;
+  color: var(--accent, #FFA86B);
+  font-size: 1.2rem;
+  border-bottom: 1px solid var(--accent-alpha-70, rgba(255, 168, 107, 0.7));
+  padding-bottom: 0.5rem;
+}
+
+
+.archive-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.archive-item {
+  display: block;
+}
+
+.archive-link {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  text-decoration: none;
+  color: var(--color, inherit);
+  padding: 0.5rem;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+}
+
+.archive-link:hover {
+  background-color: var(--accent-alpha-20, rgba(255, 168, 107, 0.2));
+  color: var(--accent, #FFA86B);
+}
+
+.archive-date {
+  font-family: var(--code-font-family, 'Fira Code', monospace);
+  font-weight: bold;
+  min-width: 60px;
+}
+
+.archive-month-name {
+  flex: 1;
+  margin-left: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.archive-count {
+  color: var(--accent, #FFA86B);
+  font-weight: bold;
+  font-size: 0.9rem;
+}
+
+ 
+</style>
+
+    
+<div class="sidebar tags-cloud">
+  <h3>Tags Cloud</h3>
+  <div class="tags-container">
+    
+    
+    
+    
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+    
+    
+    
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+    
+    
+    
+    
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+    
+    
+    
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+    
+    
+    
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/apisix/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          apisix
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/biography/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          biography
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/compile/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          compile
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/concurrency/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="7 articles">
+          Concurrency
+          <span class="tag-count">(7)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/csi/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          csi
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/debug/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          debug
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/dns/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          dns
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/ebpf/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          ebpf
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/elf/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          ELF
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/go/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          Go
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/http/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          HTTP
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/kaist-cs431/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="7 articles">
+          KAIST-CS431
+          <span class="tag-count">(7)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/kernel/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Kernel
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/kubernetes/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          kubernetes
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/l7gateway/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          L7Gateway
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/linux/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="3 articles">
+          Linux
+          <span class="tag-count">(3)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/lua/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="3 articles">
+          Lua
+          <span class="tag-count">(3)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/makefile/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          makefile
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/mindfulness/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          mindfulness
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/network/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          Network
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/nonfiction/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="6 articles">
+          nonfiction
+          <span class="tag-count">(6)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/operatingsystem/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          OperatingSystem
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/philosophy/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          philosophy
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/rust/" 
+           class="tag-item" 
+           style="font-size: 1.5em;"
+           title="10 articles">
+          Rust
+          <span class="tag-count">(10)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/schedule/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Schedule
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/science/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          science
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/softwareengineering/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          SoftwareEngineering
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/wasm/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          wasm
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+  </div>
+</div>
+
+<style>
+.sidebar.tags-cloud {
+  background: rgba(26, 23, 15, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--accent, #FFA86B);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+  max-width: var(--sidebar-component-width, 240px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.sidebar.tags-cloud h3 {
+  margin: 0 0 1rem 0;
+  color: var(--accent, #FFA86B);
+  font-size: 1.2rem;
+  border-bottom: 1px solid var(--accent-alpha-70, rgba(255, 168, 107, 0.7));
+  padding-bottom: 0.5rem;
+}
+
+.tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  line-height: 1.6;
+}
+
+.tag-item {
+  display: inline-flex;
+  align-items: baseline;
+  text-decoration: none;
+  color: var(--color, inherit);
+  padding: 0.3rem 0.6rem;
+  border-radius: 16px;
+  background: rgba(255, 168, 107, 0.1);
+  border: 1px solid transparent;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.tag-item:hover {
+  background: rgba(255, 168, 107, 0.25);
+  border-color: var(--accent-alpha-50, rgba(255, 168, 107, 0.5));
+  color: var(--accent, #FFA86B);
+  transform: translateY(-1px);
+}
+
+.tag-count {
+  font-size: 0.75em;
+  margin-left: 0.3rem;
+  opacity: 0.7;
+  font-weight: normal;
+}
+
+.tag-item:hover .tag-count {
+  opacity: 1;
+}
+
+ 
+
+ 
+.tag-item {
+  font-weight: 400;
+}
+
+ 
+.tag-item[style*="1.5"], 
+.tag-item[style*="1.4"],
+.tag-item[style*="1.3"] {
+  font-weight: 600;
+}
+
+ 
+.tag-item[style*="1.2"],
+.tag-item[style*="1.1"] {
+  font-weight: 500;
+}
+
+ 
+.tag-item[style*="1.5"]:hover,
+.tag-item[style*="1.4"]:hover,
+.tag-item[style*="1.3"]:hover {
+  box-shadow: 0 3px 10px rgba(255, 168, 107, 0.4);
+  transform: translateY(-2px);
+}
+
+</style>
+
+  </aside>
+</div>
+
+<style>
+ 
+.page-wrapper {
+  position: relative;
+  width: 100%;
+  max-width: none;
+  --sidebar-top-offset: 150px;  
+  --sidebar-component-width: 240px;  
+}
+
+   
+.floating-sidebar {
+  position: absolute;
+   
+  top: var(--sidebar-top-offset, 175px);
+   
+  right: max(20px, calc((100vw - 864px) / 2 - 330px));
+  width: 300px;
+  z-index: 100;
+  opacity: 0.96;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+ 
+.floating-sidebar:hover {
+  opacity: 1;
+  transform: translateX(-5px);
+}
+
+ 
+.floating-sidebar {
+  display: none;
+}
+
+ 
+@media (min-width: 1524px) {
+  .floating-sidebar {
+    display: block;
+    position: absolute;
+    right: max(20px, calc((100vw - 864px) / 2 - 330px));
+  }
+}
+
+ 
+@media (max-width: 1523px) {
+  .floating-sidebar {
+    display: none !important;
+  }
+}
+
+</style>
+
+</body>
+</html>

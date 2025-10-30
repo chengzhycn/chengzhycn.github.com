@@ -207,6 +207,82 @@
     
       <article class="post on-list">
         <h1 class="post-title">
+          <a href="https://www.jinzhi.site/posts/2025-09/luaconcurrency/">Lua：Concurrency</a>
+        </h1>
+        <div class="post-meta"><time class="post-date">2025-09-01</time></div>
+
+        
+          <span class="post-tags">
+            
+            #<a href="https://www.jinzhi.site/tags/lua/">Lua</a>&nbsp;
+            
+          </span>
+        
+
+        
+
+
+        <div class="post-content">
+          
+            <p>Lua 的并发（Concurrency）设计核心在于其轻量级、嵌入式的哲学，以及对协作式多任务的首选。它通过强大的协程机制实现并发，但本身不提供多线程/多进程的并行能力。</p>
+<hr>
+<h2 id="多线程多进程">多线程/多进程</h2>
+<ul>
+<li><strong>核心语言无内置支持：</strong> Lua 语言本身的核心 VM 被设计为<strong>单线程</strong>执行。它不提供内置的语法或标准库来直接创建和管理线程（<code>std::thread</code>）或进程（<code>fork</code>）。</li>
+<li><strong>独立的 Lua State：</strong> 一个 Lua VM 实例被称为一个“Lua State”。每个 Lua State 是完全独立的运行时环境，拥有自己的全局变量、栈、打开的文件、垃圾回收器等。它们之间默认不共享任何数据。</li>
+<li><strong>宿主语言的责任：</strong> 如果需要在 Lua 中实现真正的并行（多核利用），必须依赖于<strong>宿主语言（如 C/C++）的多线程/多进程机制</strong>。
+<ul>
+<li><strong>实现方式：</strong> 在宿主语言的每个线程或进程中，创建并运行一个<strong>独立的 Lua State</strong>。</li>
+<li><strong>数据交换：</strong> 这些独立的 Lua State 之间无法直接共享内存。数据交换必须通过宿主语言提供的进程间通信 (IPC) 或线程间通信 (ITC) 机制（如消息队列、共享内存、管道、套接字等）来完成。</li>
+<li><strong>优点：</strong> 简单安全，因为 Lua State 之间是隔离的，避免了复杂的并发同步问题。</li>
+<li><strong>缺点：</strong> 额外的通信开销和复杂性，且无法在单个 Lua State 内部实现并行。</li>
+</ul>
+</li>
+<li><strong>第三方库（封装）：</strong> 存在一些第三方库（如 LuaLanes）试图提供在 Lua 中模拟多线程/多进程的 API。这些库通常是在底层创建独立的 Lua State，并封装了 IPC 机制，方便 Lua 开发者使用，但其本质仍然是基于宿主语言的底层能力和独立的 Lua State。</li>
+</ul>
+<h2 id="协程">协程</h2>
+<h3 id="协程的设计与实现">协程的设计与实现</h3>
+<ul>
+<li><strong>设计理念：</strong> Lua 协程是为了提供<strong>协作式多任务 (Cooperative Multitasking)</strong> 而设计。它们允许在单个线程中实现任务的暂停和恢复，以模拟并发，而无需复杂的锁机制。</li>
+<li><strong>“有栈协程” (Stackful Coroutines)：</strong> Lua 协程是<strong>有栈的</strong>。这里的“栈”指的不是操作系统的 C 语言栈，而是 Lua 虚拟机内部维护的<strong>Lua VM 栈</strong>。
+<ul>
+<li><strong>Lua VM 栈：</strong> 每个协程在创建时都会分配一个独立的 Lua VM 栈（或在需要时动态扩展）。这个栈存储着协程的局部变量、函数参数、中间表达式结果和函数调用上下文。</li>
+</ul>
+</li>
+<li><strong>实现机制：</strong>
+<ul>
+<li><strong><code>coroutine.create(function)</code>：</strong> 创建一个新的协程（一个<code>thread</code>类型的值），但并不立即执行。它会分配并初始化一个新的 Lua VM 栈。</li>
+<li><strong><code>coroutine.yield(...)</code> (保存栈)：</strong> 当一个协程调用 <code>yield</code> 时，Lua VM 会：
+<ol>
+<li><strong>保存当前 Lua VM 栈的完整状态</strong>（包括所有活跃的栈帧、局部变量值、程序计数器等）。这些信息会被存储在协程对象本身（在堆上分配）中。</li>
+<li><strong>暂停当前协程的执行。</strong></li>
+<li><strong>将控制权返回给调用 <code>coroutine.resume</code> 的那个协程或主线程。</strong> C 语言栈会正常展开，<code>yield</code> 作为一个 C 函数正常返回。</li>
+</ol>
+</li>
+<li><strong><code>coroutine.resume(co, ...)</code> (恢复栈)：</strong> 当一个协程被 <code>resume</code> 时，Lua VM 会：
+<ol>
+<li><strong>从协程对象中加载并恢复其之前保存的 Lua VM 栈状态。</strong> 这包括设置栈顶指针、恢复所有栈帧和程序计数器，使得协程能够从上次 <code>yield</code> 的点继续执行。</li>
+<li><strong>将控制权转移给被恢复的协程。</strong> C 语言栈上会为 <code>resume</code> 函数创建一个新的栈帧，并在其中运行被恢复的 Lua 协程。</li>
+</ol>
+</li>
+</ul>
+</li>
+<li><strong>优点：</strong> 简单、高效、避免了与 OS 栈相关的复杂性，并且由于是协作式的，没有竞态条件和锁的开销。</li>
+<li><strong>缺点：</strong> 无法利用多核 CPU。</li>
+</ul>
+<p>协程示例：</p>
+          
+        </div>
+
+        
+          <div>
+            <a class="read-more button inline" href="/posts/2025-09/luaconcurrency/">[Read more]</a>
+          </div>
+        
+      </article>
+    
+      <article class="post on-list">
+        <h1 class="post-title">
           <a href="https://www.jinzhi.site/posts/2025-08/lua-an-overview/">Lua - An Overview</a>
         </h1>
         <div class="post-meta"><time class="post-date">2025-08-31</time></div>
@@ -505,82 +581,6 @@
         
       </article>
     
-      <article class="post on-list">
-        <h1 class="post-title">
-          <a href="https://www.jinzhi.site/posts/2024-01/ebpf-%E6%8C%87%E4%BB%A4%E9%9B%86%E8%A7%84%E8%8C%83/">eBPF 指令集规范</a>
-        </h1>
-        <div class="post-meta"><time class="post-date">2024-01-05</time></div>
-
-        
-          <span class="post-tags">
-            
-            #<a href="https://www.jinzhi.site/tags/ebpf/">eBPF</a>&nbsp;
-            
-          </span>
-        
-
-        
-
-
-        <div class="post-content">
-          
-            <p><a href="https://docs.kernel.org/bpf/standardization/instruction-set.html">1 BPF Instruction Set Specification, v1.0 — The Linux Kernel documentation</a></p>
-<h2 id="寄存器和调用约定">寄存器和调用约定</h2>
-<p>eBPF有10个通用寄存器和一个只读的帧指针寄存器，所有的寄存器都是64bits位长。</p>
-<p>eBPF的调用约定如下：</p>
-<ul>
-<li><strong>R0:</strong> 函数调用的返回值和eBPF程序的退出值</li>
-<li><strong>R1 - R5:</strong> 函数调用的参数</li>
-<li><strong>R6 - R9:</strong> callee saved registers，由函数调用负责保存到栈上</li>
-<li><strong>R10:</strong> 只读的帧指针，用于访问栈
-R0 - R5是临时寄存器，eBPF程序在函数调用时如需使用需要将它们保存/填充。</li>
-</ul>
-<h2 id="指令编码">指令编码</h2>
-<p>eBPF使用64bit指令，编码如下：</p>
-<table>
-  <thead>
-      <tr>
-          <th><strong>32位（最高有效位）</strong></th>
-          <th><strong>16位</strong></th>
-          <th><strong>4位</strong></th>
-          <th><strong>4位</strong></th>
-          <th><strong>8位（最低有效位）</strong></th>
-      </tr>
-  </thead>
-  <tbody>
-      <tr>
-          <td>immediate</td>
-          <td>offset</td>
-          <td>source register</td>
-          <td>dest register</td>
-          <td>opcode</td>
-      </tr>
-  </tbody>
-</table>
-<ul>
-<li>imm: 有符号整型立即数</li>
-<li>offset: 有符号整型数，用于指针算术</li>
-<li>src_reg: 除开特殊指令的编码外（如64位立即数指令）指的是源寄存器(R0 - R10)</li>
-<li>dst_reg: 目标寄存器(R0 - R10)</li>
-<li>opcode: 操作码</li>
-</ul>
-<p>绝大多数指令不会使用所有的字段。没有使用的字段应当被置0。多字节的字段（如imm和offset）在大端BPF中以大端字节序存储，小端BPF中以小端字节序存储。</p>
-<pre tabindex="0"><code>opcode                  offset imm          assembly
-       src_reg dst_reg
-07     0       1        00 00  44 33 22 11  r1 += 0x11223344 // little
-       dst_reg src_reg
-07     1       0        00 00  11 22 33 44  r1 += 0x11223344 // big
-</code></pre><p>除了这些基本指令编码外，eBPF还有一种宽指令编码，在基本指令之后使用第2个64位立即数做扩展。第2个立即数包括一个伪指令，和基本指令的格式一样，不过所有的字段（除了imm）都置为0。它的imm作为整个宽指令中的imm64值的高32位：</p>
-          
-        </div>
-
-        
-          <div>
-            <a class="read-more button inline" href="/posts/2024-01/ebpf-%E6%8C%87%E4%BB%A4%E9%9B%86%E8%A7%84%E8%8C%83/">[Read more]</a>
-          </div>
-        
-      </article>
-    
 
     <div class="pagination">
   <div class="pagination__buttons">
@@ -812,6 +812,10 @@ R0 - R5是临时寄存器，eBPF程序在函数调用时如需使用需要将它
       
       
     
+      
+      
+      
+    
 
     
     
@@ -841,7 +845,7 @@ R0 - R5是临时寄存器，eBPF程序在函数调用时如需使用需要将它
         <a href="/posts/2025-10/" class="archive-link">
           <span class="archive-date">2025-10</span>
           <span class="archive-month-name">Oct</span>
-          <span class="archive-count">(3)</span>
+          <span class="archive-count">(4)</span>
         </a>
       </div>
     
@@ -1376,22 +1380,6 @@ R0 - R5是临时寄存器，eBPF程序在函数调用时如需使用需要将它
       
         
       
-    
-      
-        
-      
-    
-      
-        
-      
-        
-      
-    
-      
-        
-      
-    
-      
         
       
     
@@ -1408,13 +1396,19 @@ R0 - R5是临时寄存器，eBPF程序在函数调用时如需使用需要将它
       
         
       
+    
+      
         
       
     
       
         
       
+    
+      
         
+      
+    
       
         
       
@@ -1454,38 +1448,6 @@ R0 - R5是临时寄存器，eBPF程序在函数调用时如需使用需要将它
       
         
       
-    
-      
-        
-      
-    
-      
-        
-      
-        
-      
-    
-      
-        
-      
-    
-      
-        
-      
-    
-      
-    
-      
-        
-      
-    
-      
-        
-      
-    
-      
-        
-      
         
       
         
@@ -1495,14 +1457,6 @@ R0 - R5是临时寄存器，eBPF程序在函数调用时如需使用需要将它
         
       
         
-      
-    
-      
-        
-      
-        
-      
-    
       
         
       
@@ -1530,8 +1484,6 @@ R0 - R5是临时寄存器，eBPF程序在函数调用时如需使用需要将它
       
     
       
-        
-      
     
       
         
@@ -1545,6 +1497,26 @@ R0 - R5是临时寄存器，eBPF程序在函数调用时如需使用需要将它
         
       
         
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
       
         
       
@@ -1582,6 +1554,44 @@ R0 - R5是临时寄存器，eBPF程序在函数调用时如需使用需要将它
       
         
       
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
     
       
         
@@ -1590,6 +1600,12 @@ R0 - R5是临时寄存器，eBPF程序在函数调用时如需使用需要将它
     
     
     
+    
+      
+      
+    
+      
+      
     
       
       
@@ -1949,9 +1965,9 @@ R0 - R5是临时寄存器，eBPF程序在函数调用时如需使用需要将它
         <a href="https://www.jinzhi.site/tags/apisix/" 
            class="tag-item" 
            style="font-size: 0.9em;"
-           title="1 article">
+           title="2 articles">
           apisix
-          <span class="tag-count">(1)</span>
+          <span class="tag-count">(2)</span>
         </a>
       
     
@@ -2215,9 +2231,9 @@ R0 - R5是临时寄存器，eBPF程序在函数调用时如需使用需要将它
         <a href="https://www.jinzhi.site/tags/l7gateway/" 
            class="tag-item" 
            style="font-size: 0.9em;"
-           title="1 article">
+           title="2 articles">
           L7Gateway
-          <span class="tag-count">(1)</span>
+          <span class="tag-count">(2)</span>
         </a>
       
     

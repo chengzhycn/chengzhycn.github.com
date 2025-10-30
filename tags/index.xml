@@ -6,8 +6,22 @@
     <description>Recent content in Tags on chengzhycn&#39;s blog</description>
     <generator>Hugo</generator>
     <language>en</language>
-    <lastBuildDate>Tue, 21 Oct 2025 15:18:28 +0800</lastBuildDate>
+    <lastBuildDate>Thu, 30 Oct 2025 12:18:28 +0800</lastBuildDate>
     <atom:link href="https://www.jinzhi.site/tags/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Apisix</title>
+      <link>https://www.jinzhi.site/tags/apisix/</link>
+      <pubDate>Thu, 30 Oct 2025 12:18:28 +0800</pubDate>
+      <guid>https://www.jinzhi.site/tags/apisix/</guid>
+      <description></description>
+    </item>
+    <item>
+      <title>L7Gateway</title>
+      <link>https://www.jinzhi.site/tags/l7gateway/</link>
+      <pubDate>Thu, 30 Oct 2025 12:18:28 +0800</pubDate>
+      <guid>https://www.jinzhi.site/tags/l7gateway/</guid>
+      <description></description>
+    </item>
     <item>
       <title>HTTP</title>
       <link>https://www.jinzhi.site/tags/http/</link>
@@ -20,20 +34,6 @@
       <link>https://www.jinzhi.site/tags/kubernetes/</link>
       <pubDate>Thu, 16 Oct 2025 16:18:28 +0800</pubDate>
       <guid>https://www.jinzhi.site/tags/kubernetes/</guid>
-      <description></description>
-    </item>
-    <item>
-      <title>Apisix</title>
-      <link>https://www.jinzhi.site/tags/apisix/</link>
-      <pubDate>Sun, 12 Oct 2025 15:18:28 +0800</pubDate>
-      <guid>https://www.jinzhi.site/tags/apisix/</guid>
-      <description></description>
-    </item>
-    <item>
-      <title>L7Gateway</title>
-      <link>https://www.jinzhi.site/tags/l7gateway/</link>
-      <pubDate>Sun, 12 Oct 2025 15:18:28 +0800</pubDate>
-      <guid>https://www.jinzhi.site/tags/l7gateway/</guid>
       <description></description>
     </item>
     <item>
