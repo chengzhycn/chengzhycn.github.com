@@ -216,6 +216,92 @@
     
       <article class="post on-list">
         <h2 class="post-title">
+          <a href="https://www.jinzhi.site/posts/2025-11/%E5%B8%B8%E8%A7%81%E7%9A%84%E5%A4%A7%E6%A8%A1%E5%9E%8B-openapi-%E8%A7%84%E8%8C%83/">常见的大模型 OpenAPI 规范</a>
+        </h2>
+
+        <div class="post-meta"><time class="post-date">2025-11-05</time></div>
+
+        
+          <span class="post-tags">
+            
+            #<a href="https://www.jinzhi.site/tags/ai/">AI</a>&nbsp;
+            
+            #<a href="https://www.jinzhi.site/tags/llm/">LLM</a>&nbsp;
+            
+            #<a href="https://www.jinzhi.site/tags/agent/">Agent</a>&nbsp;
+            
+          </span>
+        
+
+        
+
+
+        <div class="post-content">
+          
+            <p>AI Gateway 的对接开发中，一个重要的内容就是对接不同厂商推理服务的接口协议。目前，推理服务的接口协议主要分为以下几种类型：</p>
+<ul>
+<li>文本对话接口，如 OpenAI 的 chat completions 和 response API 等</li>
+<li>向量接口，向量接口用于将输入的文本或者图片、视频（多模态）等转换成向量表示，适用于搜索（文搜图、图搜图、图文混合搜索）、聚类、推荐等场景。</li>
+</ul>
+<h2 id="文本对话">文本对话</h2>
+<p>文本对话 API 需要提供如下能力支持：</p>
+<ol>
+<li>模型选择</li>
+<li>用户、系统、模型输入内容角色区分</li>
+<li>模型参数调整</li>
+<li>工具调用</li>
+<li>MCP 支持</li>
+<li>用量统计</li>
+</ol>
+<p>目前使用最广泛的文本对话接口自然是 OpenAI 的 chat completions API。几乎所有的 LLM 服务提供商都支持 chat completions compatible 调用。</p>
+<p><a href="https://platform.openai.com/docs/api-reference/introduction">https://platform.openai.com/docs/api-reference/introduction</a></p>
+<h3 id="chat-completions">chat completions</h3>
+<p>基本调用：</p>
+<pre tabindex="0"><code>curl https://api.openai.com/v1/chat/completions \
+  -H &#34;Content-Type: application/json&#34; \
+  -H &#34;Authorization: Bearer $OPENAI_API_KEY&#34; \
+  -d &#39;{
+    &#34;model&#34;: &#34;gpt-5&#34;,
+    &#34;messages&#34;: [
+      {
+        &#34;role&#34;: &#34;developer&#34;,
+        &#34;content&#34;: &#34;You are a helpful assistant.&#34;
+      },
+      {
+        &#34;role&#34;: &#34;user&#34;,
+        &#34;content&#34;: &#34;Hello!&#34;
+      }
+    ]
+  }&#39;
+</code></pre><ul>
+<li>model: 请求调用的模型</li>
+<li>messages：构成对话的消息体。根据消息的来源角色，message 可以分为 developer/system（开发者，系统提供的 prompt），user（用户自身的输入）和 assistant（模型的响应，用于多轮对话时模型的上下文传递）。
+<ul>
+<li>content 分为两种类型，纯文本即为 string，非纯文本 content 为列表类型，内容根据 type（text，image_url，input_audio 等）有不同的字段</li>
+</ul>
+</li>
+<li>stream：采用正常 HTTP 响应还是 sse 响应</li>
+<li>stream_options: 在 sse 响应时，有些模型默认不会输出 usage 信息，需要显式将 stream_options.include_usage 设置成 true</li>
+<li>temperature：模型温度，取值范围 0 - 2，值越高，输出的 tokens 随机性越大</li>
+<li>top_p：和 tempreature 一样对模型输出进行调整的参数，模型会考虑概率质量最高的top_p个tokens的结果。所以0.1意味着只考虑概率质量最高的10%的tokens。</li>
+<li>reasoning_effort：模型的推理深度，比如对于 OpenAI 模型来说有 minimal，low，medium，high 等多种选择。</li>
+<li>max_completion_tokens：最大输出 tokens 数，包括 output tokens 和 reasoning tokens。替代原来的 max_tokens 字段。</li>
+<li>tools：告知大模型本地可调用的工具列表。工具里面定义了工具的名称、描述和 json schema 表示的参数描述。替代原来的 functions 字段。</li>
+<li>tool_choice：告知模型对于工具的调用选择。none 表示不要调用任何工具直接生成 messages，auto 表示由模型自己决定是否调用 allowed_tools。required 表示模型必须调用至少一个工具。</li>
+</ul>
+<p>除此之外，各家可以在 OpenAI 标准的 API 上扩展自己的字段，比如 cherry studio 会使用 thinking 字段来开启/关闭模型思考：</p>
+          
+        </div>
+
+        
+          <div>
+            <a class="read-more button inline" href="/posts/2025-11/%E5%B8%B8%E8%A7%81%E7%9A%84%E5%A4%A7%E6%A8%A1%E5%9E%8B-openapi-%E8%A7%84%E8%8C%83/">[Read more]</a>
+          </div>
+        
+      </article>
+    
+      <article class="post on-list">
+        <h2 class="post-title">
           <a href="https://www.jinzhi.site/posts/2025-10/apisix-%E6%8F%92%E4%BB%B6%E4%BD%93%E7%B3%BB/">APISIX 插件体系</a>
         </h2>
 
@@ -475,95 +561,6 @@
         
       </article>
     
-      <article class="post on-list">
-        <h2 class="post-title">
-          <a href="https://www.jinzhi.site/posts/2025-09/go-%E6%B1%87%E7%BC%96%E5%88%86%E6%9E%90/">Go 汇编分析</a>
-        </h2>
-
-        <div class="post-meta"><time class="post-date">2025-09-17</time></div>
-
-        
-          <span class="post-tags">
-            
-            #<a href="https://www.jinzhi.site/tags/go/">Go</a>&nbsp;
-            
-          </span>
-        
-
-        
-
-
-        <div class="post-content">
-          
-            <p>Go的汇编不是像 C/C++ 一样，对机器码的直接描述，而是兼容跨平台需求实现的半抽象化的指令集。</p>
-<p><a href="https://go.dev/doc/asm">https://go.dev/doc/asm</a></p>
-<h2 id="汇编分析go-117">汇编分析（Go 1.17）</h2>
-<p>我们用一个简单的例子来开始汇编分析：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kn">package</span><span class="w"> </span><span class="nx">main</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="kd">func</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">	</span><span class="nf">add</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">)</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="p">}</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="kd">func</span><span class="w"> </span><span class="nf">add</span><span class="p">(</span><span class="nx">i</span><span class="p">,</span><span class="w"> </span><span class="nx">j</span><span class="w"> </span><span class="kt">int</span><span class="p">)</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="p">{</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">	</span><span class="k">return</span><span class="w"> </span><span class="nx">i</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">j</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="p">}</span><span class="w">
-</span></span></span></code></pre></div><p>汇编结果，删去了一些无关的输出：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl"><span class="c1"># go tool compile -S -l -N main.go</span>
-</span></span><span class="line"><span class="cl"><span class="s2">&#34;&#34;</span>.main STEXT <span class="nv">size</span><span class="o">=</span><span class="m">54</span> <span class="nv">args</span><span class="o">=</span>0x0 <span class="nv">locals</span><span class="o">=</span>0x18 <span class="nv">funcid</span><span class="o">=</span>0x0
-</span></span><span class="line"><span class="cl">        0x0000 <span class="m">00000</span> <span class="o">(</span>main.go:3<span class="o">)</span>        TEXT    <span class="s2">&#34;&#34;</span>.main<span class="o">(</span>SB<span class="o">)</span>, ABIInternal, <span class="nv">$24</span>-0
-</span></span><span class="line"><span class="cl">        0x0000 <span class="m">00000</span> <span class="o">(</span>main.go:3<span class="o">)</span>        CMPQ    SP, 16<span class="o">(</span>R14<span class="o">)</span>
-</span></span><span class="line"><span class="cl">        0x0004 <span class="m">00004</span> <span class="o">(</span>main.go:3<span class="o">)</span>        PCDATA  <span class="nv">$0</span>, <span class="nv">$-</span><span class="m">2</span>
-</span></span><span class="line"><span class="cl">        0x0004 <span class="m">00004</span> <span class="o">(</span>main.go:3<span class="o">)</span>        JLS     <span class="m">47</span>
-</span></span><span class="line"><span class="cl">        0x0006 <span class="m">00006</span> <span class="o">(</span>main.go:3<span class="o">)</span>        PCDATA  <span class="nv">$0</span>, <span class="nv">$-</span><span class="m">1</span>
-</span></span><span class="line"><span class="cl">        0x0006 <span class="m">00006</span> <span class="o">(</span>main.go:3<span class="o">)</span>        SUBQ    <span class="nv">$24</span>, SP
-</span></span><span class="line"><span class="cl">        0x000a <span class="m">00010</span> <span class="o">(</span>main.go:3<span class="o">)</span>        MOVQ    BP, 16<span class="o">(</span>SP<span class="o">)</span>
-</span></span><span class="line"><span class="cl">        0x000f <span class="m">00015</span> <span class="o">(</span>main.go:3<span class="o">)</span>        LEAQ    16<span class="o">(</span>SP<span class="o">)</span>, BP
-</span></span><span class="line"><span class="cl">        0x0014 <span class="m">00020</span> <span class="o">(</span>main.go:3<span class="o">)</span>        FUNCDATA        <span class="nv">$0</span>, gclocals·33cdeccccebe80329f1fdbee7f5874cb<span class="o">(</span>SB<span class="o">)</span>
-</span></span><span class="line"><span class="cl">        0x0014 <span class="m">00020</span> <span class="o">(</span>main.go:3<span class="o">)</span>        FUNCDATA        <span class="nv">$1</span>, gclocals·33cdeccccebe80329f1fdbee7f5874cb<span class="o">(</span>SB<span class="o">)</span>
-</span></span><span class="line"><span class="cl">        0x0014 <span class="m">00020</span> <span class="o">(</span>main.go:4<span class="o">)</span>        MOVL    <span class="nv">$1</span>, AX
-</span></span><span class="line"><span class="cl">        0x0019 <span class="m">00025</span> <span class="o">(</span>main.go:4<span class="o">)</span>        MOVL    <span class="nv">$3</span>, BX
-</span></span><span class="line"><span class="cl">        0x001e <span class="m">00030</span> <span class="o">(</span>main.go:4<span class="o">)</span>        PCDATA  <span class="nv">$1</span>, <span class="nv">$0</span>
-</span></span><span class="line"><span class="cl">        0x001e <span class="m">00030</span> <span class="o">(</span>main.go:4<span class="o">)</span>        NOP
-</span></span><span class="line"><span class="cl">        0x0020 <span class="m">00032</span> <span class="o">(</span>main.go:4<span class="o">)</span>        CALL    <span class="s2">&#34;&#34;</span>.add<span class="o">(</span>SB<span class="o">)</span>
-</span></span><span class="line"><span class="cl">        0x0025 <span class="m">00037</span> <span class="o">(</span>main.go:5<span class="o">)</span>        MOVQ    16<span class="o">(</span>SP<span class="o">)</span>, BP
-</span></span><span class="line"><span class="cl">        0x002a <span class="m">00042</span> <span class="o">(</span>main.go:5<span class="o">)</span>        ADDQ    <span class="nv">$24</span>, SP
-</span></span><span class="line"><span class="cl">        0x002e <span class="m">00046</span> <span class="o">(</span>main.go:5<span class="o">)</span>        RET
-</span></span><span class="line"><span class="cl">        0x002f <span class="m">00047</span> <span class="o">(</span>main.go:5<span class="o">)</span>        NOP
-</span></span><span class="line"><span class="cl">        0x002f <span class="m">00047</span> <span class="o">(</span>main.go:3<span class="o">)</span>        PCDATA  <span class="nv">$1</span>, <span class="nv">$-</span><span class="m">1</span>
-</span></span><span class="line"><span class="cl">        0x002f <span class="m">00047</span> <span class="o">(</span>main.go:3<span class="o">)</span>        PCDATA  <span class="nv">$0</span>, <span class="nv">$-</span><span class="m">2</span>
-</span></span><span class="line"><span class="cl">        0x002f <span class="m">00047</span> <span class="o">(</span>main.go:3<span class="o">)</span>        CALL    runtime.morestack_noctxt<span class="o">(</span>SB<span class="o">)</span>
-</span></span><span class="line"><span class="cl">        0x0034 <span class="m">00052</span> <span class="o">(</span>main.go:3<span class="o">)</span>        PCDATA  <span class="nv">$0</span>, <span class="nv">$-</span><span class="m">1</span>
-</span></span><span class="line"><span class="cl">        0x0034 <span class="m">00052</span> <span class="o">(</span>main.go:3<span class="o">)</span>        JMP     <span class="m">0</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl"><span class="s2">&#34;&#34;</span>.add STEXT nosplit <span class="nv">size</span><span class="o">=</span><span class="m">56</span> <span class="nv">args</span><span class="o">=</span>0x10 <span class="nv">locals</span><span class="o">=</span>0x10 <span class="nv">funcid</span><span class="o">=</span>0x0
-</span></span><span class="line"><span class="cl">        0x0000 <span class="m">00000</span> <span class="o">(</span>main.go:7<span class="o">)</span>        TEXT    <span class="s2">&#34;&#34;</span>.add<span class="o">(</span>SB<span class="o">)</span>, NOSPLIT<span class="p">|</span>ABIInternal, <span class="nv">$16</span>-16
-</span></span><span class="line"><span class="cl">        0x0000 <span class="m">00000</span> <span class="o">(</span>main.go:7<span class="o">)</span>        SUBQ    <span class="nv">$16</span>, SP
-</span></span><span class="line"><span class="cl">        0x0004 <span class="m">00004</span> <span class="o">(</span>main.go:7<span class="o">)</span>        MOVQ    BP, 8<span class="o">(</span>SP<span class="o">)</span>
-</span></span><span class="line"><span class="cl">        0x0009 <span class="m">00009</span> <span class="o">(</span>main.go:7<span class="o">)</span>        LEAQ    8<span class="o">(</span>SP<span class="o">)</span>, BP
-</span></span><span class="line"><span class="cl">        0x000e <span class="m">00014</span> <span class="o">(</span>main.go:7<span class="o">)</span>        FUNCDATA        <span class="nv">$0</span>, gclocals·33cdeccccebe80329f1fdbee7f5874cb<span class="o">(</span>SB<span class="o">)</span>
-</span></span><span class="line"><span class="cl">        0x000e <span class="m">00014</span> <span class="o">(</span>main.go:7<span class="o">)</span>        FUNCDATA        <span class="nv">$1</span>, gclocals·33cdeccccebe80329f1fdbee7f5874cb<span class="o">(</span>SB<span class="o">)</span>
-</span></span><span class="line"><span class="cl">        0x000e <span class="m">00014</span> <span class="o">(</span>main.go:7<span class="o">)</span>        FUNCDATA        <span class="nv">$5</span>, <span class="s2">&#34;&#34;</span>.add.arginfo1<span class="o">(</span>SB<span class="o">)</span>
-</span></span><span class="line"><span class="cl">        0x000e <span class="m">00014</span> <span class="o">(</span>main.go:7<span class="o">)</span>        MOVQ    AX, <span class="s2">&#34;&#34;</span>.i+24<span class="o">(</span>SP<span class="o">)</span>
-</span></span><span class="line"><span class="cl">        0x0013 <span class="m">00019</span> <span class="o">(</span>main.go:7<span class="o">)</span>        MOVQ    BX, <span class="s2">&#34;&#34;</span>.j+32<span class="o">(</span>SP<span class="o">)</span>
-</span></span><span class="line"><span class="cl">        0x0018 <span class="m">00024</span> <span class="o">(</span>main.go:7<span class="o">)</span>        MOVQ    <span class="nv">$0</span>, <span class="s2">&#34;&#34;</span>.~r2<span class="o">(</span>SP<span class="o">)</span>
-</span></span><span class="line"><span class="cl">        0x0020 <span class="m">00032</span> <span class="o">(</span>main.go:8<span class="o">)</span>        MOVQ    <span class="s2">&#34;&#34;</span>.i+24<span class="o">(</span>SP<span class="o">)</span>, AX
-</span></span><span class="line"><span class="cl">        0x0025 <span class="m">00037</span> <span class="o">(</span>main.go:8<span class="o">)</span>        ADDQ    <span class="s2">&#34;&#34;</span>.j+32<span class="o">(</span>SP<span class="o">)</span>, AX
-</span></span><span class="line"><span class="cl">        0x002a <span class="m">00042</span> <span class="o">(</span>main.go:8<span class="o">)</span>        MOVQ    AX, <span class="s2">&#34;&#34;</span>.~r2<span class="o">(</span>SP<span class="o">)</span>
-</span></span><span class="line"><span class="cl">        0x002e <span class="m">00046</span> <span class="o">(</span>main.go:8<span class="o">)</span>        MOVQ    8<span class="o">(</span>SP<span class="o">)</span>, BP
-</span></span><span class="line"><span class="cl">        0x0033 <span class="m">00051</span> <span class="o">(</span>main.go:8<span class="o">)</span>        ADDQ    <span class="nv">$16</span>, SP
-</span></span><span class="line"><span class="cl">        0x0037 <span class="m">00055</span> <span class="o">(</span>main.go:8<span class="o">)</span>        RET
-</span></span></code></pre></div><p><code>FUNCDATA</code>和<code>PCDATA</code>是由编译器引入的，主要包含垃圾回收时使用的信息，这里略过。</p>
-          
-        </div>
-
-        
-          <div>
-            <a class="read-more button inline" href="/posts/2025-09/go-%E6%B1%87%E7%BC%96%E5%88%86%E6%9E%90/">[Read more]</a>
-          </div>
-        
-      </article>
-    
 
     <div class="pagination">
   <div class="pagination__buttons">
@@ -793,10 +790,42 @@
       
       
     
+      
+      
+      
+    
 
     
     
 
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-11/" class="archive-link">
+          <span class="archive-date">2025-11</span>
+          <span class="archive-month-name">Nov</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
     
       
       
@@ -1359,6 +1388,14 @@
       
         
       
+        
+      
+    
+      
+        
+      
+        
+      
     
       
         
@@ -1573,10 +1610,19 @@
       
         
       
+    
+    
     
     
     
+      
+      
+    
+      
+      
     
+      
+      
     
       
       
@@ -1778,8 +1824,17 @@
     
     
     
+    
+    
+    
+      
+      
     
+      
+      
     
+      
+      
     
       
       
@@ -1864,10 +1919,16 @@
     
       
       
+    
+    
     
     
     
+      
+    
+      
     
+      
     
       
     
@@ -1924,10 +1985,48 @@
       
     
       
+    
     
     
     
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/agent/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Agent
+          <span class="tag-count">(1)</span>
+        </a>
+      
     
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/ai/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          AI
+          <span class="tag-count">(1)</span>
+        </a>
+      
     
       
       
@@ -2230,6 +2329,25 @@
            title="3 articles">
           Linux
           <span class="tag-count">(3)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/llm/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          LLM
+          <span class="tag-count">(1)</span>
         </a>
       
     

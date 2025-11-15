@@ -1,0 +1,2801 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  
+    <title>常见的大模型 OpenAPI 规范 :: chengzhycn&#39;s blog</title>
+  
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="AI Gateway 的对接开发中，一个重要的内容就是对接不同厂商推理服务的接口协议。目前，推理服务的接口协议主要分为以下几种类型：
+文本对话接口，如 OpenAI 的 chat completions 和 response API 等 向量接口，向量接口用于将输入的文本或者图片、视频（多模态）等转换成向量表示，适用于搜索（文搜图、图搜图、图文混合搜索）、聚类、推荐等场景。 文本对话 文本对话 API 需要提供如下能力支持：
+模型选择 用户、系统、模型输入内容角色区分 模型参数调整 工具调用 MCP 支持 用量统计 目前使用最广泛的文本对话接口自然是 OpenAI 的 chat completions API。几乎所有的 LLM 服务提供商都支持 chat completions compatible 调用。
+https://platform.openai.com/docs/api-reference/introduction
+chat completions 基本调用：
+curl https://api.openai.com/v1/chat/completions \ -H &#34;Content-Type: application/json&#34; \ -H &#34;Authorization: Bearer $OPENAI_API_KEY&#34; \ -d &#39;{ &#34;model&#34;: &#34;gpt-5&#34;, &#34;messages&#34;: [ { &#34;role&#34;: &#34;developer&#34;, &#34;content&#34;: &#34;You are a helpful assistant.&#34; }, { &#34;role&#34;: &#34;user&#34;, &#34;content&#34;: &#34;Hello!&#34; } ] }&#39; model: 请求调用的模型 messages：构成对话的消息体。根据消息的来源角色，message 可以分为 developer/system（开发者，系统提供的 prompt），user（用户自身的输入）和 assistant（模型的响应，用于多轮对话时模型的上下文传递）。 content 分为两种类型，纯文本即为 string，非纯文本 content 为列表类型，内容根据 type（text，image_url，input_audio 等）有不同的字段 stream：采用正常 HTTP 响应还是 sse 响应 stream_options: 在 sse 响应时，有些模型默认不会输出 usage 信息，需要显式将 stream_options.include_usage 设置成 true temperature：模型温度，取值范围 0 - 2，值越高，输出的 tokens 随机性越大 top_p：和 tempreature 一样对模型输出进行调整的参数，模型会考虑概率质量最高的top_p个tokens的结果。所以0.1意味着只考虑概率质量最高的10%的tokens。 reasoning_effort：模型的推理深度，比如对于 OpenAI 模型来说有 minimal，low，medium，high 等多种选择。 max_completion_tokens：最大输出 tokens 数，包括 output tokens 和 reasoning tokens。替代原来的 max_tokens 字段。 tools：告知大模型本地可调用的工具列表。工具里面定义了工具的名称、描述和 json schema 表示的参数描述。替代原来的 functions 字段。 tool_choice：告知模型对于工具的调用选择。none 表示不要调用任何工具直接生成 messages，auto 表示由模型自己决定是否调用 allowed_tools。required 表示模型必须调用至少一个工具。 除此之外，各家可以在 OpenAI 标准的 API 上扩展自己的字段，比如 cherry studio 会使用 thinking 字段来开启/关闭模型思考：
+" />
+<meta name="keywords" content="" />
+
+  <meta name="robots" content="noodp" />
+
+<link rel="canonical" href="https://www.jinzhi.site/posts/2025-11/%E5%B8%B8%E8%A7%81%E7%9A%84%E5%A4%A7%E6%A8%A1%E5%9E%8B-openapi-%E8%A7%84%E8%8C%83/" />
+
+
+
+
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/buttons.min.86f6b4c106b6c6eb690ae5203d36b442c1f66f718ff4e8164fa86cf6c61ad641.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/code.min.d529ea4b2fb8d34328d7d31afc5466d5f7bc2f0bc9abdd98b69385335d7baee4.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/fonts.min.5bb7ed13e1d00d8ff39ea84af26737007eb5051b157b86fc24487c94f3dc8bbe.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/footer.min.eb8dfc2c6a7eafa36cd3ba92d63e69e849e2200e0002a228d137f236b09ecd75.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/gist.min.a751e8b0abe1ba8bc53ced52a38b19d8950fe78ca29454ea8c2595cf26aad5c0.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/header.min.75c7eb0e2872d95ff48109c6647d0223a38db52e2561dd87966eb5fc7c6bdac6.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/main.min.7984a754b43b7469d389c539410e90dff2870263de16b008dfc7e8170fcd0f5b.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/menu.min.3c17467ebeb3d38663dce68f71f519901124fa5cbb4519b2fb0667a21e9aca39.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/pagination.min.bbb986dbce00a5ce5aca0504b7925fc1c581992a4bf57f163e5d69cc1db7d836.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/post.min.e6dddd258e64c83e05cec0cd49c05216742d42fc8ecbfbe6b67083412b609bd3.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/syntax.min.a0773cce9310cb6d8ed23e50f005448facf29a53001b57e038828daa466b25c0.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/terminal.min.e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/terms.min.b81791663c3790e738e571cdbf802312390d30e4b1d8dc9d814a5b5454d0ac11.css">
+
+
+
+
+
+
+
+<link rel="shortcut icon" href="https://www.jinzhi.site/favicon.png">
+<link rel="apple-touch-icon" href="https://www.jinzhi.site/apple-touch-icon.png">
+
+
+<meta name="twitter:card" content="summary" />
+
+  
+    <meta name="twitter:site" content="" />
+  
+    <meta name="twitter:creator" content="" />
+
+
+
+<meta property="og:locale" content="en" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="常见的大模型 OpenAPI 规范">
+<meta property="og:description" content="AI Gateway 的对接开发中，一个重要的内容就是对接不同厂商推理服务的接口协议。目前，推理服务的接口协议主要分为以下几种类型：
+文本对话接口，如 OpenAI 的 chat completions 和 response API 等 向量接口，向量接口用于将输入的文本或者图片、视频（多模态）等转换成向量表示，适用于搜索（文搜图、图搜图、图文混合搜索）、聚类、推荐等场景。 文本对话 文本对话 API 需要提供如下能力支持：
+模型选择 用户、系统、模型输入内容角色区分 模型参数调整 工具调用 MCP 支持 用量统计 目前使用最广泛的文本对话接口自然是 OpenAI 的 chat completions API。几乎所有的 LLM 服务提供商都支持 chat completions compatible 调用。
+https://platform.openai.com/docs/api-reference/introduction
+chat completions 基本调用：
+curl https://api.openai.com/v1/chat/completions \ -H &#34;Content-Type: application/json&#34; \ -H &#34;Authorization: Bearer $OPENAI_API_KEY&#34; \ -d &#39;{ &#34;model&#34;: &#34;gpt-5&#34;, &#34;messages&#34;: [ { &#34;role&#34;: &#34;developer&#34;, &#34;content&#34;: &#34;You are a helpful assistant.&#34; }, { &#34;role&#34;: &#34;user&#34;, &#34;content&#34;: &#34;Hello!&#34; } ] }&#39; model: 请求调用的模型 messages：构成对话的消息体。根据消息的来源角色，message 可以分为 developer/system（开发者，系统提供的 prompt），user（用户自身的输入）和 assistant（模型的响应，用于多轮对话时模型的上下文传递）。 content 分为两种类型，纯文本即为 string，非纯文本 content 为列表类型，内容根据 type（text，image_url，input_audio 等）有不同的字段 stream：采用正常 HTTP 响应还是 sse 响应 stream_options: 在 sse 响应时，有些模型默认不会输出 usage 信息，需要显式将 stream_options.include_usage 设置成 true temperature：模型温度，取值范围 0 - 2，值越高，输出的 tokens 随机性越大 top_p：和 tempreature 一样对模型输出进行调整的参数，模型会考虑概率质量最高的top_p个tokens的结果。所以0.1意味着只考虑概率质量最高的10%的tokens。 reasoning_effort：模型的推理深度，比如对于 OpenAI 模型来说有 minimal，low，medium，high 等多种选择。 max_completion_tokens：最大输出 tokens 数，包括 output tokens 和 reasoning tokens。替代原来的 max_tokens 字段。 tools：告知大模型本地可调用的工具列表。工具里面定义了工具的名称、描述和 json schema 表示的参数描述。替代原来的 functions 字段。 tool_choice：告知模型对于工具的调用选择。none 表示不要调用任何工具直接生成 messages，auto 表示由模型自己决定是否调用 allowed_tools。required 表示模型必须调用至少一个工具。 除此之外，各家可以在 OpenAI 标准的 API 上扩展自己的字段，比如 cherry studio 会使用 thinking 字段来开启/关闭模型思考：
+" />
+<meta property="og:url" content="https://www.jinzhi.site/posts/2025-11/%E5%B8%B8%E8%A7%81%E7%9A%84%E5%A4%A7%E6%A8%A1%E5%9E%8B-openapi-%E8%A7%84%E8%8C%83/" />
+<meta property="og:site_name" content="chengzhycn&#39;s blog" />
+
+  <meta property="og:image" content="https://www.jinzhi.site/og-image.png">
+
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="627">
+
+  <meta property="article:section" content="Learning" />
+
+
+  <meta property="article:published_time" content="2025-11-05 21:18:28 &#43;0800 &#43;0800" />
+
+
+
+
+
+
+
+
+
+<html>
+<head>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-screen-web/style.css" />
+  <style>
+    body {
+      font-family: "LXGW WenKai Screen";
+      font-weight: normal;
+    }
+  </style>
+</head>
+<body>
+
+</body>
+</html>
+
+
+</head>
+<body>
+
+
+<div class="page-wrapper">
+  <div class="container center">
+
+  <header class="header">
+  <div class="header__inner">
+    <div class="header__logo">
+      <a href="/">
+  <div class="logo">
+    chengzhycn&#39;s blog
+  </div>
+</a>
+
+    </div>
+    
+      <ul class="menu menu--mobile">
+  <li class="menu__trigger">Menu&nbsp;▾</li>
+  <li>
+    <ul class="menu__dropdown">
+      
+        
+          <li><a href="/">Home</a></li>
+        
+      
+        
+          <li><a href="/about">About</a></li>
+        
+      
+        
+          <li><a href="/categories/">Categories</a></li>
+        
+      
+        
+          <li><a href="/tags/">Tags</a></li>
+        
+      
+        
+          <li><a href="/archives/">Archives</a></li>
+        
+      
+      
+    </ul>
+  </li>
+</ul>
+
+    
+    
+  </div>
+  
+    <nav class="navigation-menu">
+  <ul class="navigation-menu__inner menu--desktop">
+    
+      
+        
+          <li><a href="/" >Home</a></li>
+        
+      
+        
+          <li><a href="/about" >About</a></li>
+        
+      
+        
+          <li><a href="/categories/" >Categories</a></li>
+        
+      
+        
+          <li><a href="/tags/" >Tags</a></li>
+        
+      
+        
+          <li><a href="/archives/" >Archives</a></li>
+        
+      
+      
+    
+  </ul>
+</nav>
+
+  
+</header>
+
+
+  <div class="content">
+    
+<article class="post">
+  <h1 class="post-title">
+    <a href="https://www.jinzhi.site/posts/2025-11/%E5%B8%B8%E8%A7%81%E7%9A%84%E5%A4%A7%E6%A8%A1%E5%9E%8B-openapi-%E8%A7%84%E8%8C%83/">常见的大模型 OpenAPI 规范</a>
+  </h1>
+  <div class="post-meta"><time class="post-date">2025-11-05</time><span class="post-reading-time">4 min read (821 words)</span></div>
+
+  
+    <span class="post-tags">
+      
+      #<a href="https://www.jinzhi.site/tags/ai/">AI</a>&nbsp;
+      
+      #<a href="https://www.jinzhi.site/tags/llm/">LLM</a>&nbsp;
+      
+      #<a href="https://www.jinzhi.site/tags/agent/">Agent</a>&nbsp;
+      
+    </span>
+  
+  
+
+
+  
+    <div class="table-of-contents">
+      <h2>
+        Table of Contents
+      </h2>
+      <nav id="TableOfContents">
+  <ul>
+    <li><a href="#文本对话">文本对话</a>
+      <ul>
+        <li><a href="#chat-completions">chat completions</a></li>
+        <li><a href="#responses">Responses</a></li>
+        <li><a href="#google-gemini">Google Gemini</a></li>
+        <li><a href="#claude-code">Claude Code</a></li>
+      </ul>
+    </li>
+    <li><a href="#向量接口">向量接口</a></li>
+  </ul>
+</nav>
+    </div>
+  
+
+  <div class="post-content"><div>
+        <p>AI Gateway 的对接开发中，一个重要的内容就是对接不同厂商推理服务的接口协议。目前，推理服务的接口协议主要分为以下几种类型：</p>
+<ul>
+<li>文本对话接口，如 OpenAI 的 chat completions 和 response API 等</li>
+<li>向量接口，向量接口用于将输入的文本或者图片、视频（多模态）等转换成向量表示，适用于搜索（文搜图、图搜图、图文混合搜索）、聚类、推荐等场景。</li>
+</ul>
+<h2 id="文本对话">文本对话<a href="#文本对话" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>文本对话 API 需要提供如下能力支持：</p>
+<ol>
+<li>模型选择</li>
+<li>用户、系统、模型输入内容角色区分</li>
+<li>模型参数调整</li>
+<li>工具调用</li>
+<li>MCP 支持</li>
+<li>用量统计</li>
+</ol>
+<p>目前使用最广泛的文本对话接口自然是 OpenAI 的 chat completions API。几乎所有的 LLM 服务提供商都支持 chat completions compatible 调用。</p>
+<p><a href="https://platform.openai.com/docs/api-reference/introduction">https://platform.openai.com/docs/api-reference/introduction</a></p>
+<h3 id="chat-completions">chat completions<a href="#chat-completions" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>基本调用：</p>
+<pre tabindex="0"><code>curl https://api.openai.com/v1/chat/completions \
+  -H &#34;Content-Type: application/json&#34; \
+  -H &#34;Authorization: Bearer $OPENAI_API_KEY&#34; \
+  -d &#39;{
+    &#34;model&#34;: &#34;gpt-5&#34;,
+    &#34;messages&#34;: [
+      {
+        &#34;role&#34;: &#34;developer&#34;,
+        &#34;content&#34;: &#34;You are a helpful assistant.&#34;
+      },
+      {
+        &#34;role&#34;: &#34;user&#34;,
+        &#34;content&#34;: &#34;Hello!&#34;
+      }
+    ]
+  }&#39;
+</code></pre><ul>
+<li>model: 请求调用的模型</li>
+<li>messages：构成对话的消息体。根据消息的来源角色，message 可以分为 developer/system（开发者，系统提供的 prompt），user（用户自身的输入）和 assistant（模型的响应，用于多轮对话时模型的上下文传递）。
+<ul>
+<li>content 分为两种类型，纯文本即为 string，非纯文本 content 为列表类型，内容根据 type（text，image_url，input_audio 等）有不同的字段</li>
+</ul>
+</li>
+<li>stream：采用正常 HTTP 响应还是 sse 响应</li>
+<li>stream_options: 在 sse 响应时，有些模型默认不会输出 usage 信息，需要显式将 stream_options.include_usage 设置成 true</li>
+<li>temperature：模型温度，取值范围 0 - 2，值越高，输出的 tokens 随机性越大</li>
+<li>top_p：和 tempreature 一样对模型输出进行调整的参数，模型会考虑概率质量最高的top_p个tokens的结果。所以0.1意味着只考虑概率质量最高的10%的tokens。</li>
+<li>reasoning_effort：模型的推理深度，比如对于 OpenAI 模型来说有 minimal，low，medium，high 等多种选择。</li>
+<li>max_completion_tokens：最大输出 tokens 数，包括 output tokens 和 reasoning tokens。替代原来的 max_tokens 字段。</li>
+<li>tools：告知大模型本地可调用的工具列表。工具里面定义了工具的名称、描述和 json schema 表示的参数描述。替代原来的 functions 字段。</li>
+<li>tool_choice：告知模型对于工具的调用选择。none 表示不要调用任何工具直接生成 messages，auto 表示由模型自己决定是否调用 allowed_tools。required 表示模型必须调用至少一个工具。</li>
+</ul>
+<p>除此之外，各家可以在 OpenAI 标准的 API 上扩展自己的字段，比如 cherry studio 会使用 thinking 字段来开启/关闭模型思考：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-json" data-lang="json"><span class="line"><span class="cl"><span class="p">{</span>  
+</span></span><span class="line"><span class="cl">    <span class="nt">&#34;model&#34;</span><span class="p">:</span> <span class="s2">&#34;glm-4.5-flash&#34;</span><span class="p">,</span>  
+</span></span><span class="line"><span class="cl">    <span class="nt">&#34;temperature&#34;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>  
+</span></span><span class="line"><span class="cl">    <span class="nt">&#34;thinking&#34;</span><span class="p">:</span> <span class="p">{</span>  
+</span></span><span class="line"><span class="cl">        <span class="nt">&#34;type&#34;</span><span class="p">:</span> <span class="s2">&#34;enabled&#34;</span>  
+</span></span><span class="line"><span class="cl">    <span class="p">},</span>  
+</span></span><span class="line"><span class="cl">    <span class="nt">&#34;messages&#34;</span><span class="p">:</span> <span class="p">[{</span>  
+</span></span><span class="line"><span class="cl">        <span class="nt">&#34;role&#34;</span><span class="p">:</span> <span class="s2">&#34;user&#34;</span><span class="p">,</span>  
+</span></span><span class="line"><span class="cl">        <span class="nt">&#34;content&#34;</span><span class="p">:</span> <span class="s2">&#34;openresty 的 lua http 和 nginx 原生的 转发性能相比怎么样&#34;</span>  
+</span></span><span class="line"><span class="cl">    <span class="p">}],</span>  
+</span></span><span class="line"><span class="cl">    <span class="nt">&#34;stream&#34;</span><span class="p">:</span> <span class="kc">true</span><span class="p">,</span>  
+</span></span><span class="line"><span class="cl">    <span class="nt">&#34;stream_options&#34;</span><span class="p">:</span> <span class="p">{</span>  
+</span></span><span class="line"><span class="cl">        <span class="nt">&#34;include_usage&#34;</span><span class="p">:</span> <span class="kc">true</span>  
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>  
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>模型响应示例：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="o">{</span>
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;id&#34;</span>: <span class="s2">&#34;chatcmpl-B9MBs8CjcvOU2jLn4n570S5qMJKcT&#34;</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;object&#34;</span>: <span class="s2">&#34;chat.completion&#34;</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;created&#34;</span>: 1741569952,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;model&#34;</span>: <span class="s2">&#34;gpt-4.1-2025-04-14&#34;</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;choices&#34;</span>: <span class="o">[</span>
+</span></span><span class="line"><span class="cl">    <span class="o">{</span>
+</span></span><span class="line"><span class="cl">      <span class="s2">&#34;index&#34;</span>: 0,
+</span></span><span class="line"><span class="cl">      <span class="s2">&#34;message&#34;</span>: <span class="o">{</span>
+</span></span><span class="line"><span class="cl">        <span class="s2">&#34;role&#34;</span>: <span class="s2">&#34;assistant&#34;</span>,
+</span></span><span class="line"><span class="cl">        <span class="s2">&#34;content&#34;</span>: <span class="s2">&#34;Hello! How can I assist you today?&#34;</span>,
+</span></span><span class="line"><span class="cl">        <span class="s2">&#34;refusal&#34;</span>: null,
+</span></span><span class="line"><span class="cl">        <span class="s2">&#34;annotations&#34;</span>: <span class="o">[]</span>
+</span></span><span class="line"><span class="cl">      <span class="o">}</span>,
+</span></span><span class="line"><span class="cl">      <span class="s2">&#34;logprobs&#34;</span>: null,
+</span></span><span class="line"><span class="cl">      <span class="s2">&#34;finish_reason&#34;</span>: <span class="s2">&#34;stop&#34;</span>
+</span></span><span class="line"><span class="cl">    <span class="o">}</span>
+</span></span><span class="line"><span class="cl">  <span class="o">]</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;usage&#34;</span>: <span class="o">{</span>
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;prompt_tokens&#34;</span>: 19,
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;completion_tokens&#34;</span>: 10,
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;total_tokens&#34;</span>: 29,
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;prompt_tokens_details&#34;</span>: <span class="o">{</span>
+</span></span><span class="line"><span class="cl">      <span class="s2">&#34;cached_tokens&#34;</span>: 0,
+</span></span><span class="line"><span class="cl">      <span class="s2">&#34;audio_tokens&#34;</span>: <span class="m">0</span>
+</span></span><span class="line"><span class="cl">    <span class="o">}</span>,
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;completion_tokens_details&#34;</span>: <span class="o">{</span>
+</span></span><span class="line"><span class="cl">      <span class="s2">&#34;reasoning_tokens&#34;</span>: 0,
+</span></span><span class="line"><span class="cl">      <span class="s2">&#34;audio_tokens&#34;</span>: 0,
+</span></span><span class="line"><span class="cl">      <span class="s2">&#34;accepted_prediction_tokens&#34;</span>: 0,
+</span></span><span class="line"><span class="cl">      <span class="s2">&#34;rejected_prediction_tokens&#34;</span>: <span class="m">0</span>
+</span></span><span class="line"><span class="cl">    <span class="o">}</span>
+</span></span><span class="line"><span class="cl">  <span class="o">}</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;service_tier&#34;</span>: <span class="s2">&#34;default&#34;</span>
+</span></span><span class="line"><span class="cl"><span class="o">}</span>
+</span></span></code></pre></div><ul>
+<li>choices：模型提供的多个候选响应，常见在图片生成时提供给用户多个选择。</li>
+<li>usage：用量统计
+<ul>
+<li>prompt tokens：提示词（输入）tokens</li>
+<li>completion_tokens：输出 tokens</li>
+<li>total_tokens：总消耗 tokens</li>
+</ul>
+</li>
+<li>message.tool_calls：模型生成的工具调用列表，包括工具名称和参数</li>
+</ul>
+<h3 id="responses">Responses<a href="#responses" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>Responses API 是 OpenAI 用来替代 chat completions 的文本对话 API。</p>
+<p>根据官方文档，Responses API 对比 chat completions 有如下优势：</p>
+<ul>
+<li>更好的性能：与 Chat Completions 相比，将推理模型（如 GPT-5）与 Responses 结合使用将带来更好的模型智能。我们的内部评估显示，在相同的提示和设置下，SWE-bench 性能提高了 3%。</li>
+<li>默认代理：Responses API 是一个代理循环，允许模型在一个 API 请求的范围内调用多个工具，例如 web_search、image_generation、file_search、code_interpreter、远程 MCP 服务器以及您自己的自定义函数。</li>
+<li>更低的成本：由于改进的缓存利用率（在内部测试中，与 Chat Completions 相比，提高了 40% 到 80%），从而降低了成本。</li>
+<li>有状态的上下文：使用 store: true 来保持轮次之间的状态，从而保留轮次之间的推理和工具上下文。</li>
+<li>灵活的输入：传递带有输入的字符串或消息列表；使用指令进行系统级指导。</li>
+<li>加密推理：选择退出有状态，同时仍然受益于高级推理。</li>
+<li>面向未来：面向即将推出的模型。</li>
+</ul>
+<p><img src="/images/notes/%E5%B8%B8%E8%A7%81%E7%9A%84%E5%A4%A7%E6%A8%A1%E5%9E%8B-openapi-%E8%A7%84%E8%8C%83/81e15626b9678c199374227859b9d4ef_MD5.jpeg" alt="81e15626b9678c199374227859b9d4ef_MD5"></p>
+<p>总的来说，Responses API 做了如下一些提升：</p>
+<ol>
+<li>提供了一些内置的 tool 如 web-search，file-search，computer-use，code-interpreter 等，使用者可以不用再自己封装 functions</li>
+<li>API 的输入输出更加结构化和精炼，取消了 choice，只提供一个输出</li>
+<li>多轮对话场景下请求和响应结构进行了优化</li>
+</ol>
+<p>唯一的缺点就是 chat completions 已经被绝大部分模型兼容使用。。。</p>
+<p>请求示例：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">curl https://api.openai.com/v1/responses <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>  -H <span class="s2">&#34;Content-Type: application/json&#34;</span> <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>  -H <span class="s2">&#34;Authorization: Bearer </span><span class="nv">$OPENAI_API_KEY</span><span class="s2">&#34;</span> <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>  -d <span class="s1">&#39;{
+</span></span></span><span class="line"><span class="cl"><span class="s1">    &#34;model&#34;: &#34;o3-mini&#34;,
+</span></span></span><span class="line"><span class="cl"><span class="s1">    &#34;input&#34;: &#34;How much wood would a woodchuck chuck?&#34;,
+</span></span></span><span class="line"><span class="cl"><span class="s1">    &#34;reasoning&#34;: {
+</span></span></span><span class="line"><span class="cl"><span class="s1">      &#34;effort&#34;: &#34;high&#34;
+</span></span></span><span class="line"><span class="cl"><span class="s1">    }
+</span></span></span><span class="line"><span class="cl"><span class="s1">  }&#39;</span>
+</span></span></code></pre></div><ul>
+<li>input：替代原先的 message 参数，用户输入，取消了 role 参数，用户和 system/developer 用不同的参数分开</li>
+<li>instructions：替代原先的 message 参数，system/developer role</li>
+<li>max_output_tokens：= max_completions_tokens</li>
+<li>reasoning：effort = reasoning_effort</li>
+<li>tools：支持 built-in tools（如 web-search，file-search）mcp，function calls</li>
+</ul>
+<p>响应示例：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="o">{</span>
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;id&#34;</span>: <span class="s2">&#34;resp_67ccd7eca01881908ff0b5146584e408072912b2993db808&#34;</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;object&#34;</span>: <span class="s2">&#34;response&#34;</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;created_at&#34;</span>: 1741477868,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;status&#34;</span>: <span class="s2">&#34;completed&#34;</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;error&#34;</span>: null,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;incomplete_details&#34;</span>: null,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;instructions&#34;</span>: null,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;max_output_tokens&#34;</span>: null,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;model&#34;</span>: <span class="s2">&#34;o1-2024-12-17&#34;</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;output&#34;</span>: <span class="o">[</span>
+</span></span><span class="line"><span class="cl">    <span class="o">{</span>
+</span></span><span class="line"><span class="cl">      <span class="s2">&#34;type&#34;</span>: <span class="s2">&#34;message&#34;</span>,
+</span></span><span class="line"><span class="cl">      <span class="s2">&#34;id&#34;</span>: <span class="s2">&#34;msg_67ccd7f7b5848190a6f3e95d809f6b44072912b2993db808&#34;</span>,
+</span></span><span class="line"><span class="cl">      <span class="s2">&#34;status&#34;</span>: <span class="s2">&#34;completed&#34;</span>,
+</span></span><span class="line"><span class="cl">      <span class="s2">&#34;role&#34;</span>: <span class="s2">&#34;assistant&#34;</span>,
+</span></span><span class="line"><span class="cl">      <span class="s2">&#34;content&#34;</span>: <span class="o">[</span>
+</span></span><span class="line"><span class="cl">        <span class="o">{</span>
+</span></span><span class="line"><span class="cl">          <span class="s2">&#34;type&#34;</span>: <span class="s2">&#34;output_text&#34;</span>,
+</span></span><span class="line"><span class="cl">          <span class="s2">&#34;text&#34;</span>: <span class="s2">&#34;The classic tongue twister...&#34;</span>,
+</span></span><span class="line"><span class="cl">          <span class="s2">&#34;annotations&#34;</span>: <span class="o">[]</span>
+</span></span><span class="line"><span class="cl">        <span class="o">}</span>
+</span></span><span class="line"><span class="cl">      <span class="o">]</span>
+</span></span><span class="line"><span class="cl">    <span class="o">}</span>
+</span></span><span class="line"><span class="cl">  <span class="o">]</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;parallel_tool_calls&#34;</span>: true,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;previous_response_id&#34;</span>: null,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;reasoning&#34;</span>: <span class="o">{</span>
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;effort&#34;</span>: <span class="s2">&#34;high&#34;</span>,
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;summary&#34;</span>: null
+</span></span><span class="line"><span class="cl">  <span class="o">}</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;store&#34;</span>: true,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;temperature&#34;</span>: 1.0,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;text&#34;</span>: <span class="o">{</span>
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;format&#34;</span>: <span class="o">{</span>
+</span></span><span class="line"><span class="cl">      <span class="s2">&#34;type&#34;</span>: <span class="s2">&#34;text&#34;</span>
+</span></span><span class="line"><span class="cl">    <span class="o">}</span>
+</span></span><span class="line"><span class="cl">  <span class="o">}</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;tool_choice&#34;</span>: <span class="s2">&#34;auto&#34;</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;tools&#34;</span>: <span class="o">[]</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;top_p&#34;</span>: 1.0,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;truncation&#34;</span>: <span class="s2">&#34;disabled&#34;</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;usage&#34;</span>: <span class="o">{</span>
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;input_tokens&#34;</span>: 81,
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;input_tokens_details&#34;</span>: <span class="o">{</span>
+</span></span><span class="line"><span class="cl">      <span class="s2">&#34;cached_tokens&#34;</span>: <span class="m">0</span>
+</span></span><span class="line"><span class="cl">    <span class="o">}</span>,
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;output_tokens&#34;</span>: 1035,
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;output_tokens_details&#34;</span>: <span class="o">{</span>
+</span></span><span class="line"><span class="cl">      <span class="s2">&#34;reasoning_tokens&#34;</span>: <span class="m">832</span>
+</span></span><span class="line"><span class="cl">    <span class="o">}</span>,
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;total_tokens&#34;</span>: <span class="m">1116</span>
+</span></span><span class="line"><span class="cl">  <span class="o">}</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;user&#34;</span>: null,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;metadata&#34;</span>: <span class="o">{}</span>
+</span></span><span class="line"><span class="cl"><span class="o">}</span>
+</span></span></code></pre></div><ul>
+<li>output：替代 choice[0].message</li>
+<li>usage
+<ul>
+<li>input_tokens: = prompt_tokens</li>
+<li>ouput_tokens = completion_tokens</li>
+</ul>
+</li>
+</ul>
+<h3 id="google-gemini">Google Gemini<a href="#google-gemini" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p><a href="https://ai.google.dev/api">https://ai.google.dev/api</a></p>
+<p>请求示例：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">curl <span class="s2">&#34;https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent&#34;</span> <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>  -H <span class="s2">&#34;x-goog-api-key: </span><span class="nv">$GEMINI_API_KEY</span><span class="s2">&#34;</span> <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>  -H <span class="s1">&#39;Content-Type: application/json&#39;</span> <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>  -X POST <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>  -d <span class="s1">&#39;{
+</span></span></span><span class="line"><span class="cl"><span class="s1">    &#34;system_instruction&#34;: {
+</span></span></span><span class="line"><span class="cl"><span class="s1">      &#34;parts&#34;: [
+</span></span></span><span class="line"><span class="cl"><span class="s1">        {
+</span></span></span><span class="line"><span class="cl"><span class="s1">          &#34;text&#34;: &#34;You are a cat. Your name is Neko.&#34;
+</span></span></span><span class="line"><span class="cl"><span class="s1">        }
+</span></span></span><span class="line"><span class="cl"><span class="s1">      ]
+</span></span></span><span class="line"><span class="cl"><span class="s1">    },
+</span></span></span><span class="line"><span class="cl"><span class="s1">    &#34;contents&#34;: [
+</span></span></span><span class="line"><span class="cl"><span class="s1">      {
+</span></span></span><span class="line"><span class="cl"><span class="s1">        &#34;parts&#34;: [
+</span></span></span><span class="line"><span class="cl"><span class="s1">          {
+</span></span></span><span class="line"><span class="cl"><span class="s1">            &#34;text&#34;: &#34;How does AI work?&#34;
+</span></span></span><span class="line"><span class="cl"><span class="s1">          }
+</span></span></span><span class="line"><span class="cl"><span class="s1">        ]
+</span></span></span><span class="line"><span class="cl"><span class="s1">      }
+</span></span></span><span class="line"><span class="cl"><span class="s1">    ],
+</span></span></span><span class="line"><span class="cl"><span class="s1">    &#34;generationConfig&#34;: {
+</span></span></span><span class="line"><span class="cl"><span class="s1">      &#34;thinkingConfig&#34;: {
+</span></span></span><span class="line"><span class="cl"><span class="s1">	    &#34;includeThought&#34;: true,
+</span></span></span><span class="line"><span class="cl"><span class="s1">        &#34;thinkingBudget&#34;: 10000
+</span></span></span><span class="line"><span class="cl"><span class="s1">      }
+</span></span></span><span class="line"><span class="cl"><span class="s1">    }
+</span></span></span><span class="line"><span class="cl"><span class="s1">  }&#39;</span>
+</span></span></code></pre></div><ul>
+<li>contents：用于存放 prompt，role 为 user（用户输入）和 model（模型输入）</li>
+<li>system_instruction：系统提示词</li>
+<li>generationConfig：模型配置
+<ul>
+<li>thinkingConfig：includeThought 是否在响应中包含模型思考过程，thinkingBudget 为思考深度（tokens 计量）</li>
+</ul>
+</li>
+<li>tools：定义工具调用的名称/参数 schema</li>
+<li>mcp：目前 gemini 仅在 python 和 js sdk 中支持 mcp</li>
+</ul>
+<p>另外 Gemini api models 选择是在 path 中就指定的，而 sse 开启则是在 query 参数中指定 <code>alt=sse</code>。</p>
+<p>响应示例：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-json" data-lang="json"><span class="line"><span class="cl"><span class="p">{</span>  
+</span></span><span class="line"><span class="cl">    <span class="nt">&#34;candidates&#34;</span><span class="p">:</span> <span class="p">[{</span>  
+</span></span><span class="line"><span class="cl">        <span class="nt">&#34;content&#34;</span><span class="p">:</span> <span class="p">{</span>  
+</span></span><span class="line"><span class="cl">            <span class="nt">&#34;parts&#34;</span><span class="p">:</span> <span class="p">[{</span>  
+</span></span><span class="line"><span class="cl">                <span class="nt">&#34;text&#34;</span><span class="p">:</span> <span class="s2">&#34;APISIX 与 Kong 的对比分析\n&#34;</span>  
+</span></span><span class="line"><span class="cl">            <span class="p">}],</span>  
+</span></span><span class="line"><span class="cl">            <span class="nt">&#34;role&#34;</span><span class="p">:</span> <span class="s2">&#34;model&#34;</span>  
+</span></span><span class="line"><span class="cl">        <span class="p">},</span>  
+</span></span><span class="line"><span class="cl">        <span class="nt">&#34;finishReason&#34;</span><span class="p">:</span> <span class="s2">&#34;STOP&#34;</span><span class="p">,</span>  
+</span></span><span class="line"><span class="cl">        <span class="nt">&#34;avgLogprobs&#34;</span><span class="p">:</span> <span class="mf">-0.36287453770637512</span>  
+</span></span><span class="line"><span class="cl">    <span class="p">}],</span>  
+</span></span><span class="line"><span class="cl">    <span class="nt">&#34;usageMetadata&#34;</span><span class="p">:</span> <span class="p">{</span>  
+</span></span><span class="line"><span class="cl">        <span class="nt">&#34;promptTokenCount&#34;</span><span class="p">:</span> <span class="mi">1760</span><span class="p">,</span>  
+</span></span><span class="line"><span class="cl">        <span class="nt">&#34;candidatesTokenCount&#34;</span><span class="p">:</span> <span class="mi">8</span><span class="p">,</span>  
+</span></span><span class="line"><span class="cl">        <span class="nt">&#34;totalTokenCount&#34;</span><span class="p">:</span> <span class="mi">1768</span><span class="p">,</span>  
+</span></span><span class="line"><span class="cl">        <span class="nt">&#34;promptTokensDetails&#34;</span><span class="p">:</span> <span class="p">[{</span>  
+</span></span><span class="line"><span class="cl">            <span class="nt">&#34;modality&#34;</span><span class="p">:</span> <span class="s2">&#34;TEXT&#34;</span><span class="p">,</span>  
+</span></span><span class="line"><span class="cl">            <span class="nt">&#34;tokenCount&#34;</span><span class="p">:</span> <span class="mi">1760</span>  
+</span></span><span class="line"><span class="cl">        <span class="p">}],</span>  
+</span></span><span class="line"><span class="cl">        <span class="nt">&#34;candidatesTokensDetails&#34;</span><span class="p">:</span> <span class="p">[{</span>  
+</span></span><span class="line"><span class="cl">            <span class="nt">&#34;modality&#34;</span><span class="p">:</span> <span class="s2">&#34;TEXT&#34;</span><span class="p">,</span>  
+</span></span><span class="line"><span class="cl">            <span class="nt">&#34;tokenCount&#34;</span><span class="p">:</span> <span class="mi">8</span>  
+</span></span><span class="line"><span class="cl">        <span class="p">}]</span>  
+</span></span><span class="line"><span class="cl">    <span class="p">},</span>  
+</span></span><span class="line"><span class="cl">    <span class="nt">&#34;modelVersion&#34;</span><span class="p">:</span> <span class="s2">&#34;gemini-2.0-flash-lite&#34;</span><span class="p">,</span>  
+</span></span><span class="line"><span class="cl">    <span class="nt">&#34;responseId&#34;</span><span class="p">:</span> <span class="s2">&#34;4GcYaYbIDbrUz7IP8qWW2QU&#34;</span>  
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><ul>
+<li>candidates：= choices</li>
+<li>usageMetadata：用量统计
+<ul>
+<li>promptTokenCount：= input tokens</li>
+<li>candidatesTokenCount：= ouput tokens</li>
+</ul>
+</li>
+</ul>
+<h3 id="claude-code">Claude Code<a href="#claude-code" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p><a href="https://docs.claude.com/en/api/overview">https://docs.claude.com/en/api/overview</a></p>
+<p>请求示例：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">curl https://api.anthropic.com/v1/messages <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>     --header <span class="s2">&#34;x-api-key: </span><span class="nv">$ANTHROPIC_API_KEY</span><span class="s2">&#34;</span> <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>     --header <span class="s2">&#34;anthropic-version: 2023-06-01&#34;</span> <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>     --header <span class="s2">&#34;content-type: application/json&#34;</span> <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>     --data <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span><span class="s1">&#39;{
+</span></span></span><span class="line"><span class="cl"><span class="s1">    &#34;model&#34;: &#34;claude-sonnet-4-5-20250929&#34;,
+</span></span></span><span class="line"><span class="cl"><span class="s1">    &#34;max_tokens&#34;: 1024,
+</span></span></span><span class="line"><span class="cl"><span class="s1">	&#34;thinking&#34;: { &#34;type&#34;: &#34;enabled&#34;, &#34;budget_tokens&#34;: 10000 },
+</span></span></span><span class="line"><span class="cl"><span class="s1">    &#34;messages&#34;: [
+</span></span></span><span class="line"><span class="cl"><span class="s1">        {&#34;role&#34;: &#34;user&#34;, &#34;content&#34;: &#34;Hello, world&#34;}
+</span></span></span><span class="line"><span class="cl"><span class="s1">    ]
+</span></span></span><span class="line"><span class="cl"><span class="s1">}&#39;</span>
+</span></span></code></pre></div><ul>
+<li>messages：role 只有 user 和 assistant</li>
+<li>system：等效于 chat completions 中 message 中的 system，不过 Claude Code 将其放在 top level</li>
+<li>thinking：开启/关闭模型思考，budget_tokens 限制最大 thinking tokens</li>
+<li>mcp_servers：mcp servers 配置</li>
+<li>tools：定义工具调用的名称/参数</li>
+</ul>
+<p>响应示例：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="o">{</span>
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;content&#34;</span>: <span class="o">[</span>
+</span></span><span class="line"><span class="cl">    <span class="o">{</span>
+</span></span><span class="line"><span class="cl">      <span class="s2">&#34;citations&#34;</span>: null,
+</span></span><span class="line"><span class="cl">      <span class="s2">&#34;text&#34;</span>: <span class="s2">&#34;Hi! My name is Claude.&#34;</span>,
+</span></span><span class="line"><span class="cl">      <span class="s2">&#34;type&#34;</span>: <span class="s2">&#34;text&#34;</span>
+</span></span><span class="line"><span class="cl">    <span class="o">}</span>
+</span></span><span class="line"><span class="cl">  <span class="o">]</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;id&#34;</span>: <span class="s2">&#34;msg_013Zva2CMHLNnXjNJJKqJ2EF&#34;</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;model&#34;</span>: <span class="s2">&#34;claude-sonnet-4-5-20250929&#34;</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;role&#34;</span>: <span class="s2">&#34;assistant&#34;</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;stop_reason&#34;</span>: <span class="s2">&#34;end_turn&#34;</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;stop_sequence&#34;</span>: null,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;type&#34;</span>: <span class="s2">&#34;message&#34;</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;usage&#34;</span>: <span class="o">{</span>
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;input_tokens&#34;</span>: 2095,
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;output_tokens&#34;</span>: <span class="m">503</span>
+</span></span><span class="line"><span class="cl">  <span class="o">}</span>
+</span></span><span class="line"><span class="cl"><span class="o">}</span>
+</span></span></code></pre></div><h2 id="向量接口">向量接口<a href="#向量接口" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>如开局描述，向量接口用于将输入的文本、图片、视频等信息转换成向量表示，因此向量接口基本上有一个固定的模式：输入（文本、图片、视频）-&gt; 输出（向量）。以 OpenAI 的 embeddings 接口为例：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="c1"># POST https://api.openai.com/v1/embeddings</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1"># request</span>
+</span></span><span class="line"><span class="cl">curl https://api.openai.com/v1/embeddings <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>  -H <span class="s2">&#34;Authorization: Bearer </span><span class="nv">$OPENAI_API_KEY</span><span class="s2">&#34;</span> <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>  -H <span class="s2">&#34;Content-Type: application/json&#34;</span> <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="se"></span>  -d <span class="s1">&#39;{
+</span></span></span><span class="line"><span class="cl"><span class="s1">    &#34;input&#34;: &#34;The food was delicious and the waiter...&#34;,
+</span></span></span><span class="line"><span class="cl"><span class="s1">    &#34;model&#34;: &#34;text-embedding-ada-002&#34;,
+</span></span></span><span class="line"><span class="cl"><span class="s1">    &#34;encoding_format&#34;: &#34;float&#34;
+</span></span></span><span class="line"><span class="cl"><span class="s1">  }&#39;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="c1"># response</span>
+</span></span><span class="line"><span class="cl"><span class="o">{</span>
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;object&#34;</span>: <span class="s2">&#34;list&#34;</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;data&#34;</span>: <span class="o">[</span>
+</span></span><span class="line"><span class="cl">    <span class="o">{</span>
+</span></span><span class="line"><span class="cl">      <span class="s2">&#34;object&#34;</span>: <span class="s2">&#34;embedding&#34;</span>,
+</span></span><span class="line"><span class="cl">      <span class="s2">&#34;embedding&#34;</span>: <span class="o">[</span>
+</span></span><span class="line"><span class="cl">        0.0023064255,
+</span></span><span class="line"><span class="cl">        -0.009327292,
+</span></span><span class="line"><span class="cl">        .... <span class="o">(</span><span class="m">1536</span> floats total <span class="k">for</span> ada-002<span class="o">)</span>
+</span></span><span class="line"><span class="cl">        -0.0028842222,
+</span></span><span class="line"><span class="cl">      <span class="o">]</span>,
+</span></span><span class="line"><span class="cl">      <span class="s2">&#34;index&#34;</span>: <span class="m">0</span>
+</span></span><span class="line"><span class="cl">    <span class="o">}</span>
+</span></span><span class="line"><span class="cl">  <span class="o">]</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;model&#34;</span>: <span class="s2">&#34;text-embedding-ada-002&#34;</span>,
+</span></span><span class="line"><span class="cl">  <span class="s2">&#34;usage&#34;</span>: <span class="o">{</span>
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;prompt_tokens&#34;</span>: 8,
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;total_tokens&#34;</span>: <span class="m">8</span>
+</span></span><span class="line"><span class="cl">  <span class="o">}</span>
+</span></span><span class="line"><span class="cl"><span class="o">}</span>
+</span></span></code></pre></div>
+      </div></div>
+
+  
+    
+
+  
+
+  
+    
+
+  
+</article>
+
+  </div>
+
+  
+    <footer class="footer">
+  <div class="footer__inner">
+    
+      <div class="copyright">
+        <span>© 2025 Powered by <a href="https://gohugo.io">Hugo</a></span>
+    
+      <span>:: <a href="https://github.com/panr/hugo-theme-terminal" target="_blank">Theme</a> made by <a href="https://github.com/panr" target="_blank">panr</a></span>
+      </div>
+  </div>
+</footer>
+
+
+
+
+
+
+<script type="text/javascript" src="/bundle.min.js"></script>
+
+
+
+
+
+  
+  </div>
+
+  <aside class="floating-sidebar">
+    
+<div class="sidebar time-archive">
+  <h3>Time Archives</h3>
+  <div class="archive-list">
+    
+    
+
+    
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+
+    
+    
+
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-11/" class="archive-link">
+          <span class="archive-date">2025-11</span>
+          <span class="archive-month-name">Nov</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-10/" class="archive-link">
+          <span class="archive-date">2025-10</span>
+          <span class="archive-month-name">Oct</span>
+          <span class="archive-count">(4)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-09/" class="archive-link">
+          <span class="archive-date">2025-09</span>
+          <span class="archive-month-name">Sep</span>
+          <span class="archive-count">(3)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-08/" class="archive-link">
+          <span class="archive-date">2025-08</span>
+          <span class="archive-month-name">Aug</span>
+          <span class="archive-count">(9)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-06/" class="archive-link">
+          <span class="archive-date">2025-06</span>
+          <span class="archive-month-name">Jun</span>
+          <span class="archive-count">(2)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-04/" class="archive-link">
+          <span class="archive-date">2025-04</span>
+          <span class="archive-month-name">Apr</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-03/" class="archive-link">
+          <span class="archive-date">2025-03</span>
+          <span class="archive-month-name">Mar</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2024-01/" class="archive-link">
+          <span class="archive-date">2024-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(2)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-10/" class="archive-link">
+          <span class="archive-date">2022-10</span>
+          <span class="archive-month-name">Oct</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-07/" class="archive-link">
+          <span class="archive-date">2022-07</span>
+          <span class="archive-month-name">Jul</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-06/" class="archive-link">
+          <span class="archive-date">2022-06</span>
+          <span class="archive-month-name">Jun</span>
+          <span class="archive-count">(4)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-05/" class="archive-link">
+          <span class="archive-date">2022-05</span>
+          <span class="archive-month-name">May</span>
+          <span class="archive-count">(4)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-03/" class="archive-link">
+          <span class="archive-date">2022-03</span>
+          <span class="archive-month-name">Mar</span>
+          <span class="archive-count">(4)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-01/" class="archive-link">
+          <span class="archive-date">2022-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-11/" class="archive-link">
+          <span class="archive-date">2021-11</span>
+          <span class="archive-month-name">Nov</span>
+          <span class="archive-count">(2)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-09/" class="archive-link">
+          <span class="archive-date">2021-09</span>
+          <span class="archive-month-name">Sep</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-06/" class="archive-link">
+          <span class="archive-date">2021-06</span>
+          <span class="archive-month-name">Jun</span>
+          <span class="archive-count">(3)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-01/" class="archive-link">
+          <span class="archive-date">2021-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+  </div>
+</div>
+
+<style>
+.sidebar.time-archive {
+  background: rgba(26, 23, 15, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--accent, #FFA86B);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+  max-width: var(--sidebar-component-width, 240px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.sidebar.time-archive h3 {
+  margin: 0 0 1rem 0;
+  color: var(--accent, #FFA86B);
+  font-size: 1.2rem;
+  border-bottom: 1px solid var(--accent-alpha-70, rgba(255, 168, 107, 0.7));
+  padding-bottom: 0.5rem;
+}
+
+
+.archive-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.archive-item {
+  display: block;
+}
+
+.archive-link {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  text-decoration: none;
+  color: var(--color, inherit);
+  padding: 0.5rem;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+}
+
+.archive-link:hover {
+  background-color: var(--accent-alpha-20, rgba(255, 168, 107, 0.2));
+  color: var(--accent, #FFA86B);
+}
+
+.archive-date {
+  font-family: var(--code-font-family, 'Fira Code', monospace);
+  font-weight: bold;
+  min-width: 60px;
+}
+
+.archive-month-name {
+  flex: 1;
+  margin-left: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.archive-count {
+  color: var(--accent, #FFA86B);
+  font-weight: bold;
+  font-size: 0.9rem;
+}
+
+ 
+</style>
+
+    
+<div class="sidebar tags-cloud">
+  <h3>Tags Cloud</h3>
+  <div class="tags-container">
+    
+    
+    
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+    
+    
+    
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+    
+    
+    
+    
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+    
+    
+    
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+    
+    
+    
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/agent/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Agent
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/ai/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          AI
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/apisix/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          apisix
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/biography/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          biography
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/compile/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          compile
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/concurrency/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="7 articles">
+          Concurrency
+          <span class="tag-count">(7)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/csi/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          csi
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/debug/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          debug
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/dns/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          dns
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/ebpf/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          ebpf
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/elf/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          ELF
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/go/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          Go
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/http/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          HTTP
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/kaist-cs431/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="7 articles">
+          KAIST-CS431
+          <span class="tag-count">(7)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/kernel/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Kernel
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/kubernetes/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          kubernetes
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/l7gateway/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          L7Gateway
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/linux/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="3 articles">
+          Linux
+          <span class="tag-count">(3)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/llm/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          LLM
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/lua/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="3 articles">
+          Lua
+          <span class="tag-count">(3)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/makefile/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          makefile
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/mindfulness/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          mindfulness
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/network/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          Network
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/nonfiction/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="6 articles">
+          nonfiction
+          <span class="tag-count">(6)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/operatingsystem/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          OperatingSystem
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/philosophy/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          philosophy
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/rust/" 
+           class="tag-item" 
+           style="font-size: 1.5em;"
+           title="10 articles">
+          Rust
+          <span class="tag-count">(10)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/schedule/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Schedule
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/science/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          science
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/softwareengineering/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          SoftwareEngineering
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/wasm/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          wasm
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+  </div>
+</div>
+
+<style>
+.sidebar.tags-cloud {
+  background: rgba(26, 23, 15, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--accent, #FFA86B);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+  max-width: var(--sidebar-component-width, 240px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.sidebar.tags-cloud h3 {
+  margin: 0 0 1rem 0;
+  color: var(--accent, #FFA86B);
+  font-size: 1.2rem;
+  border-bottom: 1px solid var(--accent-alpha-70, rgba(255, 168, 107, 0.7));
+  padding-bottom: 0.5rem;
+}
+
+.tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  line-height: 1.6;
+}
+
+.tag-item {
+  display: inline-flex;
+  align-items: baseline;
+  text-decoration: none;
+  color: var(--color, inherit);
+  padding: 0.3rem 0.6rem;
+  border-radius: 16px;
+  background: rgba(255, 168, 107, 0.1);
+  border: 1px solid transparent;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.tag-item:hover {
+  background: rgba(255, 168, 107, 0.25);
+  border-color: var(--accent-alpha-50, rgba(255, 168, 107, 0.5));
+  color: var(--accent, #FFA86B);
+  transform: translateY(-1px);
+}
+
+.tag-count {
+  font-size: 0.75em;
+  margin-left: 0.3rem;
+  opacity: 0.7;
+  font-weight: normal;
+}
+
+.tag-item:hover .tag-count {
+  opacity: 1;
+}
+
+ 
+
+ 
+.tag-item {
+  font-weight: 400;
+}
+
+ 
+.tag-item[style*="1.5"], 
+.tag-item[style*="1.4"],
+.tag-item[style*="1.3"] {
+  font-weight: 600;
+}
+
+ 
+.tag-item[style*="1.2"],
+.tag-item[style*="1.1"] {
+  font-weight: 500;
+}
+
+ 
+.tag-item[style*="1.5"]:hover,
+.tag-item[style*="1.4"]:hover,
+.tag-item[style*="1.3"]:hover {
+  box-shadow: 0 3px 10px rgba(255, 168, 107, 0.4);
+  transform: translateY(-2px);
+}
+
+</style>
+
+  </aside>
+</div>
+
+<style>
+ 
+.page-wrapper {
+  position: relative;
+  width: 100%;
+  max-width: none;
+  --sidebar-top-offset: 150px;  
+  --sidebar-component-width: 240px;  
+}
+
+   
+.floating-sidebar {
+  position: absolute;
+   
+  top: var(--sidebar-top-offset, 175px);
+   
+  right: max(20px, calc((100vw - 864px) / 2 - 330px));
+  width: 300px;
+  z-index: 100;
+  opacity: 0.96;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+ 
+.floating-sidebar:hover {
+  opacity: 1;
+  transform: translateX(-5px);
+}
+
+ 
+.floating-sidebar {
+  display: none;
+}
+
+ 
+@media (min-width: 1524px) {
+  .floating-sidebar {
+    display: block;
+    position: absolute;
+    right: max(20px, calc((100vw - 864px) / 2 - 330px));
+  }
+}
+
+ 
+@media (max-width: 1523px) {
+  .floating-sidebar {
+    display: none !important;
+  }
+}
+
+</style>
+
+</body>
+</html>

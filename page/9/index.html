@@ -216,6 +216,70 @@
     
       <article class="post on-list">
         <h2 class="post-title">
+          <a href="https://www.jinzhi.site/posts/2021-09/go-channel-%E5%AE%9E%E7%8E%B0/">Go channel 实现</a>
+        </h2>
+
+        <div class="post-meta"><time class="post-date">2021-09-12</time></div>
+
+        
+          <span class="post-tags">
+            
+            #<a href="https://www.jinzhi.site/tags/go/">Go</a>&nbsp;
+            
+          </span>
+        
+
+        
+
+
+        <div class="post-content">
+          
+            <p>Go的Channel在runtime里面是一个hchan的结构体，每次我们make一个新的channel时，runtime从heap内分配一个hchan结构体管理channel。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">type</span><span class="w"> </span><span class="nx">hchan</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">qcount</span><span class="w">   </span><span class="kt">uint</span><span class="w">           </span><span class="c1">// total data in the queue</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">dataqsiz</span><span class="w"> </span><span class="kt">uint</span><span class="w">           </span><span class="c1">// size of the circular queue</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">buf</span><span class="w">      </span><span class="nx">unsafe</span><span class="p">.</span><span class="nx">Pointer</span><span class="w"> </span><span class="c1">// points to an array of dataqsiz elements</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">elemsize</span><span class="w"> </span><span class="kt">uint16</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">closed</span><span class="w">   </span><span class="kt">uint32</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">elemtype</span><span class="w"> </span><span class="o">*</span><span class="nx">_type</span><span class="w"> </span><span class="c1">// element type</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">sendx</span><span class="w">    </span><span class="kt">uint</span><span class="w">   </span><span class="c1">// send index</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">recvx</span><span class="w">    </span><span class="kt">uint</span><span class="w">   </span><span class="c1">// receive index</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">recvq</span><span class="w">    </span><span class="nx">waitq</span><span class="w">  </span><span class="c1">// list of recv waiters</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">sendq</span><span class="w">    </span><span class="nx">waitq</span><span class="w">  </span><span class="c1">// list of send waiters</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="c1">// lock protects all fields in hchan, as well as several</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="c1">// fields in sudogs blocked on this channel.</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="c1">//
+</span></span></span><span class="line"><span class="cl"><span class="c1">    // Do not change another G&#39;s status while holding this lock</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="c1">// (in particular, do not ready a G), as this can deadlock</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="c1">// with stack shrinking.</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">lock</span><span class="w"> </span><span class="nx">mutex</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="p">}</span><span class="w">
+</span></span></span></code></pre></div><ul>
+<li>qcount：当前channel queue内的element数目，当qcount等于dataqsiz时，表示channel buffer已经满了，send channel会被阻塞；</li>
+<li>dataqsiz：channel的buffer大小，也就是我们在make时设定的值。dataqsiz在channel创建后不会再变动，因此channel的buffer是不会动态扩容的；</li>
+<li>buf：buffered channel缓存elements的内存地址。是一个数组实现的环形队列；</li>
+<li>elemsize：element类型大小；</li>
+<li>closed：channel是否已经被关闭，防止关闭已经关闭的channel；</li>
+<li>elemtype：channel element 类型；</li>
+<li>sendx：buffer中下一个生产的element的index；</li>
+<li>recvx：buffer中下一个消费的element的index；</li>
+<li>recvq：阻塞的接收channel，是一个sudog的链表</li>
+<li>sendq：阻塞的发送channel，是一个sudog的链表</li>
+</ul>
+<p>当buffer没有满时，send channel发送elements时直接把elements放在buf内，增加sendx和qcount；当buffer满时，send channel被阻塞，并加入到sendq链表内，等待被唤醒；</p>
+          
+        </div>
+
+        
+          <div>
+            <a class="read-more button inline" href="/posts/2021-09/go-channel-%E5%AE%9E%E7%8E%B0/">[Read more]</a>
+          </div>
+        
+      </article>
+    
+      <article class="post on-list">
+        <h2 class="post-title">
           <a href="https://www.jinzhi.site/posts/2021-06/rust-concurrency/">Rust: Concurrency</a>
         </h2>
 
@@ -700,10 +764,42 @@ _sip._tcp.example.com. 86400 IN SRV 0 5 5060 sipserver.example.com.
       
       
     
+      
+      
+      
+    
 
     
     
 
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-11/" class="archive-link">
+          <span class="archive-date">2025-11</span>
+          <span class="archive-month-name">Nov</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
     
       
       
@@ -1266,6 +1362,14 @@ _sip._tcp.example.com. 86400 IN SRV 0 5 5060 sipserver.example.com.
       
         
       
+        
+      
+    
+      
+        
+      
+        
+      
     
       
         
@@ -1480,10 +1584,19 @@ _sip._tcp.example.com. 86400 IN SRV 0 5 5060 sipserver.example.com.
       
         
       
+    
+    
     
     
     
+      
+      
+    
+      
+      
     
+      
+      
     
       
       
@@ -1685,8 +1798,17 @@ _sip._tcp.example.com. 86400 IN SRV 0 5 5060 sipserver.example.com.
     
     
     
+    
+    
+    
+      
+      
     
+      
+      
     
+      
+      
     
       
       
@@ -1771,10 +1893,16 @@ _sip._tcp.example.com. 86400 IN SRV 0 5 5060 sipserver.example.com.
     
       
       
+    
+    
     
     
     
+      
+    
+      
     
+      
     
       
     
@@ -1831,10 +1959,48 @@ _sip._tcp.example.com. 86400 IN SRV 0 5 5060 sipserver.example.com.
       
     
       
+    
     
     
     
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/agent/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Agent
+          <span class="tag-count">(1)</span>
+        </a>
+      
     
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/ai/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          AI
+          <span class="tag-count">(1)</span>
+        </a>
+      
     
       
       
@@ -2137,6 +2303,25 @@ _sip._tcp.example.com. 86400 IN SRV 0 5 5060 sipserver.example.com.
            title="3 articles">
           Linux
           <span class="tag-count">(3)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/llm/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          LLM
+          <span class="tag-count">(1)</span>
         </a>
       
     

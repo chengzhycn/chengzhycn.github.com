@@ -207,6 +207,91 @@
     
       <article class="post on-list">
         <h1 class="post-title">
+          <a href="https://www.jinzhi.site/posts/2025-11/%E5%B8%B8%E8%A7%81%E7%9A%84%E5%A4%A7%E6%A8%A1%E5%9E%8B-openapi-%E8%A7%84%E8%8C%83/">常见的大模型 OpenAPI 规范</a>
+        </h1>
+        <div class="post-meta"><time class="post-date">2025-11-05</time></div>
+
+        
+          <span class="post-tags">
+            
+            #<a href="https://www.jinzhi.site/tags/ai/">AI</a>&nbsp;
+            
+            #<a href="https://www.jinzhi.site/tags/llm/">LLM</a>&nbsp;
+            
+            #<a href="https://www.jinzhi.site/tags/agent/">Agent</a>&nbsp;
+            
+          </span>
+        
+
+        
+
+
+        <div class="post-content">
+          
+            <p>AI Gateway 的对接开发中，一个重要的内容就是对接不同厂商推理服务的接口协议。目前，推理服务的接口协议主要分为以下几种类型：</p>
+<ul>
+<li>文本对话接口，如 OpenAI 的 chat completions 和 response API 等</li>
+<li>向量接口，向量接口用于将输入的文本或者图片、视频（多模态）等转换成向量表示，适用于搜索（文搜图、图搜图、图文混合搜索）、聚类、推荐等场景。</li>
+</ul>
+<h2 id="文本对话">文本对话</h2>
+<p>文本对话 API 需要提供如下能力支持：</p>
+<ol>
+<li>模型选择</li>
+<li>用户、系统、模型输入内容角色区分</li>
+<li>模型参数调整</li>
+<li>工具调用</li>
+<li>MCP 支持</li>
+<li>用量统计</li>
+</ol>
+<p>目前使用最广泛的文本对话接口自然是 OpenAI 的 chat completions API。几乎所有的 LLM 服务提供商都支持 chat completions compatible 调用。</p>
+<p><a href="https://platform.openai.com/docs/api-reference/introduction">https://platform.openai.com/docs/api-reference/introduction</a></p>
+<h3 id="chat-completions">chat completions</h3>
+<p>基本调用：</p>
+<pre tabindex="0"><code>curl https://api.openai.com/v1/chat/completions \
+  -H &#34;Content-Type: application/json&#34; \
+  -H &#34;Authorization: Bearer $OPENAI_API_KEY&#34; \
+  -d &#39;{
+    &#34;model&#34;: &#34;gpt-5&#34;,
+    &#34;messages&#34;: [
+      {
+        &#34;role&#34;: &#34;developer&#34;,
+        &#34;content&#34;: &#34;You are a helpful assistant.&#34;
+      },
+      {
+        &#34;role&#34;: &#34;user&#34;,
+        &#34;content&#34;: &#34;Hello!&#34;
+      }
+    ]
+  }&#39;
+</code></pre><ul>
+<li>model: 请求调用的模型</li>
+<li>messages：构成对话的消息体。根据消息的来源角色，message 可以分为 developer/system（开发者，系统提供的 prompt），user（用户自身的输入）和 assistant（模型的响应，用于多轮对话时模型的上下文传递）。
+<ul>
+<li>content 分为两种类型，纯文本即为 string，非纯文本 content 为列表类型，内容根据 type（text，image_url，input_audio 等）有不同的字段</li>
+</ul>
+</li>
+<li>stream：采用正常 HTTP 响应还是 sse 响应</li>
+<li>stream_options: 在 sse 响应时，有些模型默认不会输出 usage 信息，需要显式将 stream_options.include_usage 设置成 true</li>
+<li>temperature：模型温度，取值范围 0 - 2，值越高，输出的 tokens 随机性越大</li>
+<li>top_p：和 tempreature 一样对模型输出进行调整的参数，模型会考虑概率质量最高的top_p个tokens的结果。所以0.1意味着只考虑概率质量最高的10%的tokens。</li>
+<li>reasoning_effort：模型的推理深度，比如对于 OpenAI 模型来说有 minimal，low，medium，high 等多种选择。</li>
+<li>max_completion_tokens：最大输出 tokens 数，包括 output tokens 和 reasoning tokens。替代原来的 max_tokens 字段。</li>
+<li>tools：告知大模型本地可调用的工具列表。工具里面定义了工具的名称、描述和 json schema 表示的参数描述。替代原来的 functions 字段。</li>
+<li>tool_choice：告知模型对于工具的调用选择。none 表示不要调用任何工具直接生成 messages，auto 表示由模型自己决定是否调用 allowed_tools。required 表示模型必须调用至少一个工具。</li>
+</ul>
+<p>除此之外，各家可以在 OpenAI 标准的 API 上扩展自己的字段，比如 cherry studio 会使用 thinking 字段来开启/关闭模型思考：</p>
+          
+        </div>
+
+        
+          <div>
+            <a class="read-more button inline" href="/posts/2025-11/%E5%B8%B8%E8%A7%81%E7%9A%84%E5%A4%A7%E6%A8%A1%E5%9E%8B-openapi-%E8%A7%84%E8%8C%83/">[Read more]</a>
+          </div>
+        
+      </article>
+    
+      <article class="post on-list">
+        <h1 class="post-title">
           <a href="https://www.jinzhi.site/posts/2025-10/apisix-%E6%8F%92%E4%BB%B6%E4%BD%93%E7%B3%BB/">APISIX 插件体系</a>
         </h1>
         <div class="post-meta"><time class="post-date">2025-10-30</time></div>
@@ -510,84 +595,6 @@
         
       </article>
     
-      <article class="post on-list">
-        <h1 class="post-title">
-          <a href="https://www.jinzhi.site/posts/2025-09/luatable-%E6%B5%85%E6%9E%90/">Lua：Table 浅析</a>
-        </h1>
-        <div class="post-meta"><time class="post-date">2025-09-14</time></div>
-
-        
-          <span class="post-tags">
-            
-            #<a href="https://www.jinzhi.site/tags/lua/">Lua</a>&nbsp;
-            
-          </span>
-        
-
-        
-
-
-        <div class="post-content">
-          
-            <p>本文的分析基于 OpenResty 的 Lua 分支（https://github.com/openresty/luajit2）。</p>
-<h2 id="核心-api">核心 API</h2>
-<p>table 的 API 定义在 src/lib_table.c 中，API 分为三个部分：</p>
-<p>标准库函数：</p>
-<ul>
-<li>table.insert() - 向 table 插入元素</li>
-<li>table.remove() - 移除 table 元素</li>
-<li>table.concat() - 连接 table 元素为字符串</li>
-<li>table.sort() - 对 table 进行排序</li>
-<li>table.maxn() - 找到 table 中最大数字键</li>
-<li>table.move() - 移动 table 元素</li>
-</ul>
-<p>LuaJIT 扩展函数：</p>
-<ul>
-<li>table.new() - 预分配指定大小的 table</li>
-</ul>
-<p>OpenResty 扩展函数：</p>
-<ul>
-<li>table.clear() - 清空 table 内容</li>
-<li>table.clone() - 克隆 table</li>
-<li>table.nkeys() - 获取 table 键的数量</li>
-<li>table.isarray() - 检查是否为数组</li>
-<li>table.isempty() - 检查 table 是否为空</li>
-</ul>
-<h2 id="数据结构">数据结构</h2>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="k">typedef</span> <span class="k">struct</span> <span class="n">Node</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">  <span class="n">TValue</span> <span class="n">val</span><span class="p">;</span>         <span class="c1">// 值对象，必须是第一个字段
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">TValue</span> <span class="n">key</span><span class="p">;</span>         <span class="c1">// 键对象
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">MRef</span> <span class="n">next</span><span class="p">;</span>          <span class="c1">// 哈希链指针
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="cp">#if !LJ_GC64
-</span></span></span><span class="line"><span class="cl"><span class="cp"></span>  <span class="n">MRef</span> <span class="n">freetop</span><span class="p">;</span>       <span class="c1">// 32位架构下的空闲节点顶部指针(存储在node[0])
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="cp">#endif
-</span></span></span><span class="line"><span class="cl"><span class="cp"></span><span class="p">}</span> <span class="n">Node</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl"><span class="k">typedef</span> <span class="k">struct</span> <span class="n">GCtab</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">  <span class="n">GCHeader</span><span class="p">;</span>           <span class="c1">// GC 通用头部：nextgc, marked, gct
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="kt">uint8_t</span> <span class="n">nomm</span><span class="p">;</span>       <span class="c1">// 元方法负缓存掩码
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="kt">int8_t</span> <span class="n">colo</span><span class="p">;</span>        <span class="c1">// 数组共址标记 (-1表示已分离, &gt;0表示共址大小)
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">MRef</span> <span class="n">array</span><span class="p">;</span>         <span class="c1">// 数组部分指针
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">GCRef</span> <span class="n">gclist</span><span class="p">;</span>       <span class="c1">// GC 链表指针
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">GCRef</span> <span class="n">metatable</span><span class="p">;</span>    <span class="c1">// 元表引用
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">MRef</span> <span class="n">node</span><span class="p">;</span>          <span class="c1">// 哈希部分指针
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="kt">uint32_t</span> <span class="n">asize</span><span class="p">;</span>     <span class="c1">// 数组部分大小 [0, asize-1]
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="kt">uint32_t</span> <span class="n">hmask</span><span class="p">;</span>     <span class="c1">// 哈希掩码 (哈希部分大小-1)
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="cp">#if LJ_GC64
-</span></span></span><span class="line"><span class="cl"><span class="cp"></span>  <span class="n">MRef</span> <span class="n">freetop</span><span class="p">;</span>       <span class="c1">// 64位架构下的空闲节点顶部指针
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="cp">#endif
-</span></span></span><span class="line"><span class="cl"><span class="cp"></span><span class="p">}</span> <span class="n">GCtab</span><span class="p">;</span>
-</span></span></code></pre></div><p>可以看到，GCtab 中同时定义了数组部分 <code>array</code> 和哈希部分 <code>node</code>。</p>
-          
-        </div>
-
-        
-          <div>
-            <a class="read-more button inline" href="/posts/2025-09/luatable-%E6%B5%85%E6%9E%90/">[Read more]</a>
-          </div>
-        
-      </article>
-    
 
     <div class="pagination">
   <div class="pagination__buttons">
@@ -817,10 +824,42 @@
       
       
     
+      
+      
+      
+    
 
     
     
 
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-11/" class="archive-link">
+          <span class="archive-date">2025-11</span>
+          <span class="archive-month-name">Nov</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
     
       
       
@@ -1383,6 +1422,14 @@
       
         
       
+        
+      
+    
+      
+        
+      
+        
+      
     
       
         
@@ -1597,10 +1644,19 @@
       
         
       
+    
+    
     
     
     
+      
+      
+    
+      
+      
     
+      
+      
     
       
       
@@ -1802,8 +1858,17 @@
     
     
     
+    
+    
+    
+      
+      
     
+      
+      
     
+      
+      
     
       
       
@@ -1888,10 +1953,16 @@
     
       
       
+    
+    
     
     
     
+      
+    
+      
     
+      
     
       
     
@@ -1948,10 +2019,48 @@
       
     
       
+    
     
     
     
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/agent/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Agent
+          <span class="tag-count">(1)</span>
+        </a>
+      
     
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/ai/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          AI
+          <span class="tag-count">(1)</span>
+        </a>
+      
     
       
       
@@ -2254,6 +2363,25 @@
            title="3 articles">
           Linux
           <span class="tag-count">(3)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/llm/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          LLM
+          <span class="tag-count">(1)</span>
         </a>
       
     

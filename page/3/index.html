@@ -216,6 +216,81 @@
     
       <article class="post on-list">
         <h2 class="post-title">
+          <a href="https://www.jinzhi.site/posts/2025-08/kaist-cs431-concurrent-data-structure/">KAIST-CS431: Concurrent Data Structure</a>
+        </h2>
+
+        <div class="post-meta"><time class="post-date">2025-08-28</time></div>
+
+        
+          <span class="post-tags">
+            
+            #<a href="https://www.jinzhi.site/tags/rust/">Rust</a>&nbsp;
+            
+            #<a href="https://www.jinzhi.site/tags/concurrency/">Concurrency</a>&nbsp;
+            
+            #<a href="https://www.jinzhi.site/tags/kaist-cs431/">KAIST-CS431</a>&nbsp;
+            
+          </span>
+        
+
+        
+
+
+        <div class="post-content">
+          
+            <h2 id="并发数据结构的关键点">并发数据结构的关键点</h2>
+<ul>
+<li><strong>安全性：</strong> 安全是并发程序对CDS的最基本的要求
+<ul>
+<li>Sequential specification：多线程对数据结构的操作要能像一个队列一样</li>
+<li>Synchronization：如在栈操作中，不同的线程进行pushing和popping操作时是要同步的，不能这边线程执行完了，另外一边无法感知到这边的操作。</li>
+<li><strong>通过锁或者更加底层的同步原语来保护并发数据结构</strong></li>
+</ul>
+</li>
+<li><strong>可扩展性：</strong> 随着CPU核数/并发度的增长，有着良好的性能增长
+<ul>
+<li>理想情况下，性能增长应该是线性的，但现实情况往往因为各种限制因素达不到线性增长</li>
+<li><strong>通过减少锁保护范围（更细粒度的锁）来减少竞争</strong>
+<ul>
+<li>hand-over-hand locking, lock coupling, read-write locking</li>
+</ul>
+</li>
+<li><strong>通过避免写操作降低缓存失效</strong></li>
+</ul>
+</li>
+<li><strong>Progress:</strong> guaranteeing the completion (or progress) of operations
+<ul>
+<li>Lock freedom: progress of at least one</li>
+<li>Wait freedom: progress of everyone</li>
+</ul>
+</li>
+</ul>
+<h2 id="无锁策略">无锁策略</h2>
+<p>Lock-Free 和 Wait-Free 都旨在解决传统锁（如互斥锁 mutex）带来的性能和活性问题，但采用了不同的策略和提供了不同的保证。</p>
+<h3 id="lock-free">Lock-Free</h3>
+<p>Lock-Free 是一个相对较弱的保证，但仍然非常强大和有用。它的核心思想是：<strong>总会有一个线程能够前进，即使其他线程被任意延迟或阻塞。</strong></p>
+<p><strong>核心特点：</strong></p>
+<ul>
+<li><strong>没有死锁 (Deadlock-Free)：</strong> 由于没有线程需要等待其他线程释放锁，所以不会发生死锁。</li>
+<li><strong>没有活锁 (Livelock-Free)：</strong> 虽然有可能发生活锁（即线程反复尝试但总是失败），但通常通过回退策略（如指数退避）或设计良好的原子操作序列可以避免。然而，严格意义上的 Lock-Free 并不直接保证 Livelock-Free。</li>
+<li><strong>进度保证 (Progress Guarantee)：</strong> 只要系统不是完全停滞，总有一个或多个线程可以完成操作。这意味着整个系统的吞吐量不会因为某个线程的无限期暂停而归零。</li>
+<li><strong>饥饿可能 (Starvation Possible)：</strong> 某个特定的线程可能会无限期地重试它的操作，而从未成功（即所谓的“饥饿”）。这是 Lock-Free 与 Wait-Free 的一个主要区别。</li>
+<li><strong>实现方式：</strong> 主要依赖于原子操作，如<code>CAS (Compare-And-Swap)</code>，<code>FAA (Fetch-And-Add)</code>，<code>LL/SC (Load-Link/Store-Conditional)</code>等。这些操作通常由硬件提供，能够以原子方式读取、修改和写入内存位置，而无需使用操作系统级别的锁。</li>
+<li><strong>常见数据结构：</strong> 无锁队列 (Lock-Free Queue)，无锁栈 (Lock-Free Stack)，无锁哈希表 (Lock-Free Hash Table) 等。</li>
+</ul>
+<p><strong>工作原理示例（CAS）：</strong></p>
+          
+        </div>
+
+        
+          <div>
+            <a class="read-more button inline" href="/posts/2025-08/kaist-cs431-concurrent-data-structure/">[Read more]</a>
+          </div>
+        
+      </article>
+    
+      <article class="post on-list">
+        <h2 class="post-title">
           <a href="https://www.jinzhi.site/posts/2025-08/kaist-cs431-lock-implementations/">KAIST-CS431: Lock Implementations</a>
         </h2>
 
@@ -532,68 +607,6 @@ FLAG.store(1);   ||       assert(DATA == 42);
         
       </article>
     
-      <article class="post on-list">
-        <h2 class="post-title">
-          <a href="https://www.jinzhi.site/posts/2025-08/wasm-internals-overview/">Wasm Internals - Overview</a>
-        </h2>
-
-        <div class="post-meta"><time class="post-date">2025-08-26</time></div>
-
-        
-          <span class="post-tags">
-            
-            #<a href="https://www.jinzhi.site/tags/wasm/">Wasm</a>&nbsp;
-            
-          </span>
-        
-
-        
-
-
-        <div class="post-content">
-          
-            <ul>
-<li><a href="https://rsms.me/wasm-intro">https://rsms.me/wasm-intro</a></li>
-<li><a href="https://hacks.mozilla.org/2017/02/a-cartoon-intro-to-webassembly/">https://hacks.mozilla.org/2017/02/a-cartoon-intro-to-webassembly/</a></li>
-</ul>
-<h2 id="wasm-的历史发展">Wasm 的历史发展</h2>
-<h3 id="早期wasm-mvp---2017">早期（Wasm MVP - 2017）</h3>
-<ul>
-<li><strong>诞生背景：</strong> Wasm 的设计目标是为了替代 asm.js，提供更小、更快、更安全的 Web 二进制格式。</li>
-<li><strong>核心模块的初步定义：</strong> MVP（Minimum Viable Product）阶段定义了 Wasm Core Module 的基本结构：函数、内存、表、导入、导出、全局变量等。</li>
-<li><strong>主要用例：</strong> 游戏引擎、音视频编解码、计算密集型任务等。</li>
-<li><strong>限制：</strong>
-<ul>
-<li><strong>没有模块化系统：</strong> 模块之间没有标准的链接机制，只能通过宿主环境（如 JavaScript）进行协调。</li>
-<li><strong>缺乏垃圾回收（GC）：</strong> 需要手动内存管理或使用语言自带的 GC 机制（如 Emscripten 的 mimalloc）。</li>
-<li><strong>没有线程：</strong> 无法直接利用多核 CPU。</li>
-<li><strong>没有宿主 API 标准化：</strong> 模块与宿主环境的交互方式高度依赖宿主（如浏览器），没有统一的接口定义。</li>
-<li><strong>没有组件模型：</strong> 模块重用和组合非常困难。</li>
-</ul>
-</li>
-</ul>
-<h3 id="中期mvp-之后---持续演进">中期（MVP 之后 - 持续演进）</h3>
-<p>Wasm 社区和工作组认识到 MVP 的局限性，并开始着手扩展 Wasm 的能力，这直接影响了 Core Module 的能力：</p>
-<ul>
-<li><strong>多值（Multiple Returns &amp; Parameters）：</strong> 允许函数返回多个值，接收多个参数，提高表达能力。</li>
-<li><strong>引用类型（Reference Types）：</strong> 引入了 <code>externref</code> 和 <code>funcref</code>，允许 Wasm 直接引用宿主对象和函数，而无需通过数字 ID 传递，为未来的 GC 和组件模型打下基础。</li>
-<li><strong>固定大小的 SIMD（Fixed-width SIMD）：</strong> 引入了新的指令集，允许在 Wasm 中进行向量化操作，进一步提升某些计算密集型任务的性能。</li>
-<li><strong>线程（Threads）：</strong> 引入了共享内存和原子操作，允许 Wasm 模块在多线程环境下运行，极大地提升了并行计算能力。</li>
-<li><strong>内存增长和限制（Memory Growth and Limits）：</strong> 提供了更灵活的内存管理机制。</li>
-<li><strong>Tail Calls（尾调用）：</strong> 优化了函数调用的性能。</li>
-</ul>
-<h3 id="近期和未来wasm-component-model">近期和未来（Wasm Component Model）</h3>
-<p>这是 Wasm 发展中最重要的方向之一，旨在解决 Core Module 在模块化和互操作性方面的根本性问题：</p>
-          
-        </div>
-
-        
-          <div>
-            <a class="read-more button inline" href="/posts/2025-08/wasm-internals-overview/">[Read more]</a>
-          </div>
-        
-      </article>
-    
 
     <div class="pagination">
   <div class="pagination__buttons">
@@ -829,10 +842,42 @@ FLAG.store(1);   ||       assert(DATA == 42);
       
       
     
+      
+      
+      
+    
 
     
     
 
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-11/" class="archive-link">
+          <span class="archive-date">2025-11</span>
+          <span class="archive-month-name">Nov</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
     
       
       
@@ -1395,6 +1440,14 @@ FLAG.store(1);   ||       assert(DATA == 42);
       
         
       
+        
+      
+    
+      
+        
+      
+        
+      
     
       
         
@@ -1609,10 +1662,19 @@ FLAG.store(1);   ||       assert(DATA == 42);
       
         
       
+    
+    
     
     
     
+      
+      
+    
+      
+      
     
+      
+      
     
       
       
@@ -1814,8 +1876,17 @@ FLAG.store(1);   ||       assert(DATA == 42);
     
     
     
+    
+    
+    
+      
+      
     
+      
+      
     
+      
+      
     
       
       
@@ -1900,10 +1971,16 @@ FLAG.store(1);   ||       assert(DATA == 42);
     
       
       
+    
+    
     
     
     
+      
+    
+      
     
+      
     
       
     
@@ -1960,10 +2037,48 @@ FLAG.store(1);   ||       assert(DATA == 42);
       
     
       
+    
     
     
     
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/agent/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Agent
+          <span class="tag-count">(1)</span>
+        </a>
+      
     
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/ai/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          AI
+          <span class="tag-count">(1)</span>
+        </a>
+      
     
       
       
@@ -2266,6 +2381,25 @@ FLAG.store(1);   ||       assert(DATA == 42);
            title="3 articles">
           Linux
           <span class="tag-count">(3)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/llm/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          LLM
+          <span class="tag-count">(1)</span>
         </a>
       
     
