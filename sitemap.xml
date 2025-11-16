@@ -2,28 +2,37 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
   xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url>
+    <loc>https://www.jinzhi.site/tags/apisix/</loc>
+    <lastmod>2025-11-16T15:18:28+08:00</lastmod>
+  </url><url>
+    <loc>https://www.jinzhi.site/categories/</loc>
+    <lastmod>2025-11-16T15:18:28+08:00</lastmod>
+  </url><url>
+    <loc>https://www.jinzhi.site/</loc>
+    <lastmod>2025-11-16T15:18:28+08:00</lastmod>
+  </url><url>
+    <loc>https://www.jinzhi.site/tags/l7gateway/</loc>
+    <lastmod>2025-11-16T15:18:28+08:00</lastmod>
+  </url><url>
+    <loc>https://www.jinzhi.site/categories/learning/</loc>
+    <lastmod>2025-11-16T15:18:28+08:00</lastmod>
+  </url><url>
+    <loc>https://www.jinzhi.site/posts/</loc>
+    <lastmod>2025-11-16T15:18:28+08:00</lastmod>
+  </url><url>
+    <loc>https://www.jinzhi.site/tags/</loc>
+    <lastmod>2025-11-16T15:18:28+08:00</lastmod>
+  </url><url>
+    <loc>https://www.jinzhi.site/posts/2025-11/%E7%BD%91%E5%85%B3%E7%9A%84%E9%99%90%E6%B5%81%E6%96%B9%E6%A1%88/</loc>
+    <lastmod>2025-11-16T15:18:28+08:00</lastmod>
+  </url><url>
     <loc>https://www.jinzhi.site/tags/agent/</loc>
     <lastmod>2025-11-05T21:18:28+08:00</lastmod>
   </url><url>
     <loc>https://www.jinzhi.site/tags/ai/</loc>
     <lastmod>2025-11-05T21:18:28+08:00</lastmod>
   </url><url>
-    <loc>https://www.jinzhi.site/categories/</loc>
-    <lastmod>2025-11-05T21:18:28+08:00</lastmod>
-  </url><url>
-    <loc>https://www.jinzhi.site/</loc>
-    <lastmod>2025-11-05T21:18:28+08:00</lastmod>
-  </url><url>
-    <loc>https://www.jinzhi.site/categories/learning/</loc>
-    <lastmod>2025-11-05T21:18:28+08:00</lastmod>
-  </url><url>
     <loc>https://www.jinzhi.site/tags/llm/</loc>
-    <lastmod>2025-11-05T21:18:28+08:00</lastmod>
-  </url><url>
-    <loc>https://www.jinzhi.site/posts/</loc>
-    <lastmod>2025-11-05T21:18:28+08:00</lastmod>
-  </url><url>
-    <loc>https://www.jinzhi.site/tags/</loc>
     <lastmod>2025-11-05T21:18:28+08:00</lastmod>
   </url><url>
     <loc>https://www.jinzhi.site/posts/2025-11/%E5%B8%B8%E8%A7%81%E7%9A%84%E5%A4%A7%E6%A8%A1%E5%9E%8B-openapi-%E8%A7%84%E8%8C%83/</loc>
@@ -32,13 +41,7 @@
     <loc>https://www.jinzhi.site/posts/2025-11/</loc>
     <lastmod>2025-11-01T00:00:00+00:00</lastmod>
   </url><url>
-    <loc>https://www.jinzhi.site/tags/apisix/</loc>
-    <lastmod>2025-10-30T12:18:28+08:00</lastmod>
-  </url><url>
     <loc>https://www.jinzhi.site/posts/2025-10/apisix-%E6%8F%92%E4%BB%B6%E4%BD%93%E7%B3%BB/</loc>
-    <lastmod>2025-10-30T12:18:28+08:00</lastmod>
-  </url><url>
-    <loc>https://www.jinzhi.site/tags/l7gateway/</loc>
     <lastmod>2025-10-30T12:18:28+08:00</lastmod>
   </url><url>
     <loc>https://www.jinzhi.site/tags/http/</loc>

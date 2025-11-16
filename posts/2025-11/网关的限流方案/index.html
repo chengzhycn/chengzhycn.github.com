@@ -1,0 +1,2720 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  
+    <title>网关的限流方案 :: chengzhycn&#39;s blog</title>
+  
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Note：本文由 Google Gemini DeepResearch 生成。
+1.网关限流服务的战略必要性与流量控制架构 1.1. 网关在流量管理中的控制点角色与核心必要性 API 网关在现代微服务架构中扮演着至关重要的流量控制点角色，负责管理北向（Ingress）和南向（Egress）的流量。对流量实施限制（即限流）是保障上游服务稳定性、维持系统可用性和实现资源公平分配的核心防御机制。
+限流服务的战略必要性主要体现在以下几个方面：
+首先，限流是防止系统过载和雪崩效应的关键。当面临突发流量高峰时，如不加限制，后台服务器可能因资源耗尽而被压垮。通过限制客户端在指定时间窗内的请求次数，网关可以有效地保护应用编程接口（API）及其背后的微服务。其次，限流是抵御恶意攻击的有效手段，尤其是分布式拒绝服务攻击（DDoS）或防止未受限制的网络爬虫过度消耗计算资源。如果任由客户端无限制地访问上游服务，系统的可用性将受到负面影响。
+从架构设计的角度看，网关作为请求进入系统的唯一入口，是实施全局限流策略的最佳位置，可以根据 IP、API 密钥、特定消费者（Consumer）或其他定制标准来应用限流规则。
+1.2. 限流策略的粒度、层次结构与定制化响应 在实际应用中，灵活的限流服务需要支持精细的粒度和层次化配置模型，以满足不同业务和资源保护的需求。这种配置的优先级机制体现了一种 “微观精确控制”优于“宏观默认保护” 的设计哲学。
+网关通常支持多层次的限流配置，包括：
+特定 API 或消费者限流： 这是优先级最高的限流配置。例如，用户可以对单个关键 API 进行限流设置，或者对特定的消费者群体施加限制。这种配置会覆盖所有默认设置。这意味着在限流值冲突时，系统优先执行最明确定义或最严格的限制，确保关键资源的防护级别不受宏观策略的稀释。 API 默认限流： 作用于应用下大部分 API 的通用配置。当没有针对单个 API 配置限流值时，将采用此默认值。 应用总限流 (App Total Limit)： 这是对当前应用下所有 API 请求的总和设置的上限。应用总限流是防止资源被“虹吸”的最后防线。即使单个 API 的限流都没有达到，一旦应用的总请求量超出限流总和值，所有请求都将被限制。这种设计解决了在微服务架构中，攻击者通过对大量低 QPS API 进行频繁调用，最终耗尽整个应用共享资源预算的“长尾攻击”问题。 网关在触发限流时，必须向客户端返回明确的、用户友好的响应。例如，默认的限流响应可能包含 {&quot;resultStatus&quot;:1002, &quot;tips&quot;:&quot;顾客太多，客官请稍候&quot;} 。为了实现友好的降级体验，网关需要支持定制化的响应格式，允许用户配置 JSON 格式的返回内容，如通过 resultStatus 字段（例如，1002 表示限流）和 tips 字段向用户提供定制化的限流提示。
+2. 常见限流算法的原理、适用性与分布式性能剖析 选择合适的限流算法是构建高性能网关服务的基石。不同的算法在精确度、突发处理能力和分布式系统中的扩展性方面存在显著差异。
+2.1. 固定窗口计数器 (Fixed Window Counter, FWC) 固定窗口计数器是最简单、资源消耗最低的限流算法。它在一个固定的时间周期内（例如每 60 秒）累积请求计数，当周期结束时，计数器重置。
+优势与局限性： FWC 的实现非常简单，查询和递增操作计算复杂度为 $O(1)$，因此延迟极低。然而，其主要局限在于边界突发问题。如果客户端在窗口结束前的一刻发出大量请求，并在下一个窗口开始后的第一时间再次发出同等量的请求，系统在短时间内实际放行的请求量可能高达阈值的两倍。这使得 FWC 难以应对流量的瞬间爆发，可能导致上游服务过载。
+" />
+<meta name="keywords" content="" />
+
+  <meta name="robots" content="noodp" />
+
+<link rel="canonical" href="https://www.jinzhi.site/posts/2025-11/%E7%BD%91%E5%85%B3%E7%9A%84%E9%99%90%E6%B5%81%E6%96%B9%E6%A1%88/" />
+
+
+
+
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/buttons.min.86f6b4c106b6c6eb690ae5203d36b442c1f66f718ff4e8164fa86cf6c61ad641.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/code.min.d529ea4b2fb8d34328d7d31afc5466d5f7bc2f0bc9abdd98b69385335d7baee4.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/fonts.min.5bb7ed13e1d00d8ff39ea84af26737007eb5051b157b86fc24487c94f3dc8bbe.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/footer.min.eb8dfc2c6a7eafa36cd3ba92d63e69e849e2200e0002a228d137f236b09ecd75.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/gist.min.a751e8b0abe1ba8bc53ced52a38b19d8950fe78ca29454ea8c2595cf26aad5c0.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/header.min.75c7eb0e2872d95ff48109c6647d0223a38db52e2561dd87966eb5fc7c6bdac6.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/main.min.7984a754b43b7469d389c539410e90dff2870263de16b008dfc7e8170fcd0f5b.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/menu.min.3c17467ebeb3d38663dce68f71f519901124fa5cbb4519b2fb0667a21e9aca39.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/pagination.min.bbb986dbce00a5ce5aca0504b7925fc1c581992a4bf57f163e5d69cc1db7d836.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/post.min.e6dddd258e64c83e05cec0cd49c05216742d42fc8ecbfbe6b67083412b609bd3.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/syntax.min.a0773cce9310cb6d8ed23e50f005448facf29a53001b57e038828daa466b25c0.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/terminal.min.e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/terms.min.b81791663c3790e738e571cdbf802312390d30e4b1d8dc9d814a5b5454d0ac11.css">
+
+
+
+
+
+
+
+<link rel="shortcut icon" href="https://www.jinzhi.site/favicon.png">
+<link rel="apple-touch-icon" href="https://www.jinzhi.site/apple-touch-icon.png">
+
+
+<meta name="twitter:card" content="summary" />
+
+  
+    <meta name="twitter:site" content="" />
+  
+    <meta name="twitter:creator" content="" />
+
+
+
+<meta property="og:locale" content="en" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="网关的限流方案">
+<meta property="og:description" content="Note：本文由 Google Gemini DeepResearch 生成。
+1.网关限流服务的战略必要性与流量控制架构 1.1. 网关在流量管理中的控制点角色与核心必要性 API 网关在现代微服务架构中扮演着至关重要的流量控制点角色，负责管理北向（Ingress）和南向（Egress）的流量。对流量实施限制（即限流）是保障上游服务稳定性、维持系统可用性和实现资源公平分配的核心防御机制。
+限流服务的战略必要性主要体现在以下几个方面：
+首先，限流是防止系统过载和雪崩效应的关键。当面临突发流量高峰时，如不加限制，后台服务器可能因资源耗尽而被压垮。通过限制客户端在指定时间窗内的请求次数，网关可以有效地保护应用编程接口（API）及其背后的微服务。其次，限流是抵御恶意攻击的有效手段，尤其是分布式拒绝服务攻击（DDoS）或防止未受限制的网络爬虫过度消耗计算资源。如果任由客户端无限制地访问上游服务，系统的可用性将受到负面影响。
+从架构设计的角度看，网关作为请求进入系统的唯一入口，是实施全局限流策略的最佳位置，可以根据 IP、API 密钥、特定消费者（Consumer）或其他定制标准来应用限流规则。
+1.2. 限流策略的粒度、层次结构与定制化响应 在实际应用中，灵活的限流服务需要支持精细的粒度和层次化配置模型，以满足不同业务和资源保护的需求。这种配置的优先级机制体现了一种 “微观精确控制”优于“宏观默认保护” 的设计哲学。
+网关通常支持多层次的限流配置，包括：
+特定 API 或消费者限流： 这是优先级最高的限流配置。例如，用户可以对单个关键 API 进行限流设置，或者对特定的消费者群体施加限制。这种配置会覆盖所有默认设置。这意味着在限流值冲突时，系统优先执行最明确定义或最严格的限制，确保关键资源的防护级别不受宏观策略的稀释。 API 默认限流： 作用于应用下大部分 API 的通用配置。当没有针对单个 API 配置限流值时，将采用此默认值。 应用总限流 (App Total Limit)： 这是对当前应用下所有 API 请求的总和设置的上限。应用总限流是防止资源被“虹吸”的最后防线。即使单个 API 的限流都没有达到，一旦应用的总请求量超出限流总和值，所有请求都将被限制。这种设计解决了在微服务架构中，攻击者通过对大量低 QPS API 进行频繁调用，最终耗尽整个应用共享资源预算的“长尾攻击”问题。 网关在触发限流时，必须向客户端返回明确的、用户友好的响应。例如，默认的限流响应可能包含 {&quot;resultStatus&quot;:1002, &quot;tips&quot;:&quot;顾客太多，客官请稍候&quot;} 。为了实现友好的降级体验，网关需要支持定制化的响应格式，允许用户配置 JSON 格式的返回内容，如通过 resultStatus 字段（例如，1002 表示限流）和 tips 字段向用户提供定制化的限流提示。
+2. 常见限流算法的原理、适用性与分布式性能剖析 选择合适的限流算法是构建高性能网关服务的基石。不同的算法在精确度、突发处理能力和分布式系统中的扩展性方面存在显著差异。
+2.1. 固定窗口计数器 (Fixed Window Counter, FWC) 固定窗口计数器是最简单、资源消耗最低的限流算法。它在一个固定的时间周期内（例如每 60 秒）累积请求计数，当周期结束时，计数器重置。
+优势与局限性： FWC 的实现非常简单，查询和递增操作计算复杂度为 $O(1)$，因此延迟极低。然而，其主要局限在于边界突发问题。如果客户端在窗口结束前的一刻发出大量请求，并在下一个窗口开始后的第一时间再次发出同等量的请求，系统在短时间内实际放行的请求量可能高达阈值的两倍。这使得 FWC 难以应对流量的瞬间爆发，可能导致上游服务过载。
+" />
+<meta property="og:url" content="https://www.jinzhi.site/posts/2025-11/%E7%BD%91%E5%85%B3%E7%9A%84%E9%99%90%E6%B5%81%E6%96%B9%E6%A1%88/" />
+<meta property="og:site_name" content="chengzhycn&#39;s blog" />
+
+  <meta property="og:image" content="https://www.jinzhi.site/og-image.png">
+
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="627">
+
+  <meta property="article:section" content="Learning" />
+
+
+  <meta property="article:published_time" content="2025-11-16 15:18:28 &#43;0800 &#43;0800" />
+
+
+
+
+
+
+
+
+
+<html>
+<head>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-screen-web/style.css" />
+  <style>
+    body {
+      font-family: "LXGW WenKai Screen";
+      font-weight: normal;
+    }
+  </style>
+</head>
+<body>
+
+</body>
+</html>
+
+
+</head>
+<body>
+
+
+<div class="page-wrapper">
+  <div class="container center">
+
+  <header class="header">
+  <div class="header__inner">
+    <div class="header__logo">
+      <a href="/">
+  <div class="logo">
+    chengzhycn&#39;s blog
+  </div>
+</a>
+
+    </div>
+    
+      <ul class="menu menu--mobile">
+  <li class="menu__trigger">Menu&nbsp;▾</li>
+  <li>
+    <ul class="menu__dropdown">
+      
+        
+          <li><a href="/">Home</a></li>
+        
+      
+        
+          <li><a href="/about">About</a></li>
+        
+      
+        
+          <li><a href="/categories/">Categories</a></li>
+        
+      
+        
+          <li><a href="/tags/">Tags</a></li>
+        
+      
+        
+          <li><a href="/archives/">Archives</a></li>
+        
+      
+      
+    </ul>
+  </li>
+</ul>
+
+    
+    
+  </div>
+  
+    <nav class="navigation-menu">
+  <ul class="navigation-menu__inner menu--desktop">
+    
+      
+        
+          <li><a href="/" >Home</a></li>
+        
+      
+        
+          <li><a href="/about" >About</a></li>
+        
+      
+        
+          <li><a href="/categories/" >Categories</a></li>
+        
+      
+        
+          <li><a href="/tags/" >Tags</a></li>
+        
+      
+        
+          <li><a href="/archives/" >Archives</a></li>
+        
+      
+      
+    
+  </ul>
+</nav>
+
+  
+</header>
+
+
+  <div class="content">
+    
+<article class="post">
+  <h1 class="post-title">
+    <a href="https://www.jinzhi.site/posts/2025-11/%E7%BD%91%E5%85%B3%E7%9A%84%E9%99%90%E6%B5%81%E6%96%B9%E6%A1%88/">网关的限流方案</a>
+  </h1>
+  <div class="post-meta"><time class="post-date">2025-11-16</time><span class="post-reading-time">3 min read (568 words)</span></div>
+
+  
+    <span class="post-tags">
+      
+      #<a href="https://www.jinzhi.site/tags/l7gateway/">L7Gateway</a>&nbsp;
+      
+      #<a href="https://www.jinzhi.site/tags/apisix/">apisix</a>&nbsp;
+      
+    </span>
+  
+  
+
+
+  
+    <div class="table-of-contents">
+      <h2>
+        Table of Contents
+      </h2>
+      <nav id="TableOfContents">
+  <ul>
+    <li><a href="#1网关限流服务的战略必要性与流量控制架构">1.网关限流服务的战略必要性与流量控制架构</a>
+      <ul>
+        <li><a href="#11-网关在流量管理中的控制点角色与核心必要性">1.1. 网关在流量管理中的控制点角色与核心必要性</a></li>
+        <li><a href="#12-限流策略的粒度层次结构与定制化响应">1.2. 限流策略的粒度、层次结构与定制化响应</a></li>
+      </ul>
+    </li>
+    <li><a href="#2-常见限流算法的原理适用性与分布式性能剖析">2. 常见限流算法的原理、适用性与分布式性能剖析</a>
+      <ul>
+        <li><a href="#21-固定窗口计数器-fixed-window-counter-fwc">2.1. 固定窗口计数器 (Fixed Window Counter, FWC)</a></li>
+        <li><a href="#22-漏桶算法-leaky-bucket-与令牌桶-token-bucket">2.2. 漏桶算法 (Leaky Bucket) 与令牌桶 (Token Bucket)</a></li>
+        <li><a href="#23-滑动日志-sliding-log-的高精度与高成本">2.3. 滑动日志 (Sliding Log) 的高精度与高成本</a></li>
+        <li><a href="#24-滑动窗口计数器-sliding-window-counter-swc-混合方案">2.4. 滑动窗口计数器 (Sliding Window Counter, SWC) 混合方案</a></li>
+        <li><a href="#25-算法选型对比与架构定位">2.5. 算法选型对比与架构定位</a></li>
+      </ul>
+    </li>
+    <li><a href="#3-分布式限流的高性能与高可用架构">3. 分布式限流的高性能与高可用架构</a>
+      <ul>
+        <li><a href="#31-分布式限流的核心挑战与中心化存储">3.1. 分布式限流的核心挑战与中心化存储</a></li>
+        <li><a href="#32-挑战一高并发下的竞争条件与原子性保障">3.2. 挑战一：高并发下的竞争条件与原子性保障</a></li>
+        <li><a href="#33-挑战二中心化存储带来的网络延迟优化">3.3. 挑战二：中心化存储带来的网络延迟优化</a></li>
+        <li><a href="#34-数据存储层的高可用设计与故障转移">3.4. 数据存储层的高可用设计与故障转移</a></li>
+      </ul>
+    </li>
+    <li><a href="#4-主流-api-网关的限流服务实现与高可用配置">4. 主流 API 网关的限流服务实现与高可用配置</a>
+      <ul>
+        <li><a href="#41-kong-gateway-的限流实现深度分析">4.1. Kong Gateway 的限流实现深度分析</a></li>
+        <li><a href="#42-apache-apisix-的高性能限流实现">4.2. Apache APISIX 的高性能限流实现</a></li>
+        <li><a href="#43-网关限流特性对比与技术选型建议">4.3. 网关限流特性对比与技术选型建议</a></li>
+      </ul>
+    </li>
+    <li><a href="#5-限流算法的性能开销调优与运维实践">5. 限流算法的性能开销、调优与运维实践</a>
+      <ul>
+        <li><a href="#51-限流开销的量化分析延迟与吞吐量">5.1. 限流开销的量化分析：延迟与吞吐量</a></li>
+        <li><a href="#52-资源消耗与成本考量">5.2. 资源消耗与成本考量</a></li>
+        <li><a href="#53-生产环境的限流调优实践">5.3. 生产环境的限流调优实践</a></li>
+        <li><a href="#54-运维体系构建监控与故障告警">5.4. 运维体系构建：监控与故障告警</a></li>
+      </ul>
+    </li>
+    <li><a href="#结论与建议">结论与建议</a></li>
+    <li><a href="#reference">Reference</a></li>
+  </ul>
+</nav>
+    </div>
+  
+
+  <div class="post-content"><div>
+        <p><strong>Note：本文由 Google Gemini DeepResearch 生成。</strong></p>
+<h2 id="1网关限流服务的战略必要性与流量控制架构">1.网关限流服务的战略必要性与流量控制架构<a href="#1网关限流服务的战略必要性与流量控制架构" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<h3 id="11-网关在流量管理中的控制点角色与核心必要性">1.1. 网关在流量管理中的控制点角色与核心必要性<a href="#11-网关在流量管理中的控制点角色与核心必要性" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>API 网关在现代微服务架构中扮演着至关重要的流量控制点角色，负责管理北向（Ingress）和南向（Egress）的流量。对流量实施限制（即限流）是保障上游服务稳定性、维持系统可用性和实现资源公平分配的核心防御机制。</p>
+<p>限流服务的战略必要性主要体现在以下几个方面：</p>
+<p>首先，限流是防止系统过载和雪崩效应的关键。当面临突发流量高峰时，如不加限制，后台服务器可能因资源耗尽而被压垮。通过限制客户端在指定时间窗内的请求次数，网关可以有效地保护应用编程接口（API）及其背后的微服务。其次，限流是抵御恶意攻击的有效手段，尤其是分布式拒绝服务攻击（DDoS）或防止未受限制的网络爬虫过度消耗计算资源。如果任由客户端无限制地访问上游服务，系统的可用性将受到负面影响。</p>
+<p>从架构设计的角度看，网关作为请求进入系统的唯一入口，是实施全局限流策略的最佳位置，可以根据 IP、API 密钥、特定消费者（Consumer）或其他定制标准来应用限流规则。</p>
+<h3 id="12-限流策略的粒度层次结构与定制化响应">1.2. 限流策略的粒度、层次结构与定制化响应<a href="#12-限流策略的粒度层次结构与定制化响应" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>在实际应用中，灵活的限流服务需要支持精细的粒度和层次化配置模型，以满足不同业务和资源保护的需求。这种配置的优先级机制体现了一种 <strong>“微观精确控制”优于“宏观默认保护”</strong> 的设计哲学。</p>
+<p>网关通常支持多层次的限流配置，包括：</p>
+<ol>
+<li><strong>特定 API 或消费者限流：</strong> 这是优先级最高的限流配置。例如，用户可以对单个关键 API 进行限流设置，或者对特定的消费者群体施加限制。这种配置会覆盖所有默认设置。这意味着在限流值冲突时，系统优先执行最明确定义或最严格的限制，确保关键资源的防护级别不受宏观策略的稀释。</li>
+<li><strong>API 默认限流：</strong> 作用于应用下大部分 API 的通用配置。当没有针对单个 API 配置限流值时，将采用此默认值。</li>
+<li><strong>应用总限流 (App Total Limit)：</strong> 这是对当前应用下所有 API 请求的总和设置的上限。应用总限流是防止资源被“虹吸”的最后防线。即使单个 API 的限流都没有达到，一旦应用的总请求量超出限流总和值，所有请求都将被限制。这种设计解决了在微服务架构中，攻击者通过对大量低 QPS API 进行频繁调用，最终耗尽整个应用共享资源预算的“长尾攻击”问题。</li>
+</ol>
+<p>网关在触发限流时，必须向客户端返回明确的、用户友好的响应。例如，默认的限流响应可能包含 <code>{&quot;resultStatus&quot;:1002, &quot;tips&quot;:&quot;顾客太多，客官请稍候&quot;}</code> 。为了实现友好的降级体验，网关需要支持定制化的响应格式，允许用户配置 JSON 格式的返回内容，如通过 <code>resultStatus</code> 字段（例如，1002 表示限流）和 <code>tips</code> 字段向用户提供定制化的限流提示。</p>
+<h2 id="2-常见限流算法的原理适用性与分布式性能剖析">2. 常见限流算法的原理、适用性与分布式性能剖析<a href="#2-常见限流算法的原理适用性与分布式性能剖析" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>选择合适的限流算法是构建高性能网关服务的基石。不同的算法在精确度、突发处理能力和分布式系统中的扩展性方面存在显著差异。</p>
+<h3 id="21-固定窗口计数器-fixed-window-counter-fwc">2.1. 固定窗口计数器 (Fixed Window Counter, FWC)<a href="#21-固定窗口计数器-fixed-window-counter-fwc" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>固定窗口计数器是最简单、资源消耗最低的限流算法。它在一个固定的时间周期内（例如每 60 秒）累积请求计数，当周期结束时，计数器重置。</p>
+<p><strong>优势与局限性：</strong> FWC 的实现非常简单，查询和递增操作计算复杂度为 $O(1)$，因此延迟极低。然而，其主要局限在于<strong>边界突发问题</strong>。如果客户端在窗口结束前的一刻发出大量请求，并在下一个窗口开始后的第一时间再次发出同等量的请求，系统在短时间内实际放行的请求量可能高达阈值的两倍。这使得 FWC 难以应对流量的瞬间爆发，可能导致上游服务过载。</p>
+<p>在实际应用中，例如 Apache APISIX 的 <code>limit-count</code> 插件和 Kong Gateway 的基础 <code>rate-limiting</code> 插件，通常采用这种固定窗口的简单实现，以追求极致的低延迟和高吞吐量。</p>
+<h3 id="22-漏桶算法-leaky-bucket-与令牌桶-token-bucket">2.2. 漏桶算法 (Leaky Bucket) 与令牌桶 (Token Bucket)<a href="#22-漏桶算法-leaky-bucket-与令牌桶-token-bucket" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>漏桶算法和令牌桶算法主要用于流量整形和应对突发流量。</p>
+<p><strong>漏桶机制</strong>将请求视作水滴放入一个固定容量的桶中。水滴（请求）以固定的速率从桶底流出（被处理）。它的优点是能够平滑流量，防止请求突发，但缺点是突发流量可能填满桶，导致新请求饥饿，且不保证固定的处理时间。</p>
+<p><strong>令牌桶机制</strong>则相反，令牌以固定速率生成并放入桶中。请求必须消耗令牌才能通过。这允许系统处理一定程度的突发流量（取决于桶中积累的令牌数量）。</p>
+<p><strong>分布式挑战：</strong> 在分布式环境中，维护一个全局一致的漏桶队列状态或令牌的生成/消耗速率非常困难，需要复杂的协调策略和高昂的跨节点同步开销，因此通常不是网关实施全局限流的首选算法。</p>
+<h3 id="23-滑动日志-sliding-log-的高精度与高成本">2.3. 滑动日志 (Sliding Log) 的高精度与高成本<a href="#23-滑动日志-sliding-log-的高精度与高成本" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>滑动日志算法通过记录每个请求的精确时间戳，并将其存储在时间排序的哈希集合中。当新请求到达时，系统会实时计算并丢弃超出当前时间窗口的旧日志，然后将剩余日志的总数作为当前窗口内的请求数。</p>
+<p><strong>优势与局限性：</strong> 这种方法提供了最高的精确度，彻底消除了固定窗口的边界突发效应。然而，其核心局限在于<strong>存储和计算的高开销</strong>。在高并发场景下，需要存储大量时间戳，且每次请求到达时都需要对存储的日志进行求和计算，计算复杂度随请求数线性增长 $O(N)$，使其在高流量集群中缺乏可扩展性。</p>
+<h3 id="24-滑动窗口计数器-sliding-window-counter-swc-混合方案">2.4. 滑动窗口计数器 (Sliding Window Counter, SWC) 混合方案<a href="#24-滑动窗口计数器-sliding-window-counter-swc-混合方案" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>滑动窗口计数器是一种混合方法，旨在结合固定窗口的低处理成本和滑动日志的高精度，并被认为是实现可扩展限流算法的首选方法。</p>
+<p><strong>原理与优势：</strong> SWC 通过跟踪固定窗口的计数器，并利用<strong>加权平均</strong>方法来估计当前时间点的请求率，从而平滑流量曲线。例如，如果当前时间点位于窗口的 25% 位置，则算法会利用当前窗口的计数，并对前一个窗口的计数施加一个 75% 的权重进行加权计算。这种机制有效避免了固定窗口的突发问题。由于只需存储和同步少数几个计数器，计算复杂度为 $O(1)$，它所需的少量数据点使其易于在大规模集群中分发和同步。</p>
+<p>正是基于这种平衡了精确度和性能的特性，Kong Gateway 的 <code>Rate Limiting Advanced</code> 插件默认并推荐使用滑动窗口算法。</p>
+<h3 id="25-算法选型对比与架构定位">2.5. 算法选型对比与架构定位<a href="#25-算法选型对比与架构定位" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>算法的选择通常反映了网关的架构定位。基础网关如 APISIX 基础插件追求极致的吞吐量和低延迟，因此倾向于使用固定窗口计数器。而企业级网关或对服务级别协议（SLA）有严格要求的系统，必须牺牲微小的性能以换取更高的精确性和控制力，此时滑动窗口计数器成为必然选择。</p>
+<p>以下表格对比了常见限流算法的性能和适用性：</p>
+<table>
+  <thead>
+      <tr>
+          <th><strong>算法</strong></th>
+          <th><strong>核心机制</strong></th>
+          <th><strong>精度</strong></th>
+          <th><strong>突发处理</strong></th>
+          <th><strong>计算复杂度</strong></th>
+          <th><strong>分布式适用性</strong></th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>固定窗口 (FWC)</td>
+          <td>计数器，时间窗边界重置</td>
+          <td>低</td>
+          <td>差（双倍突发）</td>
+          <td>$O(1)$</td>
+          <td>一般（边界问题严重）</td>
+      </tr>
+      <tr>
+          <td>漏桶 (Leaky Bucket)</td>
+          <td>队列，匀速出队</td>
+          <td>优秀（流量平滑）</td>
+          <td>优秀（流量整形）</td>
+          <td>$O(1)$</td>
+          <td>低（难以维护全局一致速率）</td>
+      </tr>
+      <tr>
+          <td>滑动日志 (Sliding Log)</td>
+          <td>存储所有时间戳</td>
+          <td>最高</td>
+          <td>优秀（无边界效应）</td>
+          <td>$O(N)$</td>
+          <td>极差（存储与计算开销过高）</td>
+      </tr>
+      <tr>
+          <td>滑动窗口 (SWC)</td>
+          <td>加权平均相邻窗口计数</td>
+          <td>高</td>
+          <td>良好（平滑边界）</td>
+          <td>$O(1)$</td>
+          <td>优秀（低开销，易于分发）</td>
+      </tr>
+  </tbody>
+</table>
+<p>滑动窗口算法的有效性不仅依赖于其加权计算机制，还依赖于窗口粒度的合理划分。只有当用于计算的固定窗口粒度足够精细时，加权效果才能充分发挥，保证流量曲线的平滑性，并确保在同步到中央存储时数据点数量保持计算优势。</p>
+<h2 id="3-分布式限流的高性能与高可用架构">3. 分布式限流的高性能与高可用架构<a href="#3-分布式限流的高性能与高可用架构" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>当 API 网关以集群模式运行时，实施全局限流需要解决分布式系统中的核心矛盾：如何在多个节点之间共享一个全局计数器，并在保证计数准确性（一致性）的同时，避免跨网络通信带来的延迟（性能瓶颈）。</p>
+<h3 id="31-分布式限流的核心挑战与中心化存储">3.1. 分布式限流的核心挑战与中心化存储<a href="#31-分布式限流的核心挑战与中心化存储" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>分布式限流的实施，要求集群中的所有节点必须就特定时间窗口内的请求总数达成一致。因此，必须引入<strong>中心化数据存储</strong>作为状态协调器，如 Redis 或 Cassandra，来收集和存储每个窗口和消费者的计数。</p>
+<p>然而，这种设计天然面临两大挑战：高并发下的竞争条件和中心化存储带来的网络延迟。</p>
+<h3 id="32-挑战一高并发下的竞争条件与原子性保障">3.2. 挑战一：高并发下的竞争条件与原子性保障<a href="#32-挑战一高并发下的竞争条件与原子性保障" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>在多个网关节点同时尝试更新中央计数器时，若采用非原子性的“先取后设”（Get-Then-Set）逻辑，即节点先读取计数、在本地递增、再写回存储，则在高并发下极易发生<strong>竞争条件</strong>。多个请求可能同时读取旧值，导致计数丢失，限流阈值被错误地突破。</p>
+<p><strong>解决方案：原子操作</strong></p>
+<p>为保障限流的安全性，必须采用<strong>原子操作 (Atomic Operations)</strong>，利用数据库的内置机制来处理并发更新。例如，使用 Redis 的 <code>INCR</code> 命令或其他原子命令，实现 <strong>“先设后取”（Set-Then-Get）</strong> 的逻辑。原子操作将读取、递增和写入整合到单个不可分割的操作中，确保了数据操作的隔离性和一致性，是分布式限流安全性的技术保障。</p>
+<h3 id="33-挑战二中心化存储带来的网络延迟优化">3.3. 挑战二：中心化存储带来的网络延迟优化<a href="#33-挑战二中心化存储带来的网络延迟优化" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>对高性能网关而言，每次请求的限流检查都需要一次网络往返 (RTT) 到中央存储，即使是像 Redis 这样快速的存储，也会为每个请求增加数毫秒的延迟，显著影响 P99 延迟。</p>
+<p><strong>高性能方案：本地缓存与最终一致性模型</strong></p>
+<p>分布式限流系统本质上是 CAP 理论在实践中的应用，为了实现高可用性（A）和高吞吐量（P），架构师通常会选择牺牲短期内的强一致性（C），采用<strong>本地缓存与最终一致性模型 (Eventually Consistent Model)</strong> 。</p>
+<ul>
+<li><strong>架构设计：</strong> 每个网关节点维护一个<strong>本地内存计数器</strong>。限流决策优先在本地内存中进行，从而实现极低延迟，避免每次都访问远程存储。</li>
+<li><strong>周期性同步：</strong> 节点定期或异步地将本地计数增量推送到中央存储。中央存储使用原子操作汇总数据。随后，网关节点拉取全局的最新值来刷新其本地缓存。</li>
+</ul>
+<p>这种模型通过可配置的<strong>同步频率 (Sync Rate)</strong> 来权衡性能与一致性。较低的同步频率（例如 10 秒）能显著提升网关的吞吐量，但会牺牲短时一致性，可能允许短时内请求超过全局阈值。较高的同步频率（或同步模式）则能更好地保证一致性，但会增加对中央存储的读写压力和请求的延迟。</p>
+<h3 id="34-数据存储层的高可用设计与故障转移">3.4. 数据存储层的高可用设计与故障转移<a href="#34-数据存储层的高可用设计与故障转移" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>中央存储是限流服务的单点瓶颈。其必须具备高可用性 (HA) 和可靠的故障转移能力。</p>
+<p>Kong Gateway 的高级限流插件支持 Redis Sentinel 和 Redis Cluster，以提供故障检测和自动转移能力，满足对高可用性和数据安全的严格要求。</p>
+<p>更重要的是，网关需要内置<strong>降级策略 (Fallback)</strong>。例如，Kong Gateway 在检测到与 Redis 的连接中断时，会自动回退到 <code>local</code>（本地）策略。在这种模式下，网关仍能对每个节点实施限流，牺牲了全局一致性但保证了服务可用性。网关随后会在连接重新建立时，将本地计数与 Redis 进行同步。这种明确的故障转移机制是一种重要的运维保障，确保网关不会因为中央存储的短暂中断而停止服务。</p>
+<p>此外，在滑动窗口和最终一致性模型下，限流系统的<strong>惩罚机制</strong>（即被拒绝的请求是否计入限流）的设计直接影响系统的稳定性。如果拒绝的请求仍计入限流，一个在短时间收到大量拒绝请求的节点可能会在其本地计数同步至中央存储后，导致所有其他节点立即触发限流。因此，Kong 推荐在使用滑动窗口算法时，应设置 <code>config.disable_penalty</code> 为 <code>true</code> 来关闭惩罚机制，以防止连锁拒绝，避免系统因自我保护机制而陷入拒绝风暴。</p>
+<h2 id="4-主流-api-网关的限流服务实现与高可用配置">4. 主流 API 网关的限流服务实现与高可用配置<a href="#4-主流-api-网关的限流服务实现与高可用配置" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>主流的 API 网关，如 Kong Gateway 和 Apache APISIX，都提供了强大的限流能力，但它们在算法选择和分布式实现细节上有所不同。</p>
+<h3 id="41-kong-gateway-的限流实现深度分析">4.1. Kong Gateway 的限流实现深度分析<a href="#41-kong-gateway-的限流实现深度分析" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>Kong Gateway 提供了两个主要的限流插件：基础版和高级版。</p>
+<p><strong>基础 <code>rate-limiting</code> 插件：</strong></p>
+<p>该插件默认使用固定窗口计数器算法，适用于对性能要求高但对精确性要求相对不高的场景。它支持通过 <code>config.policy</code> 参数选择不同的存储策略，包括 <code>local</code>（本地内存）、<code>cluster</code>（依赖底层数据库如 Postgres/Cassandra）或 <code>redis</code>。</p>
+<p><strong><code>Rate Limiting Advanced</code> 插件（企业级方案）：</strong></p>
+<p>这是 Kong 推荐用于生产环境的方案，提供了更强的控制力和可扩展性。</p>
+<ul>
+<li><strong>算法核心：</strong> 默认并推荐使用<strong>滑动窗口 (Sliding Window)</strong> 算法，通过加权计算实现了更好的流量平滑效果，有效防止了固定窗口的边界突发。</li>
+<li><strong>分布式与高可用性：</strong> 高级插件提供了更强大的 Redis 支持，包括原生支持 <strong>Redis Sentinel</strong> 和 <strong>Redis Cluster</strong>，满足了大规模部署中对高可用、故障转移和数据加密（Redis SSL）的要求。</li>
+<li><strong>性能调优：</strong> 架构师可以通过配置 <code>sync_rate</code> 参数，精细控制网关节点与中央 Redis 存储之间的同步频率，实现性能与准确性的最佳平衡。</li>
+<li><strong>故障机制：</strong> 关键的运维保障是其内置的自动降级能力。当与 Redis 的连接断开时，系统会明确地自动回退到 <code>local</code> 策略。在回退期间，每个节点依然独立执行限流，虽然牺牲了全局一致性，但保证了服务的持续可用性。需要注意的是，从 <code>local</code> 或 <code>cluster</code> 策略切换到 <code>redis</code> 策略时，现有的使用指标无法移植到 Redis，这需要在运维变更时进行充分的准备和规划。</li>
+</ul>
+<h3 id="42-apache-apisix-的高性能限流实现">4.2. Apache APISIX 的高性能限流实现<a href="#42-apache-apisix-的高性能限流实现" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>Apache APISIX 是一个基于 OpenResty 的高性能网关，其限流功能主要通过 <code>limit-count</code> 插件实现。</p>
+<p><strong>性能特点：</strong></p>
+<p>APISIX 在设计上强调极致的性能和低延迟。请求计数主要在内存中高效完成，充分利用了 OpenResty 环境下的低开销和高吞吐量特性。</p>
+<p><strong>分布式扩展性：</strong></p>
+<p>APISIX 也支持使用 <strong>Redis</strong> 来实现集群级的限流一致性。这种架构模式与 Kong 类似，即采用内存计数结合外部存储同步的最终一致性模型。</p>
+<p><strong>灵活的匹配规则：</strong></p>
+<p>APISIX 具有很强的灵活性，支持利用其内置变量配置精细的限流键。例如，可以基于 APISIX 变量（如 <code>$host</code> 和 <code>$uri</code>）配置限流规则，从而实现基于 API 粒度或请求元数据的细致控制。这种对 Nginx 级别变量的深度集成，体现了 APISIX 在路由和限流策略上的高度协同设计。</p>
+<h3 id="43-网关限流特性对比与技术选型建议">4.3. 网关限流特性对比与技术选型建议<a href="#43-网关限流特性对比与技术选型建议" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>网关的选择不仅是插件的选择，更是对底层数据基础设施和同步模型的选择。</p>
+<p>以下表格对比了 Kong Advanced 与 APISIX 在限流实现方面的核心能力：</p>
+<table>
+  <thead>
+      <tr>
+          <th><strong>特性</strong></th>
+          <th><strong>Kong Gateway (高级)</strong></th>
+          <th><strong>Apache APISIX (limit-count)</strong></th>
+          <th><strong>关键意义</strong></th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>核心算法支持</td>
+          <td>滑动窗口, 固定窗口</td>
+          <td>固定窗口</td>
+          <td>Kong Advanced 提供了更优的滑动窗口算法，以消除边界突发。</td>
+      </tr>
+      <tr>
+          <td>分布式存储</td>
+          <td>Redis (Cluster, Sentinel, SSL)</td>
+          <td>Redis</td>
+          <td>Kong 在 HA 和安全（SSL）方面支持更全面。</td>
+      </tr>
+      <tr>
+          <td>性能策略</td>
+          <td>可配置同步率 (<code>sync_rate</code>)</td>
+          <td>In-Memory 计数，低延迟</td>
+          <td>均采用最终一致性优化性能，APISIX 强调本地计算优势。</td>
+      </tr>
+      <tr>
+          <td>故障转移</td>
+          <td>自动回退到 Local 策略</td>
+          <td>需依赖 Redis HA 配置</td>
+          <td>Kong 提供了明确的内置降级保障，提高运维可靠性。</td>
+      </tr>
+      <tr>
+          <td>精细度</td>
+          <td>IP, Consumer, API Key</td>
+          <td>APISIX 变量 (<code>$host</code>, <code>$uri</code>)</td>
+          <td>APISIX 通过变量集成实现了高灵活度匹配。</td>
+      </tr>
+  </tbody>
+</table>
+<h2 id="5-限流算法的性能开销调优与运维实践">5. 限流算法的性能开销、调优与运维实践<a href="#5-限流算法的性能开销调优与运维实践" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>在设计和运维大规模分布式限流系统时，必须对性能开销进行精确量化和调优。</p>
+<h3 id="51-限流开销的量化分析延迟与吞吐量">5.1. 限流开销的量化分析：延迟与吞吐量<a href="#51-限流开销的量化分析延迟与吞吐量" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>对于采用滑动窗口或固定窗口等 $O(1)$ 运算复杂度的现代算法，限流逻辑本身的计算开销极低。例如，APISIX 强调请求计数在内存中高效完成，具有低延迟和高吞吐量的特点。</p>
+<p>然而，限流系统的主要性能瓶颈并非来自网关的 CPU 运算，而是<strong>网络 I/O 开销</strong>。为了保证全局一致性，每次请求都可能需要查询和更新中央存储（如 Redis）。与本地内存中的高效计算相比，与 Redis 进行一次网络往返（RTT）带来的毫秒级延迟，是导致请求 P99 延迟显著增加的主要性能损失。因此，限流系统的性能优化边界在于中央存储的 RTT，而非网关的计算能力。这意味着，基础设施层面的优化（如网关与 Redis 部署在同一高速物理网络）比单纯的软件算法优化更为重要。</p>
+<h3 id="52-资源消耗与成本考量">5.2. 资源消耗与成本考量<a href="#52-资源消耗与成本考量" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p><strong>内存和 CPU 消耗：</strong> FWC 和 SWC 算法在网关节点内存中存储的数据量非常小。网关的主要 CPU 消耗在于处理网络连接和执行 LUA 或其他脚本逻辑，限流逻辑本身对 CPU 占用很低。真正的资源压力点在于中央存储。</p>
+<p><strong>Redis 存储与 I/O：</strong> 中央存储的资源消耗主要取决于限流 Key 的基数（即消费者数量 $\times$ 时间窗口数）。在高并发场景下，频繁的原子操作（例如 <code>INCR</code>）将转化为对 Redis 的高 I/O 压力和网络栈处理压力。因此，需要根据预期的消费者数量和时间窗口长度进行准确的 Redis 容量规划。</p>
+<h3 id="53-生产环境的限流调优实践">5.3. 生产环境的限流调优实践<a href="#53-生产环境的限流调优实践" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<ol>
+<li><strong>同步频率的优化：</strong> 架构师需要动态调整同步频率 (<code>sync_rate</code>) 以平衡系统的延迟和一致性。对于低延迟要求的内部 API，可以配置较高的同步率。对于面向互联网的高流量 API，推荐采用较低同步率的最终一致性模型，以减轻 Redis 的压力，并提高网关吞吐量。</li>
+<li><strong>惩罚机制的禁用：</strong> 在使用滑动窗口算法和最终一致性模型时，必须将 <code>config.disable_penalty</code> 设置为 <code>true</code>，确保被拒绝的请求不计入限流计数。这是一种自我保护机制，防止在流量突发时，由于集群间的同步延迟导致所有节点集体触发限流，从而引发连锁拒绝。</li>
+<li><strong>配置的原子性与热更新：</strong> 确保限流配置可以通过 API 或配置中心进行热更新，以便快速应对突发事件或错误的配置调整。</li>
+</ol>
+<h3 id="54-运维体系构建监控与故障告警">5.4. 运维体系构建：监控与故障告警<a href="#54-运维体系构建监控与故障告警" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>健壮的限流服务需要完善的监控和告警体系。</p>
+<p><strong>关键监控指标：</strong></p>
+<ul>
+<li><strong>拒绝计数 (Refusal Count)：</strong> 追踪被限流拒绝的请求数量，这是业务和安全层面的关键指标。</li>
+<li><strong>网关延迟分布：</strong> 尤其需要监控 P99 延迟，以识别中央存储 RTT 带来的性能瓶颈。</li>
+<li><strong>中央存储健康状态：</strong> 监控 Redis 连接健康状态、I/O 吞吐量和延迟。</li>
+</ul>
+<p><strong>告警策略：</strong></p>
+<p>针对中央存储连接中断或网关自动降级事件（例如 Kong 回退到 <code>local</code> 策略）设置高优先级告警。这种降级意味着全局一致性保障的失效，虽然服务保持可用，但潜在的超限风险增加。</p>
+<p><strong>系统迁移风险：</strong></p>
+<p>限流配置和指标的“不可移植性”是系统升级和维护中的一个隐藏成本。由于从本地或集群存储策略切换到 Redis 策略时，可能无法移植现有的使用指标，架构师在更换限流后端存储时，必须仔细规划切换窗口，避免用户在切换后立即获得一个“重置”的限流计数，暂时绕过限制，造成短期内的超额使用。这需要在运维流程中明确记录并作为高风险操作处理。</p>
+<h2 id="结论与建议">结论与建议<a href="#结论与建议" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>API 网关限流服务是保障微服务架构稳定性和可用性的核心技术。实现高性能、高可用的限流服务，其复杂性集中在分布式环境下的数据一致性与低延迟的权衡。</p>
+<p>本报告的分析得出以下关键结论和建议：</p>
+<ol>
+<li><strong>算法选型：</strong> 对于追求精确度和流量平滑的商业应用，<strong>滑动窗口计数器 (SWC)</strong> 是优于固定窗口计数器的首选算法。SWC 的 $O(1)$ 计算复杂度使其在大规模分布式环境中具有优异的可扩展性。</li>
+<li><strong>分布式架构：</strong> 高性能限流必须采用<strong>最终一致性模型</strong>，即本地缓存计数结合中心化数据存储（Redis）的异步同步。通过牺牲微小的短期一致性，系统获得了高吞吐量和极低延迟。</li>
+<li><strong>安全性与原子性：</strong> 实施分布式限流，必须依赖中央存储（如 Redis）的<strong>原子操作</strong>（如 Set-Then-Get 机制），以彻底消除高并发下的竞争条件和计数丢失问题。</li>
+<li><strong>系统稳定性保障：</strong> 在使用滑动窗口和最终一致性模型时，为了防止拒绝请求导致的连锁反应（拒绝风暴），应强制<strong>禁用惩罚机制</strong>（即将被拒绝的请求计入限流计数）。</li>
+<li><strong>网关选择与配置：</strong>
+<ul>
+<li><strong>Kong Advanced</strong> 通过支持 SWC、Redis Cluster/Sentinel 和明确的自动降级到 <code>local</code> 策略，提供了功能最强大且高可用的企业级限流解决方案。</li>
+<li><strong>Apache APISIX</strong> 则以其 In-Memory 计数和对 APISIX 变量的灵活支持，在极致性能和定制化匹配规则方面表现突出。</li>
+</ul>
+</li>
+<li><strong>性能优化焦点：</strong> 性能瓶颈主要源于网关与中央存储之间的网络延迟 (RTT)，而非网关本身的计算开销。因此，优化策略应侧重于基础设施部署，将中央存储与网关部署在低延迟的网络环境中，并审慎配置同步频率，以平衡 I/O 压力和一致性需求。</li>
+</ol>
+<h2 id="reference">Reference<a href="#reference" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<ul>
+<li><a href="https://apisix.apache.org/docs/apisix/getting-started/rate-limiting/">https://apisix.apache.org/docs/apisix/getting-started/rate-limiting/</a></li>
+<li><a href="https://developer.konghq.com/rate-limiting/">https://developer.konghq.com/rate-limiting/</a></li>
+<li><a href="https://www.bookstack.cn/read/kong-3.8-en/e51a6ec25cbdf7ea.md">https://www.bookstack.cn/read/kong-3.8-en/e51a6ec25cbdf7ea.md</a></li>
+<li><a href="https://www.alibabacloud.com/help/zh/mobile-platform-as-a-service/latest/limit-api-traffic">https://www.alibabacloud.com/help/zh/mobile-platform-as-a-service/latest/limit-api-traffic</a></li>
+<li><a href="https://apisix.apache.org/docs/ingress-controller/next/getting-started/rate-limiting/">https://apisix.apache.org/docs/ingress-controller/next/getting-started/rate-limiting/</a></li>
+</ul>
+
+      </div></div>
+
+  
+    
+<div class="pagination">
+  <div class="pagination__title">
+    <span class="pagination__title-h">Read other posts</span>
+    <hr />
+  </div>
+  <div class="pagination__buttons">
+    
+    
+    
+      <a href="https://www.jinzhi.site/posts/2025-11/%E5%B8%B8%E8%A7%81%E7%9A%84%E5%A4%A7%E6%A8%A1%E5%9E%8B-openapi-%E8%A7%84%E8%8C%83/" class="button inline next">
+         [<span class="button__text">常见的大模型 OpenAPI 规范</span>] &gt;
+      </a>
+    
+  </div>
+</div>
+
+
+  
+
+  
+    
+
+  
+</article>
+
+  </div>
+
+  
+    <footer class="footer">
+  <div class="footer__inner">
+    
+      <div class="copyright">
+        <span>© 2025 Powered by <a href="https://gohugo.io">Hugo</a></span>
+    
+      <span>:: <a href="https://github.com/panr/hugo-theme-terminal" target="_blank">Theme</a> made by <a href="https://github.com/panr" target="_blank">panr</a></span>
+      </div>
+  </div>
+</footer>
+
+
+
+
+
+
+<script type="text/javascript" src="/bundle.min.js"></script>
+
+
+
+
+
+  
+  </div>
+
+  <aside class="floating-sidebar">
+    
+<div class="sidebar time-archive">
+  <h3>Time Archives</h3>
+  <div class="archive-list">
+    
+    
+
+    
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+
+    
+    
+
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-11/" class="archive-link">
+          <span class="archive-date">2025-11</span>
+          <span class="archive-month-name">Nov</span>
+          <span class="archive-count">(2)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-10/" class="archive-link">
+          <span class="archive-date">2025-10</span>
+          <span class="archive-month-name">Oct</span>
+          <span class="archive-count">(4)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-09/" class="archive-link">
+          <span class="archive-date">2025-09</span>
+          <span class="archive-month-name">Sep</span>
+          <span class="archive-count">(3)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-08/" class="archive-link">
+          <span class="archive-date">2025-08</span>
+          <span class="archive-month-name">Aug</span>
+          <span class="archive-count">(9)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-06/" class="archive-link">
+          <span class="archive-date">2025-06</span>
+          <span class="archive-month-name">Jun</span>
+          <span class="archive-count">(2)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-04/" class="archive-link">
+          <span class="archive-date">2025-04</span>
+          <span class="archive-month-name">Apr</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-03/" class="archive-link">
+          <span class="archive-date">2025-03</span>
+          <span class="archive-month-name">Mar</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2024-01/" class="archive-link">
+          <span class="archive-date">2024-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(2)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-10/" class="archive-link">
+          <span class="archive-date">2022-10</span>
+          <span class="archive-month-name">Oct</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-07/" class="archive-link">
+          <span class="archive-date">2022-07</span>
+          <span class="archive-month-name">Jul</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-06/" class="archive-link">
+          <span class="archive-date">2022-06</span>
+          <span class="archive-month-name">Jun</span>
+          <span class="archive-count">(4)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-05/" class="archive-link">
+          <span class="archive-date">2022-05</span>
+          <span class="archive-month-name">May</span>
+          <span class="archive-count">(4)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-03/" class="archive-link">
+          <span class="archive-date">2022-03</span>
+          <span class="archive-month-name">Mar</span>
+          <span class="archive-count">(4)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-01/" class="archive-link">
+          <span class="archive-date">2022-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-11/" class="archive-link">
+          <span class="archive-date">2021-11</span>
+          <span class="archive-month-name">Nov</span>
+          <span class="archive-count">(2)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-09/" class="archive-link">
+          <span class="archive-date">2021-09</span>
+          <span class="archive-month-name">Sep</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-06/" class="archive-link">
+          <span class="archive-date">2021-06</span>
+          <span class="archive-month-name">Jun</span>
+          <span class="archive-count">(3)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-01/" class="archive-link">
+          <span class="archive-date">2021-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+  </div>
+</div>
+
+<style>
+.sidebar.time-archive {
+  background: rgba(26, 23, 15, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--accent, #FFA86B);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+  max-width: var(--sidebar-component-width, 240px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.sidebar.time-archive h3 {
+  margin: 0 0 1rem 0;
+  color: var(--accent, #FFA86B);
+  font-size: 1.2rem;
+  border-bottom: 1px solid var(--accent-alpha-70, rgba(255, 168, 107, 0.7));
+  padding-bottom: 0.5rem;
+}
+
+
+.archive-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.archive-item {
+  display: block;
+}
+
+.archive-link {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  text-decoration: none;
+  color: var(--color, inherit);
+  padding: 0.5rem;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+}
+
+.archive-link:hover {
+  background-color: var(--accent-alpha-20, rgba(255, 168, 107, 0.2));
+  color: var(--accent, #FFA86B);
+}
+
+.archive-date {
+  font-family: var(--code-font-family, 'Fira Code', monospace);
+  font-weight: bold;
+  min-width: 60px;
+}
+
+.archive-month-name {
+  flex: 1;
+  margin-left: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.archive-count {
+  color: var(--accent, #FFA86B);
+  font-weight: bold;
+  font-size: 0.9rem;
+}
+
+ 
+</style>
+
+    
+<div class="sidebar tags-cloud">
+  <h3>Tags Cloud</h3>
+  <div class="tags-container">
+    
+    
+    
+    
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+    
+    
+    
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+    
+    
+    
+    
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+    
+    
+    
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+    
+    
+    
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/agent/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Agent
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/ai/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          AI
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/apisix/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="3 articles">
+          apisix
+          <span class="tag-count">(3)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/biography/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          biography
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/compile/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          compile
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/concurrency/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="7 articles">
+          Concurrency
+          <span class="tag-count">(7)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/csi/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          csi
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/debug/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          debug
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/dns/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          dns
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/ebpf/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          ebpf
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/elf/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          ELF
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/go/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          Go
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/http/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          HTTP
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/kaist-cs431/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="7 articles">
+          KAIST-CS431
+          <span class="tag-count">(7)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/kernel/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Kernel
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/kubernetes/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          kubernetes
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/l7gateway/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="3 articles">
+          L7Gateway
+          <span class="tag-count">(3)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/linux/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="3 articles">
+          Linux
+          <span class="tag-count">(3)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/llm/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          LLM
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/lua/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="3 articles">
+          Lua
+          <span class="tag-count">(3)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/makefile/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          makefile
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/mindfulness/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          mindfulness
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/network/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          Network
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/nonfiction/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="6 articles">
+          nonfiction
+          <span class="tag-count">(6)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/operatingsystem/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          OperatingSystem
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/philosophy/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          philosophy
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/rust/" 
+           class="tag-item" 
+           style="font-size: 1.5em;"
+           title="10 articles">
+          Rust
+          <span class="tag-count">(10)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/schedule/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Schedule
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/science/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          science
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/softwareengineering/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          SoftwareEngineering
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/wasm/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          wasm
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+  </div>
+</div>
+
+<style>
+.sidebar.tags-cloud {
+  background: rgba(26, 23, 15, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--accent, #FFA86B);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+  max-width: var(--sidebar-component-width, 240px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.sidebar.tags-cloud h3 {
+  margin: 0 0 1rem 0;
+  color: var(--accent, #FFA86B);
+  font-size: 1.2rem;
+  border-bottom: 1px solid var(--accent-alpha-70, rgba(255, 168, 107, 0.7));
+  padding-bottom: 0.5rem;
+}
+
+.tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  line-height: 1.6;
+}
+
+.tag-item {
+  display: inline-flex;
+  align-items: baseline;
+  text-decoration: none;
+  color: var(--color, inherit);
+  padding: 0.3rem 0.6rem;
+  border-radius: 16px;
+  background: rgba(255, 168, 107, 0.1);
+  border: 1px solid transparent;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.tag-item:hover {
+  background: rgba(255, 168, 107, 0.25);
+  border-color: var(--accent-alpha-50, rgba(255, 168, 107, 0.5));
+  color: var(--accent, #FFA86B);
+  transform: translateY(-1px);
+}
+
+.tag-count {
+  font-size: 0.75em;
+  margin-left: 0.3rem;
+  opacity: 0.7;
+  font-weight: normal;
+}
+
+.tag-item:hover .tag-count {
+  opacity: 1;
+}
+
+ 
+
+ 
+.tag-item {
+  font-weight: 400;
+}
+
+ 
+.tag-item[style*="1.5"], 
+.tag-item[style*="1.4"],
+.tag-item[style*="1.3"] {
+  font-weight: 600;
+}
+
+ 
+.tag-item[style*="1.2"],
+.tag-item[style*="1.1"] {
+  font-weight: 500;
+}
+
+ 
+.tag-item[style*="1.5"]:hover,
+.tag-item[style*="1.4"]:hover,
+.tag-item[style*="1.3"]:hover {
+  box-shadow: 0 3px 10px rgba(255, 168, 107, 0.4);
+  transform: translateY(-2px);
+}
+
+</style>
+
+  </aside>
+</div>
+
+<style>
+ 
+.page-wrapper {
+  position: relative;
+  width: 100%;
+  max-width: none;
+  --sidebar-top-offset: 150px;  
+  --sidebar-component-width: 240px;  
+}
+
+   
+.floating-sidebar {
+  position: absolute;
+   
+  top: var(--sidebar-top-offset, 175px);
+   
+  right: max(20px, calc((100vw - 864px) / 2 - 330px));
+  width: 300px;
+  z-index: 100;
+  opacity: 0.96;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+ 
+.floating-sidebar:hover {
+  opacity: 1;
+  transform: translateX(-5px);
+}
+
+ 
+.floating-sidebar {
+  display: none;
+}
+
+ 
+@media (min-width: 1524px) {
+  .floating-sidebar {
+    display: block;
+    position: absolute;
+    right: max(20px, calc((100vw - 864px) / 2 - 330px));
+  }
+}
+
+ 
+@media (max-width: 1523px) {
+  .floating-sidebar {
+    display: none !important;
+  }
+}
+
+</style>
+
+</body>
+</html>
