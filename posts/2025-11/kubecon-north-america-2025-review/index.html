@@ -1,0 +1,2648 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  
+    <title>KubeCon North America 2025 Review :: chengzhycn&#39;s blog</title>
+  
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="KubeCon North America 2025 13号结束了，官网上也有了些会议资料。挑了几个感兴趣的话题总结下。
+Dynamic Routing with Multi-Cluster Inference Gateway https://kccncna2025.sched.com/event/27FeP/ai-inference-without-boundaries-dynamic-routing-with-multi-cluster-inference-gateway-rob-scott-google-daneyon-hansen-soloio?iframe=no&w=100%&sidebar=yes&bg=no
+这段时间正好在做 AI 网关，这个话题可以说是“瞌睡了送枕头”。
+推理服务和传统 API 流量相比，在 payload，响应时间，后端资源开销上都有着很大的差异（见下图）。 因此，推理网关需要做到后端负载感知的调度（传统 API 网关也有类似的方案，尤其是在后端机型不一样，普通的 rr 无法均匀负载时，做后端负载感知动态调权）。在 Gateway 和推理实例间引入了一个 EPP（Endpoint Picker）组件（注：EPP 现在也是 Kubernetes 做推理服务的一个通用组件），采集推理实例的指标来动态选择推理后端。 benchmark 数据显示，使用推理网关相比传统负载均衡，推理实例间的负载更加均衡，请求排队更少，从而降低了响应时间。
+在多集群场景下，这套方案需要解决 3 个问题：
+服务发现：Cluster Inference Services 如何暴露给 Gateway？ 后端选择：Gateway 如何在多集群间分配流量？ 路由模式：流量如何从 Gateway 转发到集群？ 第一个问题作者提了 3 个解决方法： 不是关注重点，略过。
+第二个问题，简单的 RR 和 Active-Passive 肯定就失去了推理网关负载感知的优势。所以，在 EPP 感知负载之外，Gateway 也得做负载感知。作者也提了两个方法： 从层级上来说，EPP Aggregate Metrics 方案更加简洁，毕竟在 EPP 上还得做二次调度。
+最后一个问题，如果 EPP 能跨集群直接访问，direct routing 是最合适的方式，不行的话再加一层网关，使用 Cluster-Local Gateway 做暴露也能访问。
+" />
+<meta name="keywords" content="" />
+
+  <meta name="robots" content="noodp" />
+
+<link rel="canonical" href="https://www.jinzhi.site/posts/2025-11/kubecon-north-america-2025-review/" />
+
+
+
+
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/buttons.min.86f6b4c106b6c6eb690ae5203d36b442c1f66f718ff4e8164fa86cf6c61ad641.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/code.min.d529ea4b2fb8d34328d7d31afc5466d5f7bc2f0bc9abdd98b69385335d7baee4.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/fonts.min.5bb7ed13e1d00d8ff39ea84af26737007eb5051b157b86fc24487c94f3dc8bbe.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/footer.min.eb8dfc2c6a7eafa36cd3ba92d63e69e849e2200e0002a228d137f236b09ecd75.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/gist.min.a751e8b0abe1ba8bc53ced52a38b19d8950fe78ca29454ea8c2595cf26aad5c0.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/header.min.75c7eb0e2872d95ff48109c6647d0223a38db52e2561dd87966eb5fc7c6bdac6.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/main.min.7984a754b43b7469d389c539410e90dff2870263de16b008dfc7e8170fcd0f5b.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/menu.min.3c17467ebeb3d38663dce68f71f519901124fa5cbb4519b2fb0667a21e9aca39.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/pagination.min.bbb986dbce00a5ce5aca0504b7925fc1c581992a4bf57f163e5d69cc1db7d836.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/post.min.e6dddd258e64c83e05cec0cd49c05216742d42fc8ecbfbe6b67083412b609bd3.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/syntax.min.a0773cce9310cb6d8ed23e50f005448facf29a53001b57e038828daa466b25c0.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/terminal.min.e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/terms.min.b81791663c3790e738e571cdbf802312390d30e4b1d8dc9d814a5b5454d0ac11.css">
+
+
+
+
+
+
+
+<link rel="shortcut icon" href="https://www.jinzhi.site/favicon.png">
+<link rel="apple-touch-icon" href="https://www.jinzhi.site/apple-touch-icon.png">
+
+
+<meta name="twitter:card" content="summary" />
+
+  
+    <meta name="twitter:site" content="" />
+  
+    <meta name="twitter:creator" content="" />
+
+
+
+<meta property="og:locale" content="en" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="KubeCon North America 2025 Review">
+<meta property="og:description" content="KubeCon North America 2025 13号结束了，官网上也有了些会议资料。挑了几个感兴趣的话题总结下。
+Dynamic Routing with Multi-Cluster Inference Gateway https://kccncna2025.sched.com/event/27FeP/ai-inference-without-boundaries-dynamic-routing-with-multi-cluster-inference-gateway-rob-scott-google-daneyon-hansen-soloio?iframe=no&w=100%&sidebar=yes&bg=no
+这段时间正好在做 AI 网关，这个话题可以说是“瞌睡了送枕头”。
+推理服务和传统 API 流量相比，在 payload，响应时间，后端资源开销上都有着很大的差异（见下图）。 因此，推理网关需要做到后端负载感知的调度（传统 API 网关也有类似的方案，尤其是在后端机型不一样，普通的 rr 无法均匀负载时，做后端负载感知动态调权）。在 Gateway 和推理实例间引入了一个 EPP（Endpoint Picker）组件（注：EPP 现在也是 Kubernetes 做推理服务的一个通用组件），采集推理实例的指标来动态选择推理后端。 benchmark 数据显示，使用推理网关相比传统负载均衡，推理实例间的负载更加均衡，请求排队更少，从而降低了响应时间。
+在多集群场景下，这套方案需要解决 3 个问题：
+服务发现：Cluster Inference Services 如何暴露给 Gateway？ 后端选择：Gateway 如何在多集群间分配流量？ 路由模式：流量如何从 Gateway 转发到集群？ 第一个问题作者提了 3 个解决方法： 不是关注重点，略过。
+第二个问题，简单的 RR 和 Active-Passive 肯定就失去了推理网关负载感知的优势。所以，在 EPP 感知负载之外，Gateway 也得做负载感知。作者也提了两个方法： 从层级上来说，EPP Aggregate Metrics 方案更加简洁，毕竟在 EPP 上还得做二次调度。
+最后一个问题，如果 EPP 能跨集群直接访问，direct routing 是最合适的方式，不行的话再加一层网关，使用 Cluster-Local Gateway 做暴露也能访问。
+" />
+<meta property="og:url" content="https://www.jinzhi.site/posts/2025-11/kubecon-north-america-2025-review/" />
+<meta property="og:site_name" content="chengzhycn&#39;s blog" />
+
+  <meta property="og:image" content="https://www.jinzhi.site/og-image.png">
+
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="627">
+
+  <meta property="article:section" content="Learning" />
+
+
+  <meta property="article:published_time" content="2025-11-23 15:18:28 &#43;0800 &#43;0800" />
+
+
+
+
+
+
+
+
+
+<html>
+<head>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-screen-web/style.css" />
+  <style>
+    body {
+      font-family: "LXGW WenKai Screen";
+      font-weight: normal;
+    }
+  </style>
+</head>
+<body>
+
+</body>
+</html>
+
+
+</head>
+<body>
+
+
+<div class="page-wrapper">
+  <div class="container center">
+
+  <header class="header">
+  <div class="header__inner">
+    <div class="header__logo">
+      <a href="/">
+  <div class="logo">
+    chengzhycn&#39;s blog
+  </div>
+</a>
+
+    </div>
+    
+      <ul class="menu menu--mobile">
+  <li class="menu__trigger">Menu&nbsp;▾</li>
+  <li>
+    <ul class="menu__dropdown">
+      
+        
+          <li><a href="/">Home</a></li>
+        
+      
+        
+          <li><a href="/about">About</a></li>
+        
+      
+        
+          <li><a href="/categories/">Categories</a></li>
+        
+      
+        
+          <li><a href="/tags/">Tags</a></li>
+        
+      
+        
+          <li><a href="/archives/">Archives</a></li>
+        
+      
+      
+    </ul>
+  </li>
+</ul>
+
+    
+    
+  </div>
+  
+    <nav class="navigation-menu">
+  <ul class="navigation-menu__inner menu--desktop">
+    
+      
+        
+          <li><a href="/" >Home</a></li>
+        
+      
+        
+          <li><a href="/about" >About</a></li>
+        
+      
+        
+          <li><a href="/categories/" >Categories</a></li>
+        
+      
+        
+          <li><a href="/tags/" >Tags</a></li>
+        
+      
+        
+          <li><a href="/archives/" >Archives</a></li>
+        
+      
+      
+    
+  </ul>
+</nav>
+
+  
+</header>
+
+
+  <div class="content">
+    
+<article class="post">
+  <h1 class="post-title">
+    <a href="https://www.jinzhi.site/posts/2025-11/kubecon-north-america-2025-review/">KubeCon North America 2025 Review</a>
+  </h1>
+  <div class="post-meta"><time class="post-date">2025-11-23</time><span class="post-reading-time">3 min read (495 words)</span></div>
+
+  
+    <span class="post-tags">
+      
+      #<a href="https://www.jinzhi.site/tags/kubecon/">KubeCon</a>&nbsp;
+      
+      #<a href="https://www.jinzhi.site/tags/network/">Network</a>&nbsp;
+      
+    </span>
+  
+  
+
+
+  
+    <div class="table-of-contents">
+      <h2>
+        Table of Contents
+      </h2>
+      <nav id="TableOfContents">
+  <ul>
+    <li><a href="#dynamic-routing-with-multi-cluster-inference-gateway">Dynamic Routing with Multi-Cluster Inference Gateway</a></li>
+    <li><a href="#routing-stateful-ai-workloads-in-kubernetes">Routing Stateful AI Workloads in Kubernetes</a></li>
+    <li><a href="#scaling-and-securing-coredns-performance-and-resilience">Scaling and Securing CoreDNS: Performance and Resilience</a></li>
+    <li><a href="#every-kubernetes-pod-eviction-path-explained">Every Kubernetes Pod Eviction Path Explained</a></li>
+    <li><a href="#designing-for-observability-from-noise-to-insight">Designing for observability: From noise to insight</a></li>
+    <li><a href="#benchmarking-genai-foundation-model-inference-optimizations-on-kubernetes">Benchmarking GenAI Foundation Model Inference Optimizations on Kubernetes</a></li>
+    <li><a href="#qemu-in-the-fast-lane-accelerating-kubevirt-networking-with-ebpf">QEMU in the Fast Lane: Accelerating KubeVirt Networking with eBPF</a></li>
+  </ul>
+</nav>
+    </div>
+  
+
+  <div class="post-content"><div>
+        <p>KubeCon North America 2025 13号结束了，官网上也有了些会议资料。挑了几个感兴趣的话题总结下。</p>
+<h2 id="dynamic-routing-with-multi-cluster-inference-gateway">Dynamic Routing with Multi-Cluster Inference Gateway<a href="#dynamic-routing-with-multi-cluster-inference-gateway" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p><a href="https://kccncna2025.sched.com/event/27FeP/ai-inference-without-boundaries-dynamic-routing-with-multi-cluster-inference-gateway-rob-scott-google-daneyon-hansen-soloio?iframe=no&amp;w=100%25&amp;sidebar=yes&amp;bg=no">https://kccncna2025.sched.com/event/27FeP/ai-inference-without-boundaries-dynamic-routing-with-multi-cluster-inference-gateway-rob-scott-google-daneyon-hansen-soloio?iframe=no&w=100%&sidebar=yes&bg=no</a></p>
+<p>这段时间正好在做 AI 网关，这个话题可以说是“瞌睡了送枕头”。</p>
+<p>推理服务和传统 API 流量相比，在 payload，响应时间，后端资源开销上都有着很大的差异（见下图）。
+<img src="/images/notes/kubecon-north-america-2025-review/2781cd595fe30c8da311d124a8e4ee35_MD5.jpeg" alt="2781cd595fe30c8da311d124a8e4ee35_MD5"></p>
+<p>因此，推理网关需要做到后端负载感知的调度（传统 API 网关也有类似的方案，尤其是在后端机型不一样，普通的 rr 无法均匀负载时，做后端负载感知动态调权）。在 Gateway 和推理实例间引入了一个 EPP（Endpoint Picker）组件（注：EPP 现在也是 Kubernetes 做推理服务的一个通用组件），采集推理实例的指标来动态选择推理后端。
+<img src="/images/notes/kubecon-north-america-2025-review/3462773fb295a9dabdabc886b1de43ca_MD5.jpeg" alt="3462773fb295a9dabdabc886b1de43ca_MD5"></p>
+<p>benchmark 数据显示，使用推理网关相比传统负载均衡，推理实例间的负载更加均衡，请求排队更少，从而降低了响应时间。</p>
+<p>在多集群场景下，这套方案需要解决 3 个问题：</p>
+<ol>
+<li>服务发现：Cluster Inference Services 如何暴露给 Gateway？</li>
+<li>后端选择：Gateway 如何在多集群间分配流量？</li>
+<li>路由模式：流量如何从 Gateway 转发到集群？</li>
+</ol>
+<p>第一个问题作者提了 3 个解决方法：
+<img src="/images/notes/kubecon-north-america-2025-review/fd7a6ffacbfd58fcd6482dd40b861461_MD5.jpeg" alt="fd7a6ffacbfd58fcd6482dd40b861461_MD5"></p>
+<p>不是关注重点，略过。</p>
+<p>第二个问题，简单的 RR 和 Active-Passive 肯定就失去了推理网关负载感知的优势。所以，在 EPP 感知负载之外，Gateway 也得做负载感知。作者也提了两个方法：
+<img src="/images/notes/kubecon-north-america-2025-review/1d3df4bac299f39b0c917b886bab2a27_MD5.jpeg" alt="1d3df4bac299f39b0c917b886bab2a27_MD5">
+<img src="/images/notes/kubecon-north-america-2025-review/f4bd518bc6dce2999d5805d5b2d46dac_MD5.jpeg" alt="f4bd518bc6dce2999d5805d5b2d46dac_MD5"></p>
+<p>从层级上来说，EPP Aggregate Metrics 方案更加简洁，毕竟在 EPP 上还得做二次调度。</p>
+<p>最后一个问题，如果 EPP 能跨集群直接访问，direct routing 是最合适的方式，不行的话再加一层网关，使用 Cluster-Local Gateway 做暴露也能访问。</p>
+<p><img src="/images/notes/kubecon-north-america-2025-review/20fff68d9bf08d58b4ce101cde13febf_MD5.jpeg" alt="20fff68d9bf08d58b4ce101cde13febf_MD5"></p>
+<p>总结一下，这篇演讲的主要思路是利用负载感知在提高推理网关服务的性能。提出了多种方式解决单集群服务迁移到多集群服务时面临的问题。但是也要注意到，系统的整体复杂性也有一个提升。如何保证系统的稳定性以及多层感知的准确性，也是在实际工程实践中需要注意的地方。</p>
+<h2 id="routing-stateful-ai-workloads-in-kubernetes">Routing Stateful AI Workloads in Kubernetes<a href="#routing-stateful-ai-workloads-in-kubernetes" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p><a href="https://kccncna2025.sched.com/event/27FX6/routing-stateful-ai-workloads-in-kubernetes-maroon-ayoub-ibm-michey-mehta-red-hat?iframe=no&amp;w=100%25&amp;sidebar=yes&amp;bg=no">https://kccncna2025.sched.com/event/27FX6/routing-stateful-ai-workloads-in-kubernetes-maroon-ayoub-ibm-michey-mehta-red-hat?iframe=no&w=100%&sidebar=yes&bg=no</a></p>
+<p>这篇演讲也是讲推理服务的流量调度的，介绍了 llm-d。核心要点有 3 个：</p>
+<ol>
+<li><strong>AI Workloads Are Stateful</strong></li>
+<li><strong>K8s Networking is blind to AI</strong></li>
+<li><strong>llm-d makes Kubernetes AI-Aware</strong></li>
+</ol>
+<p>和上篇关注于负载不同，这篇演讲主要关注于 KVCache 对于推理服务流量调度的影响。Prefix Caching 能利用缓存跳过 expensive prefill，提高总体吞吐，降低 TTFT。
+<img src="/images/notes/kubecon-north-america-2025-review/6698927efd73835c65bc5d919060eb74_MD5.jpeg" alt="6698927efd73835c65bc5d919060eb74_MD5"></p>
+<p>所以，推理服务实质上是有状态服务。</p>
+<blockquote>
+<p>“The KV-cache hit rate is the single most important metric for a production-stage AI agent. It directly affects both latency and cost.”</p>
+<ul>
+<li>Manus, Context Engineering for AI Agents</li>
+</ul>
+</blockquote>
+<ul>
+<li>OpenAI GPT-5: $1.25 per 1M input tokens vs $0.125 per 1M cached input tokens</li>
+<li>Anthropic Claude Sonnet: $3 per 1M input tokens vs $0.3 per 1M cached input tokens</li>
+</ul>
+<p>而传统的 Kubernetes 流量调度（Round-Robin，Load-Aware）都无法做到 Prefix-Cache Aware Scheduling，自然无法保证 cache hit rate。</p>
+<p><img src="/images/notes/kubecon-north-america-2025-review/6dff4326f7e1c4a0f4b54820dd561428_MD5.jpeg" alt="6dff4326f7e1c4a0f4b54820dd561428_MD5"></p>
+<p>多轮对话场景下 precise prefix cache-aware scheduler 和 load-aware scheduler 性能对比：</p>
+<p><img src="/images/notes/kubecon-north-america-2025-review/6eea94533d879fbf42f6263cd883266b_MD5.jpeg" alt="6eea94533d879fbf42f6263cd883266b_MD5"></p>
+<p>llm-d precise prefix cache-aware 实现方式：</p>
+<p>对于每一个请求：</p>
+<ol>
+<li>Query the kvcache.Index</li>
+<li>Calculate <strong>prefix-cache affinity</strong> score per pod:
+<ol>
+<li>% of prefix already cached</li>
+<li>Represents saved computational work</li>
+</ol>
+</li>
+<li>Combine with load-aware scores:
+<ol>
+<li>vLLM queue depth</li>
+<li>KV-cache utilization</li>
+<li>Others</li>
+</ol>
+</li>
+<li>Route to maximize cache hits while balancing load</li>
+</ol>
+<p>在保证不制造热点的情况下达到最高的 cache 亲和性。</p>
+<p>llm-d 仓库中的架构图如下：</p>
+<p><img src="/images/notes/kubecon-north-america-2025-review/86eb979b9afc246cec0f4f03845c54d3_MD5.jpeg" alt="86eb979b9afc246cec0f4f03845c54d3_MD5"></p>
+<p><a href="https://github.com/llm-d/llm-d-inference-scheduler/blob/v0.3.2/docs/architecture.md">https://github.com/llm-d/llm-d-inference-scheduler/blob/v0.3.2/docs/architecture.md</a></p>
+<h2 id="scaling-and-securing-coredns-performance-and-resilience">Scaling and Securing CoreDNS: Performance and Resilience<a href="#scaling-and-securing-coredns-performance-and-resilience" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p><a href="https://kccncna2025.sched.com/event/27Nn5/scaling-and-securing-coredns-performance-and-resilience-yong-tang-datadirect-networks-john-belamaric-google?iframe=no&amp;w=100%25&amp;sidebar=yes&amp;bg=no">https://kccncna2025.sched.com/event/27Nn5/scaling-and-securing-coredns-performance-and-resilience-yong-tang-datadirect-networks-john-belamaric-google?iframe=no&w=100%&sidebar=yes&bg=no</a></p>
+<p>介绍了 CoreDNS 1.12.0 - 1.13.1 版本的一些新特性。主要有：</p>
+<p><strong>multisocket plugin</strong></p>
+<p>核心是利用 reuseport 提高 CoreDNS 单实例在多核扩展时的性能。</p>
+<p>![603f221fb43550779e2026ad6ba755d7_MD5](01-计算机/03 - Kubernetes/99 - Conference/_assets/603f221fb43550779e2026ad6ba755d7_MD5.jpeg)</p>
+<p>社区在2022年的 issue 就开始了关于 CoreDNS 在多核时性能不佳的讨论：https://github.com/coredns/coredns/issues/5595 。不过容器化的好处是可以用小规格启动更多的实例（HPA）来规避这个问题。</p>
+<p><strong>kubernetes plugin multicluster support</strong></p>
+<blockquote>
+<p><code>multicluster</code> defines the multicluster zones as defined by Multi-Cluster Services API (MCS-API). Specifying this option is generally paired with the installation of an MCS-API implementation and the ServiceImport and ServiceExport CRDs. The plugin MUST be authoritative for the zones listed here.</p>
+</blockquote>
+<h2 id="every-kubernetes-pod-eviction-path-explained">Every Kubernetes Pod Eviction Path Explained<a href="#every-kubernetes-pod-eviction-path-explained" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p><a href="https://kccncna2025.sched.com/event/27Fdd/evicted-all-the-ways-kubernetes-kills-your-pods-and-how-to-avoid-them-ahmet-alp-balkan-linkedin?iframe=no&amp;w=100%25&amp;sidebar=yes&amp;bg=no">https://kccncna2025.sched.com/event/27Fdd/evicted-all-the-ways-kubernetes-kills-your-pods-and-how-to-avoid-them-ahmet-alp-balkan-linkedin?iframe=no&w=100%&sidebar=yes&bg=no</a></p>
+<p>总结一张图：</p>
+<p><img src="/images/notes/kubecon-north-america-2025-review/3e0d29adf5c5ea826ffb5ce6677deef7_MD5.jpeg" alt="3e0d29adf5c5ea826ffb5ce6677deef7_MD5"></p>
+<p>关于PDB：</p>
+<p>Kubernetes Pod Disruption Budget (PDB) 是一种 Kubernetes API 对象，它的主要作用是<strong>在集群执行自愿性中断操作时，确保特定应用程序始终有一定数量的 Pod 在运行，从而避免应用程序的服务中断或性能下降。</strong></p>
+<p>简单来说，PDB 就是给你的应用设定一个“预算”，这个预算规定了<strong>在任何时候，最多有多少个 Pod 可以同时因为自愿性中断而下线，或者说最少有多少个 Pod 必须保持运行。</strong></p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-yaml" data-lang="yaml"><span class="line"><span class="cl"><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l">policy/v1</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l">PodDisruptionBudget</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="nt">metadata</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l">my-app-pdb</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="nt">spec</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">minAvailable</span><span class="p">:</span><span class="w"> </span><span class="m">70</span><span class="l">%</span><span class="w"> </span><span class="c"># 至少70%的Pod必须保持运行</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">selector</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nt">matchLabels</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">      </span><span class="nt">app</span><span class="p">:</span><span class="w"> </span><span class="l">my-app</span><span class="w">
+</span></span></span></code></pre></div><h2 id="designing-for-observability-from-noise-to-insight">Designing for observability: From noise to insight<a href="#designing-for-observability-from-noise-to-insight" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p><a href="https://kccncna2025.sched.com/event/27Fbk/designing-for-observability-from-noise-to-insight-andrea-chomiak-dash0?iframe=no&amp;w=100%25&amp;sidebar=yes&amp;bg=no">https://kccncna2025.sched.com/event/27Fbk/designing-for-observability-from-noise-to-insight-andrea-chomiak-dash0?iframe=no&w=100%&sidebar=yes&bg=no</a></p>
+<p>总结一张图：
+<img src="/images/notes/kubecon-north-america-2025-review/5d14ecf2073c46ed08b632b0cc794f7f_MD5.jpeg" alt="5d14ecf2073c46ed08b632b0cc794f7f_MD5"></p>
+<h2 id="benchmarking-genai-foundation-model-inference-optimizations-on-kubernetes">Benchmarking GenAI Foundation Model Inference Optimizations on Kubernetes<a href="#benchmarking-genai-foundation-model-inference-optimizations-on-kubernetes" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p><a href="https://kccncna2025.sched.com/event/27FVD/benchmarking-genai-foundation-model-inference-optimizations-on-kubernetes-sachin-mathew-varghese-capital-one-brendan-slabe-google?iframe=no&amp;w=100%25&amp;sidebar=yes&amp;bg=no">https://kccncna2025.sched.com/event/27FVD/benchmarking-genai-foundation-model-inference-optimizations-on-kubernetes-sachin-mathew-varghese-capital-one-brendan-slabe-google?iframe=no&w=100%&sidebar=yes&bg=no</a></p>
+<p>kubernetes-sig 下的新项目：<a href="https://github.com/kubernetes-sigs/inference-perf">https://github.com/kubernetes-sigs/inference-perf</a>，用来对推理服务做 benchmark。</p>
+<p><img src="/images/notes/kubecon-north-america-2025-review/f0a6bd8895de50ef26a47b0f5926180b_MD5.jpeg" alt="f0a6bd8895de50ef26a47b0f5926180b_MD5"></p>
+<p>inference-perf 具备以下关键能力：</p>
+<ul>
+<li><strong>高可扩展性</strong>：能处理大规模测试。</li>
+<li><strong>灵活的负载模拟</strong>：能模拟各种真实和极限的流量模式。</li>
+<li><strong>智能的提示生成</strong>：能生成真实世界和合成的、特定用例的测试数据。</li>
+<li><strong>精细的控制能力</strong>：能精确控制输入输出的长度和分布，以及系统提示，从而进行高度定制化和科学的性能评估。</li>
+</ul>
+<p>目标是帮助开发者和运维团队全面理解他们的LLM部署在各种真实和压力场景下的表现，发现瓶颈，优化性能，并确保稳定性。</p>
+<p>演讲中建立了大模型的时延-吞吐量的性能模型：</p>
+<ul>
+<li>Latency Throughput Curve: Describes performance under loads that do and do not saturate the serving stack/cause request queuing.</li>
+</ul>
+<p>但是感觉图中的 x y 轴弄反了，output tokens 作为负载应该放在 x 轴，TTFT，TPOT 和 Inter-token latency 作为指标应该放在 y 轴。</p>
+<p><img src="/images/notes/kubecon-north-america-2025-review/00705412afe206595287222598c80b6e_MD5.jpeg" alt="00705412afe206595287222598c80b6e_MD5"></p>
+<h2 id="qemu-in-the-fast-lane-accelerating-kubevirt-networking-with-ebpf">QEMU in the Fast Lane: Accelerating KubeVirt Networking with eBPF<a href="#qemu-in-the-fast-lane-accelerating-kubevirt-networking-with-ebpf" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p><a href="https://kccncna2025.sched.com/event/27FXg/qemu-in-the-fast-lane-accelerating-kubevirt-networking-with-ebpf-daniel-borkmann-anton-protopopov-isovalent-at-cisco?iframe=no&amp;w=100%25&amp;sidebar=yes&amp;bg=no">https://kccncna2025.sched.com/event/27FXg/qemu-in-the-fast-lane-accelerating-kubevirt-networking-with-ebpf-daniel-borkmann-anton-protopopov-isovalent-at-cisco?iframe=no&w=100%&sidebar=yes&bg=no</a></p>
+<p>Daniel 大佬的演讲，这次将 cilium 扩展到虚拟化的领域中。</p>
+<p>现有的 Kubevirt 网络是由 veth pair（host ns to pod ns）+ bridge + tap（pod ns to vm）两部分组成的。</p>
+<p><img src="/images/notes/kubecon-north-america-2025-review/de2a153124a1119f3a6b9fff3b811ea8_MD5.jpeg" alt="de2a153124a1119f3a6b9fff3b811ea8_MD5"></p>
+<p>cilium 的 netkit driver 已经在容器网络中对第一部分进行了优化，完全消除了 netns 带来的 overhead。
+<img src="/images/notes/kubecon-north-america-2025-review/b0d6f740a50a03d5e5d5ffff346aea46_MD5.jpeg" alt="b0d6f740a50a03d5e5d5ffff346aea46_MD5"></p>
+<p>性能对比，netkit + BPF host routing 已经和 host 网络持平：</p>
+<p><img src="/images/notes/kubecon-north-america-2025-review/1037d65a16b40726ea6ab830a9110375_MD5.jpeg" alt="1037d65a16b40726ea6ab830a9110375_MD5">
+<img src="/images/notes/kubecon-north-america-2025-review/df57bf47bbf5b79979c6d29a0ea95733_MD5.jpeg" alt="df57bf47bbf5b79979c6d29a0ea95733_MD5"></p>
+<p>在 kubevirt 网络中应用 netkit 也带来了 13% 左右的吞吐提升：</p>
+<p><img src="/images/notes/kubecon-north-america-2025-review/5d79ceed0d455631d9ff58daaf79cc61_MD5.jpeg" alt="5d79ceed0d455631d9ff58daaf79cc61_MD5"></p>
+<p>但是第二部分 bridge + vtap 仍然有优化的空间。</p>
+<p>一种思路是利用 SR-IOV，物理网卡直通虚拟机。但是存在的问题是：</p>
+<ul>
+<li>直通后，虚拟机网络对宿主机完全隐藏，没法做可观测和网络策略</li>
+<li>能力依赖于底层硬件的支持</li>
+</ul>
+<p><img src="/images/notes/kubecon-north-america-2025-review/f919ccc29a5631c0064a8dae20414906_MD5.jpeg" alt="f919ccc29a5631c0064a8dae20414906_MD5"></p>
+<p>另外一种思路是利用 AF_XDP。</p>
+<p><img src="/images/notes/kubecon-north-america-2025-review/68350c59fbb7d6f5080a0c2aa876c0af_MD5.jpeg" alt="68350c59fbb7d6f5080a0c2aa876c0af_MD5"></p>
+<p>但是，pod netns 内是没有 AF_XDP 支持的。没有怎么办？那就改代码让它支持咯。</p>
+<p>利用网卡的 RSS 和多队列，netkit 上也创建多个 rx queues 和 网卡队列做绑定，实现容器 netns 内的数据直通：</p>
+<p><img src="/images/notes/kubecon-north-america-2025-review/b0c723720241410bec70ddf104a1523b_MD5.jpeg" alt="b0c723720241410bec70ddf104a1523b_MD5"></p>
+<p>该方案完成的话，未来的 cilium + kubevirt 网络栈：</p>
+<p><img src="/images/notes/kubecon-north-america-2025-review/8816a77dd1e6f9976bf7d93b88293cd0_MD5.jpeg" alt="8816a77dd1e6f9976bf7d93b88293cd0_MD5"></p>
+<p>性能对比：
+<img src="/images/notes/kubecon-north-america-2025-review/52883b02d38ad7b2db2475d25429bb91_MD5.jpeg" alt="52883b02d38ad7b2db2475d25429bb91_MD5">
+<img src="/images/notes/kubecon-north-america-2025-review/4341a56282118e3f6b15f975a91d69d0_MD5.jpeg" alt="4341a56282118e3f6b15f975a91d69d0_MD5"></p>
+
+      </div></div>
+
+  
+    
+<div class="pagination">
+  <div class="pagination__title">
+    <span class="pagination__title-h">Read other posts</span>
+    <hr />
+  </div>
+  <div class="pagination__buttons">
+    
+    
+    
+      <a href="https://www.jinzhi.site/posts/2025-11/%E7%BD%91%E5%85%B3%E7%9A%84%E9%99%90%E6%B5%81%E6%96%B9%E6%A1%88/" class="button inline next">
+         [<span class="button__text">网关的限流方案</span>] &gt;
+      </a>
+    
+  </div>
+</div>
+
+
+  
+
+  
+    
+
+  
+</article>
+
+  </div>
+
+  
+    <footer class="footer">
+  <div class="footer__inner">
+    
+      <div class="copyright">
+        <span>© 2025 Powered by <a href="https://gohugo.io">Hugo</a></span>
+    
+      <span>:: <a href="https://github.com/panr/hugo-theme-terminal" target="_blank">Theme</a> made by <a href="https://github.com/panr" target="_blank">panr</a></span>
+      </div>
+  </div>
+</footer>
+
+
+
+
+
+
+<script type="text/javascript" src="/bundle.min.js"></script>
+
+
+
+
+
+  
+  </div>
+
+  <aside class="floating-sidebar">
+    
+<div class="sidebar time-archive">
+  <h3>Time Archives</h3>
+  <div class="archive-list">
+    
+    
+
+    
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+
+    
+    
+
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-11/" class="archive-link">
+          <span class="archive-date">2025-11</span>
+          <span class="archive-month-name">Nov</span>
+          <span class="archive-count">(3)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-10/" class="archive-link">
+          <span class="archive-date">2025-10</span>
+          <span class="archive-month-name">Oct</span>
+          <span class="archive-count">(4)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-09/" class="archive-link">
+          <span class="archive-date">2025-09</span>
+          <span class="archive-month-name">Sep</span>
+          <span class="archive-count">(3)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-08/" class="archive-link">
+          <span class="archive-date">2025-08</span>
+          <span class="archive-month-name">Aug</span>
+          <span class="archive-count">(9)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-06/" class="archive-link">
+          <span class="archive-date">2025-06</span>
+          <span class="archive-month-name">Jun</span>
+          <span class="archive-count">(2)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-04/" class="archive-link">
+          <span class="archive-date">2025-04</span>
+          <span class="archive-month-name">Apr</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-03/" class="archive-link">
+          <span class="archive-date">2025-03</span>
+          <span class="archive-month-name">Mar</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2024-01/" class="archive-link">
+          <span class="archive-date">2024-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(2)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-10/" class="archive-link">
+          <span class="archive-date">2022-10</span>
+          <span class="archive-month-name">Oct</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-07/" class="archive-link">
+          <span class="archive-date">2022-07</span>
+          <span class="archive-month-name">Jul</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-06/" class="archive-link">
+          <span class="archive-date">2022-06</span>
+          <span class="archive-month-name">Jun</span>
+          <span class="archive-count">(4)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-05/" class="archive-link">
+          <span class="archive-date">2022-05</span>
+          <span class="archive-month-name">May</span>
+          <span class="archive-count">(4)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-03/" class="archive-link">
+          <span class="archive-date">2022-03</span>
+          <span class="archive-month-name">Mar</span>
+          <span class="archive-count">(4)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-01/" class="archive-link">
+          <span class="archive-date">2022-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-11/" class="archive-link">
+          <span class="archive-date">2021-11</span>
+          <span class="archive-month-name">Nov</span>
+          <span class="archive-count">(2)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-09/" class="archive-link">
+          <span class="archive-date">2021-09</span>
+          <span class="archive-month-name">Sep</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-06/" class="archive-link">
+          <span class="archive-date">2021-06</span>
+          <span class="archive-month-name">Jun</span>
+          <span class="archive-count">(3)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-01/" class="archive-link">
+          <span class="archive-date">2021-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+  </div>
+</div>
+
+<style>
+.sidebar.time-archive {
+  background: rgba(26, 23, 15, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--accent, #FFA86B);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+  max-width: var(--sidebar-component-width, 240px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.sidebar.time-archive h3 {
+  margin: 0 0 1rem 0;
+  color: var(--accent, #FFA86B);
+  font-size: 1.2rem;
+  border-bottom: 1px solid var(--accent-alpha-70, rgba(255, 168, 107, 0.7));
+  padding-bottom: 0.5rem;
+}
+
+
+.archive-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.archive-item {
+  display: block;
+}
+
+.archive-link {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  text-decoration: none;
+  color: var(--color, inherit);
+  padding: 0.5rem;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+}
+
+.archive-link:hover {
+  background-color: var(--accent-alpha-20, rgba(255, 168, 107, 0.2));
+  color: var(--accent, #FFA86B);
+}
+
+.archive-date {
+  font-family: var(--code-font-family, 'Fira Code', monospace);
+  font-weight: bold;
+  min-width: 60px;
+}
+
+.archive-month-name {
+  flex: 1;
+  margin-left: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.archive-count {
+  color: var(--accent, #FFA86B);
+  font-weight: bold;
+  font-size: 0.9rem;
+}
+
+ 
+</style>
+
+    
+<div class="sidebar tags-cloud">
+  <h3>Tags Cloud</h3>
+  <div class="tags-container">
+    
+    
+    
+    
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+    
+    
+    
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+    
+    
+    
+    
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+    
+    
+    
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+    
+    
+    
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/agent/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Agent
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/ai/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          AI
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/apisix/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="3 articles">
+          apisix
+          <span class="tag-count">(3)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/biography/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          biography
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/compile/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          compile
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/concurrency/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="7 articles">
+          Concurrency
+          <span class="tag-count">(7)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/csi/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          csi
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/debug/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          debug
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/dns/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          dns
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/ebpf/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          ebpf
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/elf/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          ELF
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/go/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          Go
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/http/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          HTTP
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/kaist-cs431/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="7 articles">
+          KAIST-CS431
+          <span class="tag-count">(7)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/kernel/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Kernel
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/kubecon/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          KubeCon
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/kubernetes/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          kubernetes
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/l7gateway/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="3 articles">
+          L7Gateway
+          <span class="tag-count">(3)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/linux/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="3 articles">
+          Linux
+          <span class="tag-count">(3)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/llm/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          LLM
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/lua/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="3 articles">
+          Lua
+          <span class="tag-count">(3)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/makefile/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          makefile
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/mindfulness/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          mindfulness
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/network/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="3 articles">
+          Network
+          <span class="tag-count">(3)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/nonfiction/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="6 articles">
+          nonfiction
+          <span class="tag-count">(6)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/operatingsystem/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          OperatingSystem
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/philosophy/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          philosophy
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/rust/" 
+           class="tag-item" 
+           style="font-size: 1.5em;"
+           title="10 articles">
+          Rust
+          <span class="tag-count">(10)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/schedule/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Schedule
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/science/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          science
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/softwareengineering/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          SoftwareEngineering
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/wasm/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          wasm
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+  </div>
+</div>
+
+<style>
+.sidebar.tags-cloud {
+  background: rgba(26, 23, 15, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--accent, #FFA86B);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+  max-width: var(--sidebar-component-width, 240px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.sidebar.tags-cloud h3 {
+  margin: 0 0 1rem 0;
+  color: var(--accent, #FFA86B);
+  font-size: 1.2rem;
+  border-bottom: 1px solid var(--accent-alpha-70, rgba(255, 168, 107, 0.7));
+  padding-bottom: 0.5rem;
+}
+
+.tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  line-height: 1.6;
+}
+
+.tag-item {
+  display: inline-flex;
+  align-items: baseline;
+  text-decoration: none;
+  color: var(--color, inherit);
+  padding: 0.3rem 0.6rem;
+  border-radius: 16px;
+  background: rgba(255, 168, 107, 0.1);
+  border: 1px solid transparent;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.tag-item:hover {
+  background: rgba(255, 168, 107, 0.25);
+  border-color: var(--accent-alpha-50, rgba(255, 168, 107, 0.5));
+  color: var(--accent, #FFA86B);
+  transform: translateY(-1px);
+}
+
+.tag-count {
+  font-size: 0.75em;
+  margin-left: 0.3rem;
+  opacity: 0.7;
+  font-weight: normal;
+}
+
+.tag-item:hover .tag-count {
+  opacity: 1;
+}
+
+ 
+
+ 
+.tag-item {
+  font-weight: 400;
+}
+
+ 
+.tag-item[style*="1.5"], 
+.tag-item[style*="1.4"],
+.tag-item[style*="1.3"] {
+  font-weight: 600;
+}
+
+ 
+.tag-item[style*="1.2"],
+.tag-item[style*="1.1"] {
+  font-weight: 500;
+}
+
+ 
+.tag-item[style*="1.5"]:hover,
+.tag-item[style*="1.4"]:hover,
+.tag-item[style*="1.3"]:hover {
+  box-shadow: 0 3px 10px rgba(255, 168, 107, 0.4);
+  transform: translateY(-2px);
+}
+
+</style>
+
+  </aside>
+</div>
+
+<style>
+ 
+.page-wrapper {
+  position: relative;
+  width: 100%;
+  max-width: none;
+  --sidebar-top-offset: 150px;  
+  --sidebar-component-width: 240px;  
+}
+
+   
+.floating-sidebar {
+  position: absolute;
+   
+  top: var(--sidebar-top-offset, 175px);
+   
+  right: max(20px, calc((100vw - 864px) / 2 - 330px));
+  width: 300px;
+  z-index: 100;
+  opacity: 0.96;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+ 
+.floating-sidebar:hover {
+  opacity: 1;
+  transform: translateX(-5px);
+}
+
+ 
+.floating-sidebar {
+  display: none;
+}
+
+ 
+@media (min-width: 1524px) {
+  .floating-sidebar {
+    display: block;
+    position: absolute;
+    right: max(20px, calc((100vw - 864px) / 2 - 330px));
+  }
+}
+
+ 
+@media (max-width: 1523px) {
+  .floating-sidebar {
+    display: none !important;
+  }
+}
+
+</style>
+
+</body>
+</html>

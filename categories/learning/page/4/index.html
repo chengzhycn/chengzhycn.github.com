@@ -207,6 +207,103 @@
     
       <article class="post on-list">
         <h1 class="post-title">
+          <a href="https://www.jinzhi.site/posts/2022-10/linux-%E6%94%B6%E5%8C%85%E5%92%8C%E5%8F%91%E5%8C%85%E6%B5%81%E7%A8%8B/">Linux 收包和发包流程</a>
+        </h1>
+        <div class="post-meta"><time class="post-date">2022-10-13</time></div>
+
+        
+          <span class="post-tags">
+            
+            #<a href="https://www.jinzhi.site/tags/linux/">Linux</a>&nbsp;
+            
+            #<a href="https://www.jinzhi.site/tags/network/">Network</a>&nbsp;
+            
+            #<a href="https://www.jinzhi.site/tags/kernel/">Kernel</a>&nbsp;
+            
+          </span>
+        
+
+        
+
+
+        <div class="post-content">
+          
+            <h2 id="流程图">流程图</h2>
+<p>From 《Understanding Linux Network Internals》</p>
+<p><img src="/images/notes/linux-%E6%94%B6%E5%8C%85%E5%92%8C%E5%8F%91%E5%8C%85%E6%B5%81%E7%A8%8B/image-20220128172744059.png" alt="image-20220128172744059"></p>
+<p><img src="/images/notes/linux-%E6%94%B6%E5%8C%85%E5%92%8C%E5%8F%91%E5%8C%85%E6%B5%81%E7%A8%8B/image-20220129171450456.png" alt="image-20220129171450456"></p>
+<h2 id="收包流程">收包流程</h2>
+<p>TL; DR</p>
+<p><img src="/images/notes/linux-%E6%94%B6%E5%8C%85%E5%92%8C%E5%8F%91%E5%8C%85%E6%B5%81%E7%A8%8B/Linux_Packet_Receive_Flow.png" alt="image-20220129171450456"></p>
+<ul>
+<li><strong>收包<code>NET_RX_SOFTRQ</code>的软中断处理函数是<code>net_rx_action</code></strong></li>
+<li><strong><code>net_rx_action</code>中会调用网卡驱动注册的poll回调函数处理</strong></li>
+<li><strong>poll回调函数将数据帧从网卡ring buffer中取出，构造skb：</strong>
+<ul>
+<li><strong>运行xdpdrv上的bpf program，得到action result</strong></li>
+<li><strong>如果是XDP_PASS，构造skb，并初始化skb中一些metadata字段</strong></li>
+</ul>
+</li>
+<li><strong>调用内核的GRO和RPS处理流程</strong></li>
+<li><strong>进入<code>__netif_receive_skb_core</code>，处理skb：</strong>
+<ul>
+<li><strong>运行xdpgeneric上的bpf program，得到action result</strong></li>
+<li><strong>如果是XDP_PASS，遍历<code>ptype_all</code>和<code>dev-&gt;ptype_all</code>，进行抓包处理</strong></li>
+<li><strong>tc ingress 处理<code>sch_handle_ingress</code></strong></li>
+<li><strong>查找<code>ptype_base</code>和<code>dev-&gt;ptype_specific</code>，交由对应的三层协议栈回调函数处理</strong></li>
+</ul>
+</li>
+</ul>
+<h3 id="napi">NAPI</h3>
+<p>**NAPI的思想是从完全的中断收包模型，改用中断和polling混合。**如果内核在处理旧的数据帧时，收到了新的数据帧，网卡设备没有必要再触发一个中断。内核继续处理设备input queue里的数据（该设备的interrupt禁止了），在队列为空时重新使能中断。</p>
+<p>从内核的角度，NAPI有如下的优势：</p>
+<ul>
+<li>降低CPU的负载（更少的中断）</li>
+<li>更多的设备处理公平性</li>
+</ul>
+<p>以ixgbe网卡为例，描述下NAPI处理流程。</p>
+<h4 id="注册">注册</h4>
+<p>ixgbe驱动在初始化中断向量时会调用<code>netif_napi_add</code>初始化NAPI，==<strong>将<code>ixgbe_poll</code>函数注册到napi结构体，并将napi加入到设备的napi_list内</strong>==：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="cm">/**
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * ixgbe_alloc_q_vector - Allocate memory for a single interrupt vector
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * @adapter: board private structure to initialize
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * @v_count: q_vectors allocated on adapter, used for ring interleaving
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * @v_idx: index of vector in adapter struct
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * @txr_count: total number of Tx rings to allocate
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * @txr_idx: index of first Tx ring to allocate
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * @xdp_count: total number of XDP rings to allocate
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * @xdp_idx: index of first XDP ring to allocate
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * @rxr_count: total number of Rx rings to allocate
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * @rxr_idx: index of first Rx ring to allocate
+</span></span></span><span class="line"><span class="cl"><span class="cm"> *
+</span></span></span><span class="line"><span class="cl"><span class="cm"> * We allocate one q_vector.  If allocation fails we return -ENOMEM.
+</span></span></span><span class="line"><span class="cl"><span class="cm"> **/</span>
+</span></span><span class="line"><span class="cl"><span class="k">static</span> <span class="kt">int</span> <span class="nf">ixgbe_alloc_q_vector</span><span class="p">(</span><span class="k">struct</span> <span class="n">ixgbe_adapter</span> <span class="o">*</span><span class="n">adapter</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                <span class="kt">int</span> <span class="n">v_count</span><span class="p">,</span> <span class="kt">int</span> <span class="n">v_idx</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                <span class="kt">int</span> <span class="n">txr_count</span><span class="p">,</span> <span class="kt">int</span> <span class="n">txr_idx</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                <span class="kt">int</span> <span class="n">xdp_count</span><span class="p">,</span> <span class="kt">int</span> <span class="n">xdp_idx</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                <span class="kt">int</span> <span class="n">rxr_count</span><span class="p">,</span> <span class="kt">int</span> <span class="n">rxr_idx</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">	<span class="cm">/* ... */</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="cm">/* initialize NAPI */</span>
+</span></span><span class="line"><span class="cl">    <span class="nf">netif_napi_add</span><span class="p">(</span><span class="n">adapter</span><span class="o">-&gt;</span><span class="n">netdev</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">q_vector</span><span class="o">-&gt;</span><span class="n">napi</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">               <span class="n">ixgbe_poll</span><span class="p">,</span> <span class="mi">64</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><h4 id="中断处理函数">中断处理函数</h4>
+<p>ixgbe驱动收到中断后，会调用<code>ixgbe_msix_clean_rings</code></p>
+          
+        </div>
+
+        
+          <div>
+            <a class="read-more button inline" href="/posts/2022-10/linux-%E6%94%B6%E5%8C%85%E5%92%8C%E5%8F%91%E5%8C%85%E6%B5%81%E7%A8%8B/">[Read more]</a>
+          </div>
+        
+      </article>
+    
+      <article class="post on-list">
+        <h1 class="post-title">
           <a href="https://www.jinzhi.site/posts/2022-07/make%E5%91%BD%E4%BB%A4%E5%92%8C%E7%BC%96%E8%AF%91/">make命令和编译</a>
         </h1>
         <div class="post-meta"><time class="post-date">2022-07-26</time></div>
@@ -511,69 +608,6 @@ $$</p>
         
       </article>
     
-      <article class="post on-list">
-        <h1 class="post-title">
-          <a href="https://www.jinzhi.site/posts/2021-09/go-channel-%E5%AE%9E%E7%8E%B0/">Go channel 实现</a>
-        </h1>
-        <div class="post-meta"><time class="post-date">2021-09-12</time></div>
-
-        
-          <span class="post-tags">
-            
-            #<a href="https://www.jinzhi.site/tags/go/">Go</a>&nbsp;
-            
-          </span>
-        
-
-        
-
-
-        <div class="post-content">
-          
-            <p>Go的Channel在runtime里面是一个hchan的结构体，每次我们make一个新的channel时，runtime从heap内分配一个hchan结构体管理channel。</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">type</span><span class="w"> </span><span class="nx">hchan</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">qcount</span><span class="w">   </span><span class="kt">uint</span><span class="w">           </span><span class="c1">// total data in the queue</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">dataqsiz</span><span class="w"> </span><span class="kt">uint</span><span class="w">           </span><span class="c1">// size of the circular queue</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">buf</span><span class="w">      </span><span class="nx">unsafe</span><span class="p">.</span><span class="nx">Pointer</span><span class="w"> </span><span class="c1">// points to an array of dataqsiz elements</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">elemsize</span><span class="w"> </span><span class="kt">uint16</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">closed</span><span class="w">   </span><span class="kt">uint32</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">elemtype</span><span class="w"> </span><span class="o">*</span><span class="nx">_type</span><span class="w"> </span><span class="c1">// element type</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">sendx</span><span class="w">    </span><span class="kt">uint</span><span class="w">   </span><span class="c1">// send index</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">recvx</span><span class="w">    </span><span class="kt">uint</span><span class="w">   </span><span class="c1">// receive index</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">recvq</span><span class="w">    </span><span class="nx">waitq</span><span class="w">  </span><span class="c1">// list of recv waiters</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">sendq</span><span class="w">    </span><span class="nx">waitq</span><span class="w">  </span><span class="c1">// list of send waiters</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="c1">// lock protects all fields in hchan, as well as several</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="c1">// fields in sudogs blocked on this channel.</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="c1">//
-</span></span></span><span class="line"><span class="cl"><span class="c1">    // Do not change another G&#39;s status while holding this lock</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="c1">// (in particular, do not ready a G), as this can deadlock</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="c1">// with stack shrinking.</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">lock</span><span class="w"> </span><span class="nx">mutex</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="p">}</span><span class="w">
-</span></span></span></code></pre></div><ul>
-<li>qcount：当前channel queue内的element数目，当qcount等于dataqsiz时，表示channel buffer已经满了，send channel会被阻塞；</li>
-<li>dataqsiz：channel的buffer大小，也就是我们在make时设定的值。dataqsiz在channel创建后不会再变动，因此channel的buffer是不会动态扩容的；</li>
-<li>buf：buffered channel缓存elements的内存地址。是一个数组实现的环形队列；</li>
-<li>elemsize：element类型大小；</li>
-<li>closed：channel是否已经被关闭，防止关闭已经关闭的channel；</li>
-<li>elemtype：channel element 类型；</li>
-<li>sendx：buffer中下一个生产的element的index；</li>
-<li>recvx：buffer中下一个消费的element的index；</li>
-<li>recvq：阻塞的接收channel，是一个sudog的链表</li>
-<li>sendq：阻塞的发送channel，是一个sudog的链表</li>
-</ul>
-<p>当buffer没有满时，send channel发送elements时直接把elements放在buf内，增加sendx和qcount；当buffer满时，send channel被阻塞，并加入到sendq链表内，等待被唤醒；</p>
-          
-        </div>
-
-        
-          <div>
-            <a class="read-more button inline" href="/posts/2021-09/go-channel-%E5%AE%9E%E7%8E%B0/">[Read more]</a>
-          </div>
-        
-      </article>
-    
 
     <div class="pagination">
   <div class="pagination__buttons">
@@ -817,6 +851,10 @@ $$</p>
       
       
     
+      
+      
+      
+    
 
     
     
@@ -846,7 +884,7 @@ $$</p>
         <a href="/posts/2025-11/" class="archive-link">
           <span class="archive-date">2025-11</span>
           <span class="archive-month-name">Nov</span>
-          <span class="archive-count">(2)</span>
+          <span class="archive-count">(3)</span>
         </a>
       </div>
     
@@ -1417,8 +1455,14 @@ $$</p>
       
         
       
+    
+      
+        
+      
         
       
+        
+      
     
       
         
@@ -1639,10 +1683,16 @@ $$</p>
       
         
       
+    
+    
     
     
     
+      
+      
     
+      
+      
     
       
       
@@ -1955,9 +2005,14 @@ $$</p>
       
       
     
+      
+      
     
     
     
+    
+    
+      
     
       
     
@@ -2320,6 +2375,25 @@ $$</p>
         
         
         
+        <a href="https://www.jinzhi.site/tags/kubecon/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          KubeCon
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
         <a href="https://www.jinzhi.site/tags/kubernetes/" 
            class="tag-item" 
            style="font-size: 0.9em;"
@@ -2456,9 +2530,9 @@ $$</p>
         <a href="https://www.jinzhi.site/tags/network/" 
            class="tag-item" 
            style="font-size: 0.9em;"
-           title="2 articles">
+           title="3 articles">
           Network
-          <span class="tag-count">(2)</span>
+          <span class="tag-count">(3)</span>
         </a>
       
     

@@ -6,8 +6,22 @@
     <description>Recent content in Tags on chengzhycn&#39;s blog</description>
     <generator>Hugo</generator>
     <language>en</language>
-    <lastBuildDate>Sun, 16 Nov 2025 15:18:28 +0800</lastBuildDate>
+    <lastBuildDate>Sun, 23 Nov 2025 15:18:28 +0800</lastBuildDate>
     <atom:link href="https://www.jinzhi.site/tags/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>KubeCon</title>
+      <link>https://www.jinzhi.site/tags/kubecon/</link>
+      <pubDate>Sun, 23 Nov 2025 15:18:28 +0800</pubDate>
+      <guid>https://www.jinzhi.site/tags/kubecon/</guid>
+      <description></description>
+    </item>
+    <item>
+      <title>Network</title>
+      <link>https://www.jinzhi.site/tags/network/</link>
+      <pubDate>Sun, 23 Nov 2025 15:18:28 +0800</pubDate>
+      <guid>https://www.jinzhi.site/tags/network/</guid>
+      <description></description>
+    </item>
     <item>
       <title>Apisix</title>
       <link>https://www.jinzhi.site/tags/apisix/</link>
@@ -111,13 +125,6 @@
       <link>https://www.jinzhi.site/tags/debug/</link>
       <pubDate>Fri, 13 Jun 2025 09:57:28 +0800</pubDate>
       <guid>https://www.jinzhi.site/tags/debug/</guid>
-      <description></description>
-    </item>
-    <item>
-      <title>Network</title>
-      <link>https://www.jinzhi.site/tags/network/</link>
-      <pubDate>Fri, 25 Apr 2025 20:30:28 +0800</pubDate>
-      <guid>https://www.jinzhi.site/tags/network/</guid>
       <description></description>
     </item>
     <item>

@@ -216,6 +216,48 @@
     
       <article class="post on-list">
         <h2 class="post-title">
+          <a href="https://www.jinzhi.site/posts/2025-10/introducing-kubernetes-gateway-api/">Introducing Kubernetes Gateway API</a>
+        </h2>
+
+        <div class="post-meta"><time class="post-date">2025-10-16</time></div>
+
+        
+          <span class="post-tags">
+            
+            #<a href="https://www.jinzhi.site/tags/kubernetes/">kubernetes</a>&nbsp;
+            
+          </span>
+        
+
+        
+
+
+        <div class="post-content">
+          
+            <p>Kubernetes Gateway API 是一个由 SIG-Network 孵化和维护的 <strong>开放、标准、可扩展的 API</strong>，旨在为 Kubernetes 集群内部和外部的统一流量管理提供更强大、更灵活、更具表现力的方式。</p>
+<p>它被视为 <strong>Ingress API 的继任者和演进</strong>，解决了 Ingress 在灵活性、可扩展性、角色分离和 L4-L7 支持方面的诸多局限性。Gateway API 不仅仅关注 HTTP 流量，还支持 TCP、UDP 以及 TLS 路由，覆盖了更广泛的网络场景。</p>
+<h2 id="为什么需要-gateway-api">为什么需要 Gateway API</h2>
+<p>在 Gateway API 出现之前，Kubernetes 主要使用 <code>Ingress</code> 来管理集群的 L7 HTTP/HTTPS 流量。然而，Ingress 存在一些固有的局限性，促使了 Gateway API 的诞生：</p>
+<ol>
+<li><strong>功能有限：</strong> Ingress 本身功能非常基础，只支持主机和路径路由。任何高级功能（如流量拆分、重写、限速、认证等）都必须通过特定于 Ingress 控制器（如 NGINX Ingress, Traefik, AWS ALB Ingress 等）的 <strong>注解（Annotations）</strong> 来实现。</li>
+<li><strong>可移植性差：</strong> 注解是特定于实现的，这意味着用 NGINX Ingress 注解编写的规则无法直接移植到 Traefik 或其他 Ingress 控制器上，造成供应商锁定。</li>
+<li><strong>缺乏角色分离：</strong> Ingress 资源将网络基础设施的配置（例如暴露的端口、TLS 证书）与应用程序的路由规则混在一起，这使得集群管理员和应用开发者之间的职责难以清晰划分。</li>
+<li><strong>L4 流量支持不足：</strong> Ingress 仅专注于 HTTP/HTTPS (L7) 流量。对于 TCP、UDP 或 TLS 直通（Passthrough）等 L4 流量，通常需要使用 <code>LoadBalancer</code> 类型的 Service 或其他的解决方案。</li>
+<li><strong>表达能力有限：</strong> 难以表达复杂的路由策略，如基于请求头、查询参数的匹配，细粒度的流量权重分配等。</li>
+</ol>
+<p>Gateway API 旨在解决这些问题，提供一个更加健壮和通用的流量管理框架。</p>
+          
+        </div>
+
+        
+          <div>
+            <a class="read-more button inline" href="/posts/2025-10/introducing-kubernetes-gateway-api/">[Read more]</a>
+          </div>
+        
+      </article>
+    
+      <article class="post on-list">
+        <h2 class="post-title">
           <a href="https://www.jinzhi.site/posts/2025-10/apisix-balancer-%E6%94%AF%E6%8C%81-domain/">APISIX balancer 支持 domain</a>
         </h2>
 
@@ -500,64 +542,6 @@
         
       </article>
     
-      <article class="post on-list">
-        <h2 class="post-title">
-          <a href="https://www.jinzhi.site/posts/2025-08/lua-an-overview/">Lua - An Overview</a>
-        </h2>
-
-        <div class="post-meta"><time class="post-date">2025-08-31</time></div>
-
-        
-          <span class="post-tags">
-            
-            #<a href="https://www.jinzhi.site/tags/lua/">Lua</a>&nbsp;
-            
-          </span>
-        
-
-        
-
-
-        <div class="post-content">
-          
-            <h2 id="lua-和-luajit">Lua 和 LuaJIT</h2>
-<h3 id="lua">Lua</h3>
-<p>Lua 是一个开源项目，由巴西里约热内卢天主教大学的 Roberto Ierusalimschy、Luiz Henrique de Figueiredo 和 Waldemar Celes 创建。它的版本控制相对简单明了。</p>
-<h4 id="lua-的版本体系">Lua 的版本体系</h4>
-<p>Lua 的版本号通常是 <code>X.Y</code> 的形式，例如 <code>5.1</code>, <code>5.2</code>, <code>5.3</code>, <code>5.4</code>。</p>
-<ul>
-<li><strong><code>X</code> (主版本号/Major Version):</strong> 表示一个<strong>重大更新</strong>，通常会引入不兼容的更改（breaking changes），新的核心特性，或者对虚拟机架构的显著改进。从 <code>5.x</code> 到 <code>5.y</code>，<code>y</code> 增加通常意味着语法、API 或语义的更改，可能需要修改现有代码。
-<ul>
-<li><strong>例子:</strong>
-<ul>
-<li><strong>Lua 5.0:</strong> 引入了协程 (coroutines)。</li>
-<li><strong>Lua 5.1:</strong> 引入了模块系统 (module system)、<code>vararg</code> 参数的改进。</li>
-<li><strong>Lua 5.2:</strong> 引入了 <code>goto</code> 语句、环境 (environments) 的重新设计、新的 <code>_ENV</code> 上值。</li>
-<li><strong>Lua 5.3:</strong> 引入了整数类型、位操作 (bitwise operations)、UTF-8 支持。</li>
-<li><strong>Lua 5.4:</strong> 引入了新的垃圾回收器、弱表 (weak tables) 的改进。</li>
-</ul>
-</li>
-</ul>
-</li>
-<li><strong><code>Y</code> (次版本号/Minor Version) 或补丁版本 (Patch Version):</strong> 在主版本中，通常用于表示错误修复、性能优化或次要的功能增强。这些更改通常是<strong>向后兼容</strong>的（backward compatible），不会破坏现有代码运行。有时候，一个版本号会是 <code>X.Y.Z</code> 的形式，<code>Z</code> 就代表补丁版本。
-<ul>
-<li><strong>例子:</strong> <code>Lua 5.3.1</code>, <code>Lua 5.3.2</code>, <code>Lua 5.3.3</code> 等等。这些通常是修复 bug。</li>
-</ul>
-</li>
-</ul>
-<hr>
-<h3 id="luajit">LuaJIT</h3>
-<p><a href="https://github.com/LuaJIT/LuaJIT">https://github.com/LuaJIT/LuaJIT</a></p>
-          
-        </div>
-
-        
-          <div>
-            <a class="read-more button inline" href="/posts/2025-08/lua-an-overview/">[Read more]</a>
-          </div>
-        
-      </article>
-    
 
     <div class="pagination">
   <div class="pagination__buttons">
@@ -801,6 +785,10 @@
       
       
     
+      
+      
+      
+    
 
     
     
@@ -830,7 +818,7 @@
         <a href="/posts/2025-11/" class="archive-link">
           <span class="archive-date">2025-11</span>
           <span class="archive-month-name">Nov</span>
-          <span class="archive-count">(2)</span>
+          <span class="archive-count">(3)</span>
         </a>
       </div>
     
@@ -1401,8 +1389,14 @@
       
         
       
+    
+      
+        
+      
         
       
+        
+      
     
       
         
@@ -1623,10 +1617,16 @@
       
         
       
+    
+    
     
     
     
+      
+      
     
+      
+      
     
       
       
@@ -1939,9 +1939,14 @@
       
       
     
+      
+      
     
     
     
+    
+    
+      
     
       
     
@@ -2304,6 +2309,25 @@
         
         
         
+        <a href="https://www.jinzhi.site/tags/kubecon/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          KubeCon
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
         <a href="https://www.jinzhi.site/tags/kubernetes/" 
            class="tag-item" 
            style="font-size: 0.9em;"
@@ -2440,9 +2464,9 @@
         <a href="https://www.jinzhi.site/tags/network/" 
            class="tag-item" 
            style="font-size: 0.9em;"
-           title="2 articles">
+           title="3 articles">
           Network
-          <span class="tag-count">(2)</span>
+          <span class="tag-count">(3)</span>
         </a>
       
     

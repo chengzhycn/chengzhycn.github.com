@@ -207,6 +207,60 @@
     
       <article class="post on-list">
         <h1 class="post-title">
+          <a href="https://www.jinzhi.site/posts/2025-11/kubecon-north-america-2025-review/">KubeCon North America 2025 Review</a>
+        </h1>
+        <div class="post-meta"><time class="post-date">2025-11-23</time></div>
+
+        
+          <span class="post-tags">
+            
+            #<a href="https://www.jinzhi.site/tags/kubecon/">KubeCon</a>&nbsp;
+            
+            #<a href="https://www.jinzhi.site/tags/network/">Network</a>&nbsp;
+            
+          </span>
+        
+
+        
+
+
+        <div class="post-content">
+          
+            <p>KubeCon North America 2025 13号结束了，官网上也有了些会议资料。挑了几个感兴趣的话题总结下。</p>
+<h2 id="dynamic-routing-with-multi-cluster-inference-gateway">Dynamic Routing with Multi-Cluster Inference Gateway</h2>
+<p><a href="https://kccncna2025.sched.com/event/27FeP/ai-inference-without-boundaries-dynamic-routing-with-multi-cluster-inference-gateway-rob-scott-google-daneyon-hansen-soloio?iframe=no&amp;w=100%25&amp;sidebar=yes&amp;bg=no">https://kccncna2025.sched.com/event/27FeP/ai-inference-without-boundaries-dynamic-routing-with-multi-cluster-inference-gateway-rob-scott-google-daneyon-hansen-soloio?iframe=no&w=100%&sidebar=yes&bg=no</a></p>
+<p>这段时间正好在做 AI 网关，这个话题可以说是“瞌睡了送枕头”。</p>
+<p>推理服务和传统 API 流量相比，在 payload，响应时间，后端资源开销上都有着很大的差异（见下图）。
+<img src="/images/notes/kubecon-north-america-2025-review/2781cd595fe30c8da311d124a8e4ee35_MD5.jpeg" alt="2781cd595fe30c8da311d124a8e4ee35_MD5"></p>
+<p>因此，推理网关需要做到后端负载感知的调度（传统 API 网关也有类似的方案，尤其是在后端机型不一样，普通的 rr 无法均匀负载时，做后端负载感知动态调权）。在 Gateway 和推理实例间引入了一个 EPP（Endpoint Picker）组件（注：EPP 现在也是 Kubernetes 做推理服务的一个通用组件），采集推理实例的指标来动态选择推理后端。
+<img src="/images/notes/kubecon-north-america-2025-review/3462773fb295a9dabdabc886b1de43ca_MD5.jpeg" alt="3462773fb295a9dabdabc886b1de43ca_MD5"></p>
+<p>benchmark 数据显示，使用推理网关相比传统负载均衡，推理实例间的负载更加均衡，请求排队更少，从而降低了响应时间。</p>
+<p>在多集群场景下，这套方案需要解决 3 个问题：</p>
+<ol>
+<li>服务发现：Cluster Inference Services 如何暴露给 Gateway？</li>
+<li>后端选择：Gateway 如何在多集群间分配流量？</li>
+<li>路由模式：流量如何从 Gateway 转发到集群？</li>
+</ol>
+<p>第一个问题作者提了 3 个解决方法：
+<img src="/images/notes/kubecon-north-america-2025-review/fd7a6ffacbfd58fcd6482dd40b861461_MD5.jpeg" alt="fd7a6ffacbfd58fcd6482dd40b861461_MD5"></p>
+<p>不是关注重点，略过。</p>
+<p>第二个问题，简单的 RR 和 Active-Passive 肯定就失去了推理网关负载感知的优势。所以，在 EPP 感知负载之外，Gateway 也得做负载感知。作者也提了两个方法：
+<img src="/images/notes/kubecon-north-america-2025-review/1d3df4bac299f39b0c917b886bab2a27_MD5.jpeg" alt="1d3df4bac299f39b0c917b886bab2a27_MD5">
+<img src="/images/notes/kubecon-north-america-2025-review/f4bd518bc6dce2999d5805d5b2d46dac_MD5.jpeg" alt="f4bd518bc6dce2999d5805d5b2d46dac_MD5"></p>
+<p>从层级上来说，EPP Aggregate Metrics 方案更加简洁，毕竟在 EPP 上还得做二次调度。</p>
+<p>最后一个问题，如果 EPP 能跨集群直接访问，direct routing 是最合适的方式，不行的话再加一层网关，使用 Cluster-Local Gateway 做暴露也能访问。</p>
+          
+        </div>
+
+        
+          <div>
+            <a class="read-more button inline" href="/posts/2025-11/kubecon-north-america-2025-review/">[Read more]</a>
+          </div>
+        
+      </article>
+    
+      <article class="post on-list">
+        <h1 class="post-title">
           <a href="https://www.jinzhi.site/posts/2025-04/vrf-an-overview/">VRF: An Overview</a>
         </h1>
         <div class="post-meta"><time class="post-date">2025-04-25</time></div>
@@ -615,6 +669,10 @@
       
       
     
+      
+      
+      
+    
 
     
     
@@ -644,7 +702,7 @@
         <a href="/posts/2025-11/" class="archive-link">
           <span class="archive-date">2025-11</span>
           <span class="archive-month-name">Nov</span>
-          <span class="archive-count">(2)</span>
+          <span class="archive-count">(3)</span>
         </a>
       </div>
     
@@ -1215,8 +1273,14 @@
       
         
       
+    
+      
+        
+      
         
       
+        
+      
     
       
         
@@ -1437,10 +1501,16 @@
       
         
       
+    
+    
     
     
     
+      
+      
     
+      
+      
     
       
       
@@ -1753,9 +1823,14 @@
       
       
     
+      
+      
     
     
     
+    
+    
+      
     
       
     
@@ -2118,6 +2193,25 @@
         
         
         
+        <a href="https://www.jinzhi.site/tags/kubecon/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          KubeCon
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
         <a href="https://www.jinzhi.site/tags/kubernetes/" 
            class="tag-item" 
            style="font-size: 0.9em;"
@@ -2254,9 +2348,9 @@
         <a href="https://www.jinzhi.site/tags/network/" 
            class="tag-item" 
            style="font-size: 0.9em;"
-           title="2 articles">
+           title="3 articles">
           Network
-          <span class="tag-count">(2)</span>
+          <span class="tag-count">(3)</span>
         </a>
       
     
