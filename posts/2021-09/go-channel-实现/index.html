@@ -257,7 +257,7 @@ type hchan struct { qcount uint // total data in the queue dataqsiz uint // size
 </span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="c1">// (in particular, do not ready a G), as this can deadlock</span><span class="w">
 </span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="c1">// with stack shrinking.</span><span class="w">
 </span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">lock</span><span class="w"> </span><span class="nx">mutex</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="p">}</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="p">}</span><span class="w">
 </span></span></span></code></pre></div><ul>
 <li>qcount：当前channel queue内的element数目，当qcount等于dataqsiz时，表示channel buffer已经满了，send channel会被阻塞；</li>
 <li>dataqsiz：channel的buffer大小，也就是我们在make时设定的值。dataqsiz在channel创建后不会再变动，因此channel的buffer是不会动态扩容的；</li>
@@ -287,13 +287,13 @@ type hchan struct { qcount uint // total data in the queue dataqsiz uint // size
 </span></span></code></pre></div><p>我们可以利用channel的这一特性，实现多个goroutines的优雅退出。在主goroutine中监听信号，收到退出信号后，关闭channel，这时所有的子goroutines都会被唤醒，进行退出处理。</p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kn">package</span><span class="w"> </span><span class="nx">main</span><span class="w">
 </span></span></span><span class="line"><span class="cl"><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="kn">import</span><span class="w"> </span><span class="p">(</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="kn">import</span><span class="w"> </span><span class="p">(</span><span class="w">
 </span></span></span><span class="line"><span class="cl"><span class="w">	</span><span class="s">&#34;fmt&#34;</span><span class="w">
 </span></span></span><span class="line"><span class="cl"><span class="w">	</span><span class="s">&#34;sync&#34;</span><span class="w">
 </span></span></span><span class="line"><span class="cl"><span class="w">	</span><span class="s">&#34;time&#34;</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="p">)</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="p">)</span><span class="w">
 </span></span></span><span class="line"><span class="cl"><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="kd">func</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="kd">func</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w">
 </span></span></span><span class="line"><span class="cl"><span class="w">	</span><span class="nx">c1</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nb">make</span><span class="p">(</span><span class="kd">chan</span><span class="w"> </span><span class="kd">struct</span><span class="p">{})</span><span class="w">
 </span></span></span><span class="line"><span class="cl"><span class="w">	</span><span class="nx">wg</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">sync</span><span class="p">.</span><span class="nx">WaitGroup</span><span class="p">{}</span><span class="w">
 </span></span></span><span class="line"><span class="cl"><span class="w">
@@ -314,7 +314,7 @@ type hchan struct { qcount uint // total data in the queue dataqsiz uint // size
 </span></span></span><span class="line"><span class="cl"><span class="w">	</span><span class="p">}()</span><span class="w">
 </span></span></span><span class="line"><span class="cl"><span class="w">
 </span></span></span><span class="line"><span class="cl"><span class="w">	</span><span class="nx">wg</span><span class="p">.</span><span class="nf">Wait</span><span class="p">()</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="p">}</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="p">}</span><span class="w">
 </span></span></span></code></pre></div><p><a href="https://levelup.gitconnected.com/how-does-golang-channel-works-6d66acd54753">How Does Golang Channel Works. Understanding Inner workings of the… | by Jerry An | Aug, 2021 | Level Up Coding (gitconnected.com)</a></p>
 <p><a href="https://youtu.be/KBZlN0izeiY">GopherCon 2017: Kavya Joshi - Understanding Channels</a></p>
 

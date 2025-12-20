@@ -322,7 +322,7 @@ Linux为了兼容POSIX标准，利用了线程组（thread group）这一概念�
 <h3 id="内核线程">内核线程<a href="#内核线程" class="hanchor" ariaLabel="Anchor">#</a> </h3>
 <p>所谓的内核线程，就是只运行在内核态的线程。相比之下，正常的线程既可以运行在用户态，也可以运行在内核态。==<strong>因为内核线程只运行在内核态，它只会使用大于PAGE_OFFSET的线性地址。正常线程会在用户态或者内核态使用全部的4GB线性地址(32位系统)</strong>==</p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="c1">// include/asm-x86_64/page.h
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl"><span class="cp">#define __PAGE_OFFSET           0xffff810000000000UL
 </span></span></span><span class="line"><span class="cl"><span class="cp">#define PAGE_OFFSET		((unsigned long)__PAGE_OFFSET)
 </span></span></span></code></pre></div><p>创建内核线程的函数<code>create_thread()</code>是一段汇编语言，它基本上实现了下面的调用：</p>

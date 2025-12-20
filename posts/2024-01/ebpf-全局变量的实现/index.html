@@ -249,7 +249,7 @@
 <h2 id="早期-workaround">早期 workaround<a href="#早期-workaround" class="hanchor" ariaLabel="Anchor">#</a> </h2>
 <p>关于 eBPF 静态变量支持的讨论在<a href="https://lpc.events/event/2/contributions/115/">Linux Plumbers Conference 2018</a> 由Cilium提出。早期的 workaround 如下：</p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;linux/bpf.h&gt;</span><span class="cp">
-</span></span></span><span class="line"><span class="cl"><span class="cp"></span>
+</span></span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl"><span class="k">typedef</span> <span class="kt">unsigned</span> <span class="kt">int</span> <span class="n">__u32</span><span class="p">;</span>
 </span></span><span class="line"><span class="cl"><span class="k">typedef</span> <span class="kt">long</span> <span class="kt">long</span> <span class="kt">unsigned</span> <span class="kt">int</span> <span class="n">__64</span><span class="p">;</span>
 </span></span><span class="line"><span class="cl">
@@ -260,11 +260,11 @@
 </span></span></span><span class="line"><span class="cl"><span class="cp">#ifndef __fetch
 </span></span></span><span class="line"><span class="cl"><span class="cp"># define __fetch(x) (__u32)(__u64)(&amp;(x))
 </span></span></span><span class="line"><span class="cl"><span class="cp">#endif
-</span></span></span><span class="line"><span class="cl"><span class="cp"></span>
+</span></span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl"><span class="n">__u32</span> <span class="n">foo</span> <span class="o">=</span> <span class="mi">42</span><span class="p">;</span> 			<span class="c1">// .data section
 </span></span></span><span class="line"><span class="cl"><span class="c1">// __u32 foo;   			// .bss section
 </span></span></span><span class="line"><span class="cl"><span class="c1">// const __u32 foo = 42; 	// .rodata section
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl"><span class="kt">int</span> <span class="nf">__main</span><span class="p">(</span><span class="k">struct</span> <span class="n">__sk_buff</span> <span class="o">*</span><span class="n">skb</span><span class="p">)</span>
 </span></span><span class="line"><span class="cl"><span class="p">{</span>
 </span></span><span class="line"><span class="cl">    <span class="n">skb</span><span class="o">-&gt;</span><span class="n">mark</span> <span class="o">=</span> <span class="nf">__fetch</span><span class="p">(</span><span class="n">foo</span><span class="p">);</span>
@@ -309,7 +309,7 @@ Symbol table &#39;.symtab&#39; contains 5 entries:
      4: 0000000000000000     4 OBJECT  GLOBAL DEFAULT     4 foo
 </code></pre><p>接下来的工作就是让 loader 识别<code>.data</code>, <code>.rodata</code>, <code>.bss</code> sections 中的数据，并完成relocation。Cilium修改了 iproute2 的实现，添加了对<code>.data</code>和<code>.bss</code> sections 中数据的 relocation 支持：</p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="c1">// https://github.com/isovalent/iproute2/blob/static-data/lib/bpf.c#L2543
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">static</span> <span class="kt">int</span> <span class="nf">bpf_apply_relo_glob</span><span class="p">(</span><span class="k">struct</span> <span class="n">bpf_elf_ctx</span> <span class="o">*</span><span class="n">ctx</span><span class="p">,</span> <span class="k">struct</span> <span class="n">bpf_elf_prog</span> <span class="o">*</span><span class="n">prog</span><span class="p">,</span>
+</span></span></span><span class="line"><span class="cl"><span class="k">static</span> <span class="kt">int</span> <span class="nf">bpf_apply_relo_glob</span><span class="p">(</span><span class="k">struct</span> <span class="n">bpf_elf_ctx</span> <span class="o">*</span><span class="n">ctx</span><span class="p">,</span> <span class="k">struct</span> <span class="n">bpf_elf_prog</span> <span class="o">*</span><span class="n">prog</span><span class="p">,</span>
 </span></span><span class="line"><span class="cl">			       <span class="n">GElf_Rel</span> <span class="o">*</span><span class="n">relo</span><span class="p">,</span> <span class="n">GElf_Sym</span> <span class="o">*</span><span class="n">sym</span><span class="p">,</span>
 </span></span><span class="line"><span class="cl">			       <span class="k">struct</span> <span class="n">bpf_relo_props</span> <span class="o">*</span><span class="n">props</span><span class="p">)</span>
 </span></span><span class="line"><span class="cl"><span class="p">{</span>

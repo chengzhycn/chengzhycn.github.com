@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-	<meta name="generator" content="Hugo 0.152.2">
+	<meta name="generator" content="Hugo 0.153.0">
   
     <title>chengzhycn&#39;s blog</title>
   
@@ -479,7 +479,7 @@ R0 - R5是临时寄存器，eBPF程序在函数调用时如需使用需要将它
 <h2 id="早期-workaround">早期 workaround</h2>
 <p>关于 eBPF 静态变量支持的讨论在<a href="https://lpc.events/event/2/contributions/115/">Linux Plumbers Conference 2018</a> 由Cilium提出。早期的 workaround 如下：</p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;linux/bpf.h&gt;</span><span class="cp">
-</span></span></span><span class="line"><span class="cl"><span class="cp"></span>
+</span></span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl"><span class="k">typedef</span> <span class="kt">unsigned</span> <span class="kt">int</span> <span class="n">__u32</span><span class="p">;</span>
 </span></span><span class="line"><span class="cl"><span class="k">typedef</span> <span class="kt">long</span> <span class="kt">long</span> <span class="kt">unsigned</span> <span class="kt">int</span> <span class="n">__64</span><span class="p">;</span>
 </span></span><span class="line"><span class="cl">
@@ -490,11 +490,11 @@ R0 - R5是临时寄存器，eBPF程序在函数调用时如需使用需要将它
 </span></span></span><span class="line"><span class="cl"><span class="cp">#ifndef __fetch
 </span></span></span><span class="line"><span class="cl"><span class="cp"># define __fetch(x) (__u32)(__u64)(&amp;(x))
 </span></span></span><span class="line"><span class="cl"><span class="cp">#endif
-</span></span></span><span class="line"><span class="cl"><span class="cp"></span>
+</span></span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl"><span class="n">__u32</span> <span class="n">foo</span> <span class="o">=</span> <span class="mi">42</span><span class="p">;</span> 			<span class="c1">// .data section
 </span></span></span><span class="line"><span class="cl"><span class="c1">// __u32 foo;   			// .bss section
 </span></span></span><span class="line"><span class="cl"><span class="c1">// const __u32 foo = 42; 	// .rodata section
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl"><span class="kt">int</span> <span class="nf">__main</span><span class="p">(</span><span class="k">struct</span> <span class="n">__sk_buff</span> <span class="o">*</span><span class="n">skb</span><span class="p">)</span>
 </span></span><span class="line"><span class="cl"><span class="p">{</span>
 </span></span><span class="line"><span class="cl">    <span class="n">skb</span><span class="o">-&gt;</span><span class="n">mark</span> <span class="o">=</span> <span class="nf">__fetch</span><span class="p">(</span><span class="n">foo</span><span class="p">);</span>

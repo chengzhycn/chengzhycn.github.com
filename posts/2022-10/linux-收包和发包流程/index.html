@@ -416,7 +416,7 @@ net.core.netdev_budget_usecs = 2000
 </span></span><span class="line"><span class="cl">  <span class="cm">/* ... */</span>
 </span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl">  <span class="c1">// 为什么会在RX软中断中清理tx？
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nf">ixgbe_for_each_ring</span><span class="p">(</span><span class="n">ring</span><span class="p">,</span> <span class="n">q_vector</span><span class="o">-&gt;</span><span class="n">tx</span><span class="p">)</span> <span class="p">{</span>
+</span></span></span><span class="line"><span class="cl">  <span class="nf">ixgbe_for_each_ring</span><span class="p">(</span><span class="n">ring</span><span class="p">,</span> <span class="n">q_vector</span><span class="o">-&gt;</span><span class="n">tx</span><span class="p">)</span> <span class="p">{</span>
 </span></span><span class="line"><span class="cl">    <span class="kt">bool</span> <span class="n">wd</span> <span class="o">=</span> <span class="n">ring</span><span class="o">-&gt;</span><span class="n">xsk_pool</span> <span class="o">?</span>
 </span></span><span class="line"><span class="cl">        <span class="nf">ixgbe_clean_xdp_tx_irq</span><span class="p">(</span><span class="n">q_vector</span><span class="p">,</span> <span class="n">ring</span><span class="p">,</span> <span class="n">budget</span><span class="p">)</span> <span class="o">:</span>
 </span></span><span class="line"><span class="cl">        <span class="nf">ixgbe_clean_tx_irq</span><span class="p">(</span><span class="n">q_vector</span><span class="p">,</span> <span class="n">ring</span><span class="p">,</span> <span class="n">budget</span><span class="p">);</span>
@@ -428,7 +428,7 @@ net.core.netdev_budget_usecs = 2000
 </span></span><span class="line"><span class="cl">  <span class="cm">/* ... */</span>
 </span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl">  <span class="c1">// rx ring buffer处理
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nf">ixgbe_for_each_ring</span><span class="p">(</span><span class="n">ring</span><span class="p">,</span> <span class="n">q_vector</span><span class="o">-&gt;</span><span class="n">rx</span><span class="p">)</span> <span class="p">{</span>
+</span></span></span><span class="line"><span class="cl">  <span class="nf">ixgbe_for_each_ring</span><span class="p">(</span><span class="n">ring</span><span class="p">,</span> <span class="n">q_vector</span><span class="o">-&gt;</span><span class="n">rx</span><span class="p">)</span> <span class="p">{</span>
 </span></span><span class="line"><span class="cl">    <span class="kt">int</span> <span class="n">cleaned</span> <span class="o">=</span> <span class="n">ring</span><span class="o">-&gt;</span><span class="n">xsk_pool</span> <span class="o">?</span>
 </span></span><span class="line"><span class="cl">            <span class="nf">ixgbe_clean_rx_irq_zc</span><span class="p">(</span><span class="n">q_vector</span><span class="p">,</span> <span class="n">ring</span><span class="p">,</span>
 </span></span><span class="line"><span class="cl">                <span class="n">per_ring_budget</span><span class="p">)</span> <span class="o">:</span>
@@ -446,17 +446,17 @@ net.core.netdev_budget_usecs = 2000
 </span></span><span class="line"><span class="cl"><span class="p">}</span>
 </span></span></code></pre></div><p><strong>==xdpdriver的调用点也在这两个函数里面==</strong>：</p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="c1">// drivers/net/ethernet/intel/ixgbe/ixgbe_xsk.c:ixgbe_clean_rx_irq_zc
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="n">xdp_res</span> <span class="o">=</span> <span class="nf">ixgbe_run_xdp_zc</span><span class="p">(</span><span class="n">adapter</span><span class="p">,</span> <span class="n">rx_ring</span><span class="p">,</span> <span class="n">bi</span><span class="o">-&gt;</span><span class="n">xdp</span><span class="p">);</span>
+</span></span></span><span class="line"><span class="cl"><span class="n">xdp_res</span> <span class="o">=</span> <span class="nf">ixgbe_run_xdp_zc</span><span class="p">(</span><span class="n">adapter</span><span class="p">,</span> <span class="n">rx_ring</span><span class="p">,</span> <span class="n">bi</span><span class="o">-&gt;</span><span class="n">xdp</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl"><span class="c1">// drivers/net/ethernet/intel/ixgbe/ixgbe_main.c:ixgbe_clean_rx_irq
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="n">skb</span> <span class="o">=</span> <span class="nf">ixgbe_run_xdp</span><span class="p">(</span><span class="n">adapter</span><span class="p">,</span> <span class="n">rx_ring</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">xdp</span><span class="p">);</span>
+</span></span></span><span class="line"><span class="cl"><span class="n">skb</span> <span class="o">=</span> <span class="nf">ixgbe_run_xdp</span><span class="p">(</span><span class="n">adapter</span><span class="p">,</span> <span class="n">rx_ring</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">xdp</span><span class="p">);</span>
 </span></span></code></pre></div><p>另外，为了支持AF_XDP的高性能特性，<code>ixgbe_clean_rx_irq_zc</code>如名所述是零拷贝的（==但是看代码zc的函数里面还是有memcpy，那么AF_XDP的zc体现在哪里呢？==）。</p>
 <p>我们用<code>ixgbe_clean_rx_irq</code>来分析下里面的流程。</p>
 <h4 id="ixgbe_clean_rx_irq"><code>ixgbe_clean_rx_irq</code><a href="#ixgbe_clean_rx_irq" class="hanchor" ariaLabel="Anchor">#</a> </h4>
 <p>函数调用<code>ixgbe_get_rx_buffer</code>从ring buffer中取数据，将传入的skb指针指向<code>rx_buffer-&gt;skb</code>。</p>
 <p>这里有个有意思的点是如果skb的值为NULL，驱动才会运行xdp程序：</p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="c1">// drivers/net/ethernet/intel/ixgbe/ixgbe_main.c:ixgbe_clean_rx_irq
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl">	<span class="n">rx_buffer</span> <span class="o">=</span> <span class="nf">ixgbe_get_rx_buffer</span><span class="p">(</span><span class="n">rx_ring</span><span class="p">,</span> <span class="n">rx_desc</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">skb</span><span class="p">,</span> <span class="n">size</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">rx_buffer_pgcnt</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl">    <span class="cm">/* retrieve a buffer from the ring */</span>
@@ -467,14 +467,14 @@ net.core.netdev_budget_usecs = 2000
 </span></span><span class="line"><span class="cl">             <span class="n">rx_buffer</span><span class="o">-&gt;</span><span class="n">page_offset</span> <span class="o">-</span> <span class="n">offset</span><span class="p">;</span>
 </span></span><span class="line"><span class="cl">      <span class="nf">xdp_prepare_buff</span><span class="p">(</span><span class="o">&amp;</span><span class="n">xdp</span><span class="p">,</span> <span class="n">hard_start</span><span class="p">,</span> <span class="n">offset</span><span class="p">,</span> <span class="n">size</span><span class="p">,</span> <span class="nb">true</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl"><span class="cp">#if (PAGE_SIZE &gt; 4096)
-</span></span></span><span class="line"><span class="cl"><span class="cp"></span>      <span class="cm">/* At larger PAGE_SIZE, frame_sz depend on len size */</span>
+</span></span></span><span class="line"><span class="cl">      <span class="cm">/* At larger PAGE_SIZE, frame_sz depend on len size */</span>
 </span></span><span class="line"><span class="cl">      <span class="n">xdp</span><span class="p">.</span><span class="n">frame_sz</span> <span class="o">=</span> <span class="nf">ixgbe_rx_frame_truesize</span><span class="p">(</span><span class="n">rx_ring</span><span class="p">,</span> <span class="n">size</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl"><span class="cp">#endif
-</span></span></span><span class="line"><span class="cl"><span class="cp"></span>      <span class="n">skb</span> <span class="o">=</span> <span class="nf">ixgbe_run_xdp</span><span class="p">(</span><span class="n">adapter</span><span class="p">,</span> <span class="n">rx_ring</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">xdp</span><span class="p">);</span>
+</span></span></span><span class="line"><span class="cl">      <span class="n">skb</span> <span class="o">=</span> <span class="nf">ixgbe_run_xdp</span><span class="p">(</span><span class="n">adapter</span><span class="p">,</span> <span class="n">rx_ring</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">xdp</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl">    <span class="p">}</span>
 </span></span></code></pre></div><p>查看<code>rx_buffer</code>的定义可以发现，结构体里面定义了一个union，<code>rx_buffer-&gt;skb</code>是结构体的首个成员；而如果使用union中另一个，首个成员是一个bool变量discard。也就是说，如果使用了xdp，<code>rx_buffer-&gt;skb</code>的结果就是一个0值。</p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="c1">// drivers/net/ethernet/intel/ixgbe/ixgbe.h
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl"><span class="k">struct</span> <span class="n">ixgbe_rx_buffer</span> <span class="p">{</span>
 </span></span><span class="line"><span class="cl">  <span class="k">union</span> <span class="p">{</span>
 </span></span><span class="line"><span class="cl">    <span class="k">struct</span> <span class="p">{</span>
@@ -519,7 +519,7 @@ net.core.netdev_budget_usecs = 2000
 </ul>
 <p>我们来看看抓包和协议栈回调的处理：</p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="c1">// net/core/dev.c:__netif_receive_skb_core 抓包hook逻辑
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="nf">list_for_each_entry_rcu</span><span class="p">(</span><span class="n">ptype</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">ptype_all</span><span class="p">,</span> <span class="n">list</span><span class="p">)</span> <span class="p">{</span>
+</span></span></span><span class="line"><span class="cl">  <span class="nf">list_for_each_entry_rcu</span><span class="p">(</span><span class="n">ptype</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">ptype_all</span><span class="p">,</span> <span class="n">list</span><span class="p">)</span> <span class="p">{</span>
 </span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">pt_prev</span><span class="p">)</span>
 </span></span><span class="line"><span class="cl">      <span class="n">ret</span> <span class="o">=</span> <span class="nf">deliver_skb</span><span class="p">(</span><span class="n">skb</span><span class="p">,</span> <span class="n">pt_prev</span><span class="p">,</span> <span class="n">orig_dev</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl">    <span class="n">pt_prev</span> <span class="o">=</span> <span class="n">ptype</span><span class="p">;</span>
@@ -532,7 +532,7 @@ net.core.netdev_budget_usecs = 2000
 </span></span><span class="line"><span class="cl">  <span class="p">}</span>
 </span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl"><span class="c1">// net/core/dev.c:__netif_receive_skb_core 协议栈回调
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">type</span> <span class="o">=</span> <span class="n">skb</span><span class="o">-&gt;</span><span class="n">protocol</span><span class="p">;</span>
+</span></span></span><span class="line"><span class="cl">  <span class="n">type</span> <span class="o">=</span> <span class="n">skb</span><span class="o">-&gt;</span><span class="n">protocol</span><span class="p">;</span>
 </span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl">  <span class="cm">/* deliver only exact match when indicated */</span>
 </span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="p">(</span><span class="nf">likely</span><span class="p">(</span><span class="o">!</span><span class="n">deliver_exact</span><span class="p">))</span> <span class="p">{</span>
@@ -578,7 +578,7 @@ net.core.netdev_budget_usecs = 2000
 </span></span><span class="line"><span class="cl"><span class="p">}</span>
 </span></span></code></pre></div><p>可以看到，两者在最后都是在<code>deliver_skb</code>中调用了<code>pt_prev</code>中注册的回调函数。<code>pt_prev</code>的类型是<code>struct packet_type</code>：</p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="c1">// include/linux/netdevice.h
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">struct</span> <span class="n">packet_type</span> <span class="p">{</span>
+</span></span></span><span class="line"><span class="cl"><span class="k">struct</span> <span class="n">packet_type</span> <span class="p">{</span>
 </span></span><span class="line"><span class="cl">  <span class="n">__be16</span>      <span class="n">type</span><span class="p">;</span> <span class="cm">/* This is really htons(ether_type). */</span>
 </span></span><span class="line"><span class="cl">  <span class="kt">bool</span>      <span class="n">ignore_outgoing</span><span class="p">;</span>
 </span></span><span class="line"><span class="cl">  <span class="k">struct</span> <span class="n">net_device</span> <span class="o">*</span><span class="n">dev</span><span class="p">;</span> <span class="cm">/* NULL is wildcarded here       */</span>
@@ -596,7 +596,7 @@ net.core.netdev_budget_usecs = 2000
 </span></span><span class="line"><span class="cl"><span class="p">};</span>
 </span></span></code></pre></div><p>type是ether_type，对于抓包的回调来说，这个值是<code>ETH_P_ALL</code>。而协议栈通常是具体的ether_type，如<code>ETH_P_IP</code>。根据这一区别，在<code>packet_type</code>注册的时候，就能将两者分别放到不同的数据结构内：</p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="c1">// net/core/dev.c
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl"><span class="k">static</span> <span class="kr">inline</span> <span class="k">struct</span> <span class="n">list_head</span> <span class="o">*</span><span class="nf">ptype_head</span><span class="p">(</span><span class="k">const</span> <span class="k">struct</span> <span class="n">packet_type</span> <span class="o">*</span><span class="n">pt</span><span class="p">)</span>
 </span></span><span class="line"><span class="cl"><span class="p">{</span>
 </span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="p">(</span><span class="n">pt</span><span class="o">-&gt;</span><span class="n">type</span> <span class="o">==</span> <span class="nf">htons</span><span class="p">(</span><span class="n">ETH_P_ALL</span><span class="p">))</span>
@@ -631,7 +631,7 @@ net.core.netdev_budget_usecs = 2000
 </span></span></code></pre></div><p>==<strong>抓包的<code>packet_type</code>被放在了<code>ptype_all</code>全局变量或者指定设备的<code>dev-&gt;ptype_all</code>中；协议栈的<code>packet_type</code>被放在了<code>ptype_base</code>或者指定设备的<code>dev-&gt;ptype_specific</code>中。</strong>==</p>
 <p>通过过滤<code>static struct packet_type</code>可以看到各个协议注册的<code>packet_type</code>类型，如IP协议：</p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="c1">// net/ipv4/af_inet.c
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">static</span> <span class="k">struct</span> <span class="n">packet_type</span> <span class="n">ip_packet_type</span> <span class="n">__read_mostly</span> <span class="o">=</span> <span class="p">{</span>
+</span></span></span><span class="line"><span class="cl"><span class="k">static</span> <span class="k">struct</span> <span class="n">packet_type</span> <span class="n">ip_packet_type</span> <span class="n">__read_mostly</span> <span class="o">=</span> <span class="p">{</span>
 </span></span><span class="line"><span class="cl">  <span class="p">.</span><span class="n">type</span> <span class="o">=</span> <span class="nf">cpu_to_be16</span><span class="p">(</span><span class="n">ETH_P_IP</span><span class="p">),</span>
 </span></span><span class="line"><span class="cl">  <span class="p">.</span><span class="n">func</span> <span class="o">=</span> <span class="n">ip_rcv</span><span class="p">,</span>
 </span></span><span class="line"><span class="cl">  <span class="p">.</span><span class="n">list_func</span> <span class="o">=</span> <span class="n">ip_list_rcv</span><span class="p">,</span>
@@ -652,10 +652,10 @@ net.core.netdev_budget_usecs = 2000
 </span></span></code></pre></div><p>通过Qdisc内的enqueue指针，判断<code>net_device</code>是否存在队列==（**TODO：**enqueue在哪初始化的）==。如果存在<code>dev_queue_xmit</code>就调用了<code>__dev_xmit_skb</code>。</p>
 <p><code>__dev_xmit_skb</code>主要是TC里的==<strong>queuing dispipline</strong>==的逻辑（TODO），发包的函数是<code>__qdisc_run</code>，<code>qdisc_run</code>是<code>__qdisc_run</code>的封装函数。</p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="c1">// net/core/dev.c
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kt">int</span> <span class="n">dev_tx_weight</span> <span class="n">__read_mostly</span> <span class="o">=</span> <span class="mi">64</span><span class="p">;</span>
+</span></span></span><span class="line"><span class="cl"><span class="kt">int</span> <span class="n">dev_tx_weight</span> <span class="n">__read_mostly</span> <span class="o">=</span> <span class="mi">64</span><span class="p">;</span>
 </span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl"><span class="c1">// net/sched/sch_generic.c
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">static</span> <span class="kr">inline</span> <span class="kt">bool</span> <span class="nf">qdisc_restart</span><span class="p">(</span><span class="k">struct</span> <span class="n">Qdisc</span> <span class="o">*</span><span class="n">q</span><span class="p">,</span> <span class="kt">int</span> <span class="o">*</span><span class="n">packets</span><span class="p">)</span>
+</span></span></span><span class="line"><span class="cl"><span class="k">static</span> <span class="kr">inline</span> <span class="kt">bool</span> <span class="nf">qdisc_restart</span><span class="p">(</span><span class="k">struct</span> <span class="n">Qdisc</span> <span class="o">*</span><span class="n">q</span><span class="p">,</span> <span class="kt">int</span> <span class="o">*</span><span class="n">packets</span><span class="p">)</span>
 </span></span><span class="line"><span class="cl"><span class="p">{</span>
 </span></span><span class="line"><span class="cl">    <span class="kt">spinlock_t</span> <span class="o">*</span><span class="n">root_lock</span> <span class="o">=</span> <span class="nb">NULL</span><span class="p">;</span>
 </span></span><span class="line"><span class="cl">    <span class="k">struct</span> <span class="n">netdev_queue</span> <span class="o">*</span><span class="n">txq</span><span class="p">;</span>
@@ -698,7 +698,7 @@ net.core.netdev_budget_usecs = 2000
 <h4 id="直接发包">直接发包<a href="#直接发包" class="hanchor" ariaLabel="Anchor">#</a> </h4>
 <p>调用流程：<code>dev_hard_start_xmit</code> -&gt; <code>xmit_one</code> -&gt; <code>netdev_start_xmit</code> -&gt; <code>__netdev_start_xmit</code> -&gt; <code>ops-&gt;ndo_start_xmit</code></p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="c1">// net/core/dev.c
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="k">static</span> <span class="kt">int</span> <span class="nf">xmit_one</span><span class="p">(</span><span class="k">struct</span> <span class="n">sk_buff</span> <span class="o">*</span><span class="n">skb</span><span class="p">,</span> <span class="k">struct</span> <span class="n">net_device</span> <span class="o">*</span><span class="n">dev</span><span class="p">,</span>
+</span></span></span><span class="line"><span class="cl"><span class="k">static</span> <span class="kt">int</span> <span class="nf">xmit_one</span><span class="p">(</span><span class="k">struct</span> <span class="n">sk_buff</span> <span class="o">*</span><span class="n">skb</span><span class="p">,</span> <span class="k">struct</span> <span class="n">net_device</span> <span class="o">*</span><span class="n">dev</span><span class="p">,</span>
 </span></span><span class="line"><span class="cl">            <span class="k">struct</span> <span class="n">netdev_queue</span> <span class="o">*</span><span class="n">txq</span><span class="p">,</span> <span class="kt">bool</span> <span class="n">more</span><span class="p">)</span>
 </span></span><span class="line"><span class="cl"><span class="p">{</span>
 </span></span><span class="line"><span class="cl">    <span class="kt">unsigned</span> <span class="kt">int</span> <span class="n">len</span><span class="p">;</span>
@@ -747,7 +747,7 @@ net.core.netdev_budget_usecs = 2000
 <p><code>ixgbe_xmit_frame</code> -&gt; <code>__ixgbe_xmit_frame</code> -&gt; <code>ixgbe_xmit_frame_ring</code> -&gt; <code>ixgbe_tx_map</code></p>
 <p>驱动发包完成后，调用<code>dev_kfree_skb_any</code>，如果当前在中断上下文内，调用<code>__dev_kfree_skb_irq</code>，否则直接释放skb。</p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="c1">// net/core/dev.c
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kt">void</span> <span class="nf">__dev_kfree_skb_irq</span><span class="p">(</span><span class="k">struct</span> <span class="n">sk_buff</span> <span class="o">*</span><span class="n">skb</span><span class="p">,</span> <span class="k">enum</span> <span class="n">skb_free_reason</span> <span class="n">reason</span><span class="p">)</span>
+</span></span></span><span class="line"><span class="cl"><span class="kt">void</span> <span class="nf">__dev_kfree_skb_irq</span><span class="p">(</span><span class="k">struct</span> <span class="n">sk_buff</span> <span class="o">*</span><span class="n">skb</span><span class="p">,</span> <span class="k">enum</span> <span class="n">skb_free_reason</span> <span class="n">reason</span><span class="p">)</span>
 </span></span><span class="line"><span class="cl"><span class="p">{</span>
 </span></span><span class="line"><span class="cl">    <span class="kt">unsigned</span> <span class="kt">long</span> <span class="n">flags</span><span class="p">;</span>
 </span></span><span class="line"><span class="cl">
@@ -785,7 +785,7 @@ net.core.netdev_budget_usecs = 2000
 </ol>
 <p><strong>之所以把skb释放放在软中断里而不是硬件发完后直接释放，是因为释放buffer可能需要耗费一些时间，而驱动发包代码运行在中断上下文内，耗时越少越好。</strong></p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="c1">// net/core/dev.c:net_tx_action
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="k">if</span> <span class="p">(</span><span class="n">sd</span><span class="o">-&gt;</span><span class="n">completion_queue</span><span class="p">)</span> <span class="p">{</span>
+</span></span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="n">sd</span><span class="o">-&gt;</span><span class="n">completion_queue</span><span class="p">)</span> <span class="p">{</span>
 </span></span><span class="line"><span class="cl">        <span class="k">struct</span> <span class="n">sk_buff</span> <span class="o">*</span><span class="n">clist</span><span class="p">;</span>
 </span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl">        <span class="nf">local_irq_disable</span><span class="p">();</span>
@@ -814,13 +814,13 @@ net.core.netdev_budget_usecs = 2000
 <h3 id="抓包点">抓包点<a href="#抓包点" class="hanchor" ariaLabel="Anchor">#</a> </h3>
 <p>在<code>dev_hard_start_xmit</code>里面有egress方向的抓包点<code>dev_queue_xmit_nit</code>：</p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="c1">// net/core/dev.c:xmit_one
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="k">if</span> <span class="p">(</span><span class="nf">dev_nit_active</span><span class="p">(</span><span class="n">dev</span><span class="p">))</span>
+</span></span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="nf">dev_nit_active</span><span class="p">(</span><span class="n">dev</span><span class="p">))</span>
 </span></span><span class="line"><span class="cl">        <span class="nf">dev_queue_xmit_nit</span><span class="p">(</span><span class="n">skb</span><span class="p">,</span> <span class="n">dev</span><span class="p">);</span>
 </span></span></code></pre></div><h3 id="bpf-hook点">BPF HOOK点<a href="#bpf-hook点" class="hanchor" ariaLabel="Anchor">#</a> </h3>
 <p>tc egress BPF HOOK点在<code>__dev_queue_xmit</code>内：</p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="c1">// net/core/dev.c:__dev_queue_xmit
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="cp"># ifdef CONFIG_NET_EGRESS
-</span></span></span><span class="line"><span class="cl"><span class="cp"></span>    <span class="k">if</span> <span class="p">(</span><span class="nf">static_branch_unlikely</span><span class="p">(</span><span class="o">&amp;</span><span class="n">egress_needed_key</span><span class="p">))</span> <span class="p">{</span>
+</span></span></span><span class="line"><span class="cl"><span class="cp"># ifdef CONFIG_NET_EGRESS
+</span></span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="nf">static_branch_unlikely</span><span class="p">(</span><span class="o">&amp;</span><span class="n">egress_needed_key</span><span class="p">))</span> <span class="p">{</span>
 </span></span><span class="line"><span class="cl">        <span class="n">skb</span> <span class="o">=</span> <span class="nf">sch_handle_egress</span><span class="p">(</span><span class="n">skb</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">rc</span><span class="p">,</span> <span class="n">dev</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl">        <span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="n">skb</span><span class="p">)</span>
 </span></span><span class="line"><span class="cl">            <span class="k">goto</span> <span class="n">out</span><span class="p">;</span>

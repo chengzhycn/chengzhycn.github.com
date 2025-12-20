@@ -271,13 +271,13 @@
 <p>我们用一个简单的例子来开始汇编分析：</p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kn">package</span><span class="w"> </span><span class="nx">main</span><span class="w">
 </span></span></span><span class="line"><span class="cl"><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="kd">func</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="kd">func</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w">
 </span></span></span><span class="line"><span class="cl"><span class="w">	</span><span class="nf">add</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">)</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="p">}</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="p">}</span><span class="w">
 </span></span></span><span class="line"><span class="cl"><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="kd">func</span><span class="w"> </span><span class="nf">add</span><span class="p">(</span><span class="nx">i</span><span class="p">,</span><span class="w"> </span><span class="nx">j</span><span class="w"> </span><span class="kt">int</span><span class="p">)</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="kd">func</span><span class="w"> </span><span class="nf">add</span><span class="p">(</span><span class="nx">i</span><span class="p">,</span><span class="w"> </span><span class="nx">j</span><span class="w"> </span><span class="kt">int</span><span class="p">)</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="p">{</span><span class="w">
 </span></span></span><span class="line"><span class="cl"><span class="w">	</span><span class="k">return</span><span class="w"> </span><span class="nx">i</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">j</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="p">}</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="p">}</span><span class="w">
 </span></span></span></code></pre></div><p>汇编结果，删去了一些无关的输出：</p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl"><span class="c1"># go tool compile -S -l -N main.go</span>
 </span></span><span class="line"><span class="cl"><span class="s2">&#34;&#34;</span>.main STEXT <span class="nv">size</span><span class="o">=</span><span class="m">54</span> <span class="nv">args</span><span class="o">=</span>0x0 <span class="nv">locals</span><span class="o">=</span>0x18 <span class="nv">funcid</span><span class="o">=</span>0x0
@@ -380,27 +380,27 @@
 <h2 id="数据结构">数据结构</h2>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="k">typedef</span> <span class="k">struct</span> <span class="n">Node</span> <span class="p">{</span>
 </span></span><span class="line"><span class="cl">  <span class="n">TValue</span> <span class="n">val</span><span class="p">;</span>         <span class="c1">// 值对象，必须是第一个字段
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">TValue</span> <span class="n">key</span><span class="p">;</span>         <span class="c1">// 键对象
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">MRef</span> <span class="n">next</span><span class="p">;</span>          <span class="c1">// 哈希链指针
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="cp">#if !LJ_GC64
-</span></span></span><span class="line"><span class="cl"><span class="cp"></span>  <span class="n">MRef</span> <span class="n">freetop</span><span class="p">;</span>       <span class="c1">// 32位架构下的空闲节点顶部指针(存储在node[0])
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="cp">#endif
-</span></span></span><span class="line"><span class="cl"><span class="cp"></span><span class="p">}</span> <span class="n">Node</span><span class="p">;</span>
+</span></span></span><span class="line"><span class="cl">  <span class="n">TValue</span> <span class="n">key</span><span class="p">;</span>         <span class="c1">// 键对象
+</span></span></span><span class="line"><span class="cl">  <span class="n">MRef</span> <span class="n">next</span><span class="p">;</span>          <span class="c1">// 哈希链指针
+</span></span></span><span class="line"><span class="cl"><span class="cp">#if !LJ_GC64
+</span></span></span><span class="line"><span class="cl">  <span class="n">MRef</span> <span class="n">freetop</span><span class="p">;</span>       <span class="c1">// 32位架构下的空闲节点顶部指针(存储在node[0])
+</span></span></span><span class="line"><span class="cl"><span class="cp">#endif
+</span></span></span><span class="line"><span class="cl"><span class="p">}</span> <span class="n">Node</span><span class="p">;</span>
 </span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl"><span class="k">typedef</span> <span class="k">struct</span> <span class="n">GCtab</span> <span class="p">{</span>
 </span></span><span class="line"><span class="cl">  <span class="n">GCHeader</span><span class="p">;</span>           <span class="c1">// GC 通用头部：nextgc, marked, gct
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="kt">uint8_t</span> <span class="n">nomm</span><span class="p">;</span>       <span class="c1">// 元方法负缓存掩码
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="kt">int8_t</span> <span class="n">colo</span><span class="p">;</span>        <span class="c1">// 数组共址标记 (-1表示已分离, &gt;0表示共址大小)
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">MRef</span> <span class="n">array</span><span class="p">;</span>         <span class="c1">// 数组部分指针
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">GCRef</span> <span class="n">gclist</span><span class="p">;</span>       <span class="c1">// GC 链表指针
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">GCRef</span> <span class="n">metatable</span><span class="p">;</span>    <span class="c1">// 元表引用
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="n">MRef</span> <span class="n">node</span><span class="p">;</span>          <span class="c1">// 哈希部分指针
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="kt">uint32_t</span> <span class="n">asize</span><span class="p">;</span>     <span class="c1">// 数组部分大小 [0, asize-1]
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="kt">uint32_t</span> <span class="n">hmask</span><span class="p">;</span>     <span class="c1">// 哈希掩码 (哈希部分大小-1)
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="cp">#if LJ_GC64
-</span></span></span><span class="line"><span class="cl"><span class="cp"></span>  <span class="n">MRef</span> <span class="n">freetop</span><span class="p">;</span>       <span class="c1">// 64位架构下的空闲节点顶部指针
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="cp">#endif
-</span></span></span><span class="line"><span class="cl"><span class="cp"></span><span class="p">}</span> <span class="n">GCtab</span><span class="p">;</span>
+</span></span></span><span class="line"><span class="cl">  <span class="kt">uint8_t</span> <span class="n">nomm</span><span class="p">;</span>       <span class="c1">// 元方法负缓存掩码
+</span></span></span><span class="line"><span class="cl">  <span class="kt">int8_t</span> <span class="n">colo</span><span class="p">;</span>        <span class="c1">// 数组共址标记 (-1表示已分离, &gt;0表示共址大小)
+</span></span></span><span class="line"><span class="cl">  <span class="n">MRef</span> <span class="n">array</span><span class="p">;</span>         <span class="c1">// 数组部分指针
+</span></span></span><span class="line"><span class="cl">  <span class="n">GCRef</span> <span class="n">gclist</span><span class="p">;</span>       <span class="c1">// GC 链表指针
+</span></span></span><span class="line"><span class="cl">  <span class="n">GCRef</span> <span class="n">metatable</span><span class="p">;</span>    <span class="c1">// 元表引用
+</span></span></span><span class="line"><span class="cl">  <span class="n">MRef</span> <span class="n">node</span><span class="p">;</span>          <span class="c1">// 哈希部分指针
+</span></span></span><span class="line"><span class="cl">  <span class="kt">uint32_t</span> <span class="n">asize</span><span class="p">;</span>     <span class="c1">// 数组部分大小 [0, asize-1]
+</span></span></span><span class="line"><span class="cl">  <span class="kt">uint32_t</span> <span class="n">hmask</span><span class="p">;</span>     <span class="c1">// 哈希掩码 (哈希部分大小-1)
+</span></span></span><span class="line"><span class="cl"><span class="cp">#if LJ_GC64
+</span></span></span><span class="line"><span class="cl">  <span class="n">MRef</span> <span class="n">freetop</span><span class="p">;</span>       <span class="c1">// 64位架构下的空闲节点顶部指针
+</span></span></span><span class="line"><span class="cl"><span class="cp">#endif
+</span></span></span><span class="line"><span class="cl"><span class="p">}</span> <span class="n">GCtab</span><span class="p">;</span>
 </span></span></code></pre></div><p>可以看到，GCtab 中同时定义了数组部分 <code>array</code> 和哈希部分 <code>node</code>。</p>
           
         </div>

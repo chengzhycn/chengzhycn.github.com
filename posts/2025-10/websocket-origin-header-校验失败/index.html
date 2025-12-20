@@ -417,8 +417,8 @@ malicious JavaScript cannot fake a WebSocket handshake.</p>
 <p>直接看代码： <a href="https://github.com/coder/code-server/blob/v4.104.3/src/node/http.ts#L338-L419">https://github.com/coder/code-server/blob/v4.104.3/src/node/http.ts#L338-L419</a></p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-typescript" data-lang="typescript"><span class="line"><span class="cl"><span class="kr">export</span> <span class="kd">function</span> <span class="nx">authenticateOrigin</span><span class="p">(</span><span class="nx">req</span>: <span class="kt">express.Request</span><span class="p">)</span><span class="o">:</span> <span class="k">void</span> <span class="p">{</span>
 </span></span><span class="line"><span class="cl">  <span class="c1">// A missing origin probably means the source is non-browser.  Not sure we
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="c1">// have a use case for this but let it through.
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>  <span class="kr">const</span> <span class="nx">originRaw</span> <span class="o">=</span> <span class="nx">getFirstHeader</span><span class="p">(</span><span class="nx">req</span><span class="p">,</span> <span class="s2">&#34;origin&#34;</span><span class="p">)</span>
+</span></span></span><span class="line"><span class="cl">  <span class="c1">// have a use case for this but let it through.
+</span></span></span><span class="line"><span class="cl">  <span class="kr">const</span> <span class="nx">originRaw</span> <span class="o">=</span> <span class="nx">getFirstHeader</span><span class="p">(</span><span class="nx">req</span><span class="p">,</span> <span class="s2">&#34;origin&#34;</span><span class="p">)</span>
 </span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="p">(</span><span class="o">!</span><span class="nx">originRaw</span><span class="p">)</span> <span class="p">{</span>
 </span></span><span class="line"><span class="cl">    <span class="k">return</span>
 </span></span><span class="line"><span class="cl">  <span class="p">}</span>
@@ -438,9 +438,9 @@ malicious JavaScript cannot fake a WebSocket handshake.</p>
 </span></span><span class="line"><span class="cl">  <span class="kr">const</span> <span class="nx">host</span> <span class="o">=</span> <span class="nx">getHost</span><span class="p">(</span><span class="nx">req</span><span class="p">)</span>
 </span></span><span class="line"><span class="cl">  <span class="k">if</span> <span class="p">(</span><span class="k">typeof</span> <span class="nx">host</span> <span class="o">===</span> <span class="s2">&#34;undefined&#34;</span><span class="p">)</span> <span class="p">{</span>
 </span></span><span class="line"><span class="cl">    <span class="c1">// A missing host likely means the reverse proxy has not been configured to
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">// forward the host which means we cannot perform the check.  Emit an error
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">// so an admin can fix the issue.
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="nx">logger</span><span class="p">.</span><span class="nx">error</span><span class="p">(</span><span class="s2">&#34;No host headers found&#34;</span><span class="p">)</span>
+</span></span></span><span class="line"><span class="cl">    <span class="c1">// forward the host which means we cannot perform the check.  Emit an error
+</span></span></span><span class="line"><span class="cl">    <span class="c1">// so an admin can fix the issue.
+</span></span></span><span class="line"><span class="cl">    <span class="nx">logger</span><span class="p">.</span><span class="nx">error</span><span class="p">(</span><span class="s2">&#34;No host headers found&#34;</span><span class="p">)</span>
 </span></span><span class="line"><span class="cl">    <span class="nx">logger</span><span class="p">.</span><span class="nx">error</span><span class="p">(</span><span class="s2">&#34;Are you behind a reverse proxy that does not forward the host?&#34;</span><span class="p">)</span>
 </span></span><span class="line"><span class="cl">    <span class="k">throw</span> <span class="k">new</span> <span class="nb">Error</span><span class="p">(</span><span class="s2">&#34;no host headers found&#34;</span><span class="p">)</span>
 </span></span><span class="line"><span class="cl">  <span class="p">}</span>

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-	<meta name="generator" content="Hugo 0.152.2">
+	<meta name="generator" content="Hugo 0.153.0">
   
     <title>chengzhycn&#39;s blog</title>
   
@@ -451,7 +451,7 @@
 </span></span><span class="line"><span class="cl">    <span class="kn">listen</span> <span class="mi">80</span><span class="p">;</span>
 </span></span><span class="line"><span class="cl">    <span class="kn">server_name</span> <span class="s">example.com</span><span class="p">;</span>
 </span></span><span class="line"><span class="cl">    <span class="c1"># 这个 rewrite 就工作在 SERVER_REWRITE 阶段
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="kn">rewrite</span> <span class="s">^/(.*)</span>$ <span class="s">https://example.com/</span><span class="nv">$1</span> <span class="s">permanent</span><span class="p">;</span> 
+</span></span></span><span class="line"><span class="cl">    <span class="kn">rewrite</span> <span class="s">^/(.*)</span>$ <span class="s">https://example.com/</span><span class="nv">$1</span> <span class="s">permanent</span><span class="p">;</span> 
 </span></span><span class="line"><span class="cl"><span class="p">}</span>
 </span></span></code></pre></div><h4 id="3ngx_http_find_config_phase配置查找阶段">3. <code>NGX_HTTP_FIND_CONFIG_PHASE</code> (配置查找阶段)</h4>
 <ul>
@@ -466,7 +466,7 @@
 </ul>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-nginx" data-lang="nginx"><span class="line"><span class="cl"><span class="k">location</span> <span class="s">/app/</span> <span class="p">{</span>
 </span></span><span class="line"><span class="cl">    <span class="c1"># 这个 rewrite 工作在 REWRITE 阶段
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="kn">rewrite</span> <span class="s">^/app/(.*)</span>$ <span class="s">/v2/app/</span><span class="nv">$1</span> <span class="s">break</span><span class="p">;</span> 
+</span></span></span><span class="line"><span class="cl">    <span class="kn">rewrite</span> <span class="s">^/app/(.*)</span>$ <span class="s">/v2/app/</span><span class="nv">$1</span> <span class="s">break</span><span class="p">;</span> 
 </span></span><span class="line"><span class="cl"><span class="p">}</span>
 </span></span></code></pre></div><h4 id="5ngx_http_post_rewrite_phase地址重写后阶段">5. <code>NGX_HTTP_POST_REWRITE_PHASE</code> (地址重写后阶段)</h4>
 <ul>
@@ -497,7 +497,7 @@
 </ul>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-nginx" data-lang="nginx"><span class="line"><span class="cl"><span class="k">location</span> <span class="s">/</span> <span class="p">{</span>
 </span></span><span class="line"><span class="cl">    <span class="c1"># 这个指令工作在 TRY_FILES 阶段
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="kn">try_files</span> <span class="nv">$uri</span> <span class="nv">$uri/</span> <span class="s">/index.html</span><span class="p">;</span>
+</span></span></span><span class="line"><span class="cl">    <span class="kn">try_files</span> <span class="nv">$uri</span> <span class="nv">$uri/</span> <span class="s">/index.html</span><span class="p">;</span>
 </span></span><span class="line"><span class="cl"><span class="p">}</span>
 </span></span></code></pre></div><h4 id="10ngx_http_content_phase内容生成阶段">10. <code>NGX_HTTP_CONTENT_PHASE</code> (内容生成阶段)</h4>
 <ul>

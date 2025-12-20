@@ -583,9 +583,9 @@ Policy Routing VRF Net Namespace 隔离路由表 隔离三层网络 整个协议
 </span></span></span><span class="line"><span class="cl"><span class="cm">     * skb to its handler for processing
 </span></span></span><span class="line"><span class="cl"><span class="cm">     */</span>
 </span></span><span class="line"><span class="cl">    <span class="c1">// 这里增加了这么一个L3mdev调用，正是该L3mdev逻辑的处理，实现了VRF的核心：路由表使用与VRF域关联的策略路由表
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="n">skb</span> <span class="o">=</span> <span class="nf">l3mdev_ip_rcv</span><span class="p">(</span><span class="n">skb</span><span class="p">);</span>
+</span></span></span><span class="line"><span class="cl">    <span class="n">skb</span> <span class="o">=</span> <span class="nf">l3mdev_ip_rcv</span><span class="p">(</span><span class="n">skb</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl">    <span class="c1">// 后面的逻辑直到定位路由表，VRF逻辑和常规逻辑没有任何不同
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="p">...</span>
+</span></span></span><span class="line"><span class="cl">    <span class="p">...</span>
 </span></span><span class="line"><span class="cl">    <span class="p">}</span>
 </span></span></code></pre></div><p>具体来讲，I3mdev_ip_rcv 的逻辑非常简单，对于 VRF 而言，实现 I3mdev_I3_rcv 回调函数完成的功能仅仅是：</p>
 <ul>
@@ -614,8 +614,8 @@ Policy Routing VRF Net Namespace 隔离路由表 隔离三层网络 整个协议
 </span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl">    <span class="p">...</span>
 </span></span><span class="line"><span class="cl">    <span class="c1">// 前面的逻辑是常规的iif，oif，mark等匹配，以下的这个l3mdev不一般！
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="c1">// rule-&gt;l3mdev即ip rule ls看到的那个[l3mdev-table]
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="k">if</span> <span class="p">(</span><span class="n">rule</span><span class="o">-&gt;</span><span class="n">l3mdev</span> <span class="o">&amp;&amp;</span> <span class="o">!</span><span class="nf">l3mdev_fib_rule_match</span><span class="p">(</span><span class="n">rule</span><span class="o">-&gt;</span><span class="n">fr_net</span><span class="p">,</span> <span class="n">fl</span><span class="p">,</span> <span class="n">arg</span><span class="p">))</span>
+</span></span></span><span class="line"><span class="cl">    <span class="c1">// rule-&gt;l3mdev即ip rule ls看到的那个[l3mdev-table]
+</span></span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">rule</span><span class="o">-&gt;</span><span class="n">l3mdev</span> <span class="o">&amp;&amp;</span> <span class="o">!</span><span class="nf">l3mdev_fib_rule_match</span><span class="p">(</span><span class="n">rule</span><span class="o">-&gt;</span><span class="n">fr_net</span><span class="p">,</span> <span class="n">fl</span><span class="p">,</span> <span class="n">arg</span><span class="p">))</span>
 </span></span><span class="line"><span class="cl">        <span class="k">goto</span> <span class="n">out</span><span class="p">;</span>
 </span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl">    <span class="n">ret</span> <span class="o">=</span> <span class="n">ops</span><span class="o">-&gt;</span><span class="nf">match</span><span class="p">(</span><span class="n">rule</span><span class="p">,</span> <span class="n">fl</span><span class="p">,</span> <span class="n">flags</span><span class="p">);</span>
@@ -631,13 +631,13 @@ Policy Routing VRF Net Namespace 隔离路由表 隔离三层网络 整个协议
 </span></span><span class="line"><span class="cl"> 
 </span></span><span class="line"><span class="cl">    <span class="nf">rcu_read_lock</span><span class="p">();</span>
 </span></span><span class="line"><span class="cl">    <span class="p">...</span> <span class="c1">// 我们仅仅分析iif情景
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span> 
+</span></span></span><span class="line"><span class="cl"> 
 </span></span><span class="line"><span class="cl">    <span class="n">dev</span> <span class="o">=</span> <span class="nf">dev_get_by_index_rcu</span><span class="p">(</span><span class="n">net</span><span class="p">,</span> <span class="n">fl</span><span class="o">-&gt;</span><span class="n">flowi_iif</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl">    <span class="c1">// 如果这个dev是一个VRF master虚拟网卡设备
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="k">if</span> <span class="p">(</span><span class="n">dev</span> <span class="o">&amp;&amp;</span> <span class="nf">netif_is_l3_master</span><span class="p">(</span><span class="n">dev</span><span class="p">)</span> <span class="o">&amp;&amp;</span>
+</span></span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">dev</span> <span class="o">&amp;&amp;</span> <span class="nf">netif_is_l3_master</span><span class="p">(</span><span class="n">dev</span><span class="p">)</span> <span class="o">&amp;&amp;</span>
 </span></span><span class="line"><span class="cl">        <span class="n">dev</span><span class="o">-&gt;</span><span class="n">l3mdev_ops</span><span class="o">-&gt;</span><span class="n">l3mdev_fib_table</span><span class="p">)</span> <span class="p">{</span>
 </span></span><span class="line"><span class="cl">        <span class="c1">// 那么便通过其自身的回调函数取出和该VRF关联的策略路由表！
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>        <span class="n">arg</span><span class="o">-&gt;</span><span class="n">table</span> <span class="o">=</span> <span class="n">dev</span><span class="o">-&gt;</span><span class="n">l3mdev_ops</span><span class="o">-&gt;</span><span class="nf">l3mdev_fib_table</span><span class="p">(</span><span class="n">dev</span><span class="p">);</span>
+</span></span></span><span class="line"><span class="cl">        <span class="n">arg</span><span class="o">-&gt;</span><span class="n">table</span> <span class="o">=</span> <span class="n">dev</span><span class="o">-&gt;</span><span class="n">l3mdev_ops</span><span class="o">-&gt;</span><span class="nf">l3mdev_fib_table</span><span class="p">(</span><span class="n">dev</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl">        <span class="n">rc</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
 </span></span><span class="line"><span class="cl">        <span class="k">goto</span> <span class="n">out</span><span class="p">;</span>
 </span></span><span class="line"><span class="cl">    <span class="p">}</span>
@@ -680,7 +680,7 @@ Policy Routing VRF Net Namespace 隔离路由表 隔离三层网络 整个协议
 </span></span><span class="line"><span class="cl">    <span class="k">struct</span> <span class="n">net_vrf</span> <span class="o">*</span><span class="n">vrf</span> <span class="o">=</span> <span class="nf">netdev_priv</span><span class="p">(</span><span class="n">vrf_dev</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl">    <span class="p">...</span>
 </span></span><span class="line"><span class="cl">    <span class="c1">// 取出VRF关联的那个唯一的dst_entry，以便将数据包定向到vrf_xmit
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="n">rth</span> <span class="o">=</span> <span class="nf">rcu_dereference</span><span class="p">(</span><span class="n">vrf</span><span class="o">-&gt;</span><span class="n">rth</span><span class="p">);</span>
+</span></span></span><span class="line"><span class="cl">    <span class="n">rth</span> <span class="o">=</span> <span class="nf">rcu_dereference</span><span class="p">(</span><span class="n">vrf</span><span class="o">-&gt;</span><span class="n">rth</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="nf">likely</span><span class="p">(</span><span class="n">rth</span><span class="p">))</span> <span class="p">{</span>
 </span></span><span class="line"><span class="cl">        <span class="n">dst</span> <span class="o">=</span> <span class="o">&amp;</span><span class="n">rth</span><span class="o">-&gt;</span><span class="n">dst</span><span class="p">;</span>
 </span></span><span class="line"><span class="cl">        <span class="nf">dst_hold</span><span class="p">(</span><span class="n">dst</span><span class="p">);</span>
@@ -700,7 +700,7 @@ Policy Routing VRF Net Namespace 隔离路由表 隔离三层网络 整个协议
 </span></span><span class="line"><span class="cl">    <span class="k">struct</span> <span class="n">flowi4</span> <span class="n">fl4</span> <span class="o">=</span> <span class="p">{</span>
 </span></span><span class="line"><span class="cl">        <span class="cm">/* needed to match OIF rule */</span>
 </span></span><span class="line"><span class="cl">        <span class="c1">// 这个会让l3mdev_fib_rule_match定位到正确的路由表
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>        <span class="p">.</span><span class="n">flowi4_oif</span> <span class="o">=</span> <span class="n">vrf_dev</span><span class="o">-&gt;</span><span class="n">ifindex</span><span class="p">,</span>
+</span></span></span><span class="line"><span class="cl">        <span class="p">.</span><span class="n">flowi4_oif</span> <span class="o">=</span> <span class="n">vrf_dev</span><span class="o">-&gt;</span><span class="n">ifindex</span><span class="p">,</span>
 </span></span><span class="line"><span class="cl">        <span class="p">.</span><span class="n">flowi4_iif</span> <span class="o">=</span> <span class="n">LOOPBACK_IFINDEX</span><span class="p">,</span>
 </span></span><span class="line"><span class="cl">        <span class="p">.</span><span class="n">flowi4_tos</span> <span class="o">=</span> <span class="nf">RT_TOS</span><span class="p">(</span><span class="n">ip4h</span><span class="o">-&gt;</span><span class="n">tos</span><span class="p">),</span>
 </span></span><span class="line"><span class="cl">        <span class="p">.</span><span class="n">flowi4_flags</span> <span class="o">=</span> <span class="n">FLOWI_FLAG_ANYSRC</span> <span class="o">|</span> <span class="n">FLOWI_FLAG_SKIP_NH_OIF</span><span class="p">,</span>
@@ -709,10 +709,10 @@ Policy Routing VRF Net Namespace 隔离路由表 隔离三层网络 整个协议
 </span></span><span class="line"><span class="cl">    <span class="k">struct</span> <span class="n">net</span> <span class="o">*</span><span class="n">net</span> <span class="o">=</span> <span class="nf">dev_net</span><span class="p">(</span><span class="n">vrf_dev</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl">    <span class="k">struct</span> <span class="n">rtable</span> <span class="o">*</span><span class="n">rt</span><span class="p">;</span>
 </span></span><span class="line"><span class="cl">    <span class="c1">// 真实查路由
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="n">rt</span> <span class="o">=</span> <span class="nf">ip_route_output_flow</span><span class="p">(</span><span class="n">net</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">fl4</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">);</span>
+</span></span></span><span class="line"><span class="cl">    <span class="n">rt</span> <span class="o">=</span> <span class="nf">ip_route_output_flow</span><span class="p">(</span><span class="n">net</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">fl4</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl">    <span class="p">...</span>
 </span></span><span class="line"><span class="cl">    <span class="c1">// 真实发送skb
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>    <span class="n">ret</span> <span class="o">=</span> <span class="nf">vrf_ip_local_out</span><span class="p">(</span><span class="nf">dev_net</span><span class="p">(</span><span class="nf">skb_dst</span><span class="p">(</span><span class="n">skb</span><span class="p">)</span><span class="o">-&gt;</span><span class="n">dev</span><span class="p">),</span> <span class="n">skb</span><span class="o">-&gt;</span><span class="n">sk</span><span class="p">,</span> <span class="n">skb</span><span class="p">);</span>
+</span></span></span><span class="line"><span class="cl">    <span class="n">ret</span> <span class="o">=</span> <span class="nf">vrf_ip_local_out</span><span class="p">(</span><span class="nf">dev_net</span><span class="p">(</span><span class="nf">skb_dst</span><span class="p">(</span><span class="n">skb</span><span class="p">)</span><span class="o">-&gt;</span><span class="n">dev</span><span class="p">),</span> <span class="n">skb</span><span class="o">-&gt;</span><span class="n">sk</span><span class="p">,</span> <span class="n">skb</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl">    <span class="p">...</span>
 </span></span><span class="line"><span class="cl"><span class="p">}</span>
 </span></span></code></pre></div><p>整个流程就结束了。</p>

@@ -289,11 +289,11 @@ $$
 dynamic_priority = max(100, min((static_priority - 5 + bonus), 139)), bonus \in [0, 10]
 $$</p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="c1">// kernel/sched.c
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>
+</span></span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl"><span class="cp">#define CURRENT_BONUS(p) \
 </span></span></span><span class="line"><span class="cl"><span class="cp">    (NS_TO_JIFFIES((p)-&gt;sleep_avg) * MAX_BONUS / \
 </span></span></span><span class="line"><span class="cl"><span class="cp">        MAX_SLEEP_AVG)
-</span></span></span><span class="line"><span class="cl"><span class="cp"></span>
+</span></span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl"><span class="cm">/*
 </span></span></span><span class="line"><span class="cl"><span class="cm"> * effective_prio - return the priority that is based on the static
 </span></span></span><span class="line"><span class="cl"><span class="cm"> * priority but is modified by bonuses/penalties.
@@ -334,7 +334,7 @@ $$</p>
 </span></span></span><span class="line"><span class="cl"><span class="cm"> */</span>
 </span></span><span class="line"><span class="cl"><span class="cp">#define MIN_TIMESLICE       max(5 * HZ / 1000, 1)
 </span></span></span><span class="line"><span class="cl"><span class="cp">#define DEF_TIMESLICE       (100 * HZ / 1000)
-</span></span></span><span class="line"><span class="cl"><span class="cp"></span>
+</span></span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl"><span class="cp">#define MAX_SLEEP_AVG       (DEF_TIMESLICE * MAX_BONUS)
 </span></span></span></code></pre></div><h4 id="time_slice计算"><code>time_slice</code>计算<a href="#time_slice计算" class="hanchor" ariaLabel="Anchor">#</a> </h4>
 <p>进程的时间片也会受到进程优先级的影响。总的规则是，==<strong>优先级越高，分配的时间片越长</strong>==。
@@ -355,7 +355,7 @@ $$</p>
 </span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl"><span class="cp">#define SCALE_PRIO(x, prio) \
 </span></span></span><span class="line"><span class="cl"><span class="cp">    max(x * (MAX_PRIO - prio) / (MAX_USER_PRIO/2), MIN_TIMESLICE)
-</span></span></span><span class="line"><span class="cl"><span class="cp"></span>
+</span></span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl"><span class="k">static</span> <span class="kr">inline</span> <span class="kt">unsigned</span> <span class="kt">int</span> <span class="nf">task_timeslice</span><span class="p">(</span><span class="kt">task_t</span> <span class="o">*</span><span class="n">p</span><span class="p">)</span>
 </span></span><span class="line"><span class="cl"><span class="p">{</span>
 </span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">p</span><span class="o">-&gt;</span><span class="n">static_prio</span> <span class="o">&lt;</span> <span class="nf">NICE_TO_PRIO</span><span class="p">(</span><span class="mi">0</span><span class="p">))</span>
@@ -367,7 +367,7 @@ $$</p>
 <p>调度器的主函数是<code>schedule()</code>，定义在<code>kernel/sched.c</code>内。每个CPU核都有自己的per-cpu的<code>runqueue</code>结构体。<code>runqueue</code>中记录了当前CPU中等待运行的进程列表。</p>
 <p>每个<code>runqueue</code>有两个==<strong>优先级队列</strong>==：<code>active</code>和<code>expired</code>。<code>active</code>用来放置<code>time_slice</code>没有跑完的进程。进程的<code>time_slice</code>消耗完时，进程会转移到<code>expired</code>队列中。</p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="c1">// kernel/sched.c: scheduler_tick(void)
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="k">if</span> <span class="p">(</span><span class="o">!--</span><span class="n">p</span><span class="o">-&gt;</span><span class="n">time_slice</span><span class="p">)</span> <span class="p">{</span>
+</span></span></span><span class="line"><span class="cl">	<span class="k">if</span> <span class="p">(</span><span class="o">!--</span><span class="n">p</span><span class="o">-&gt;</span><span class="n">time_slice</span><span class="p">)</span> <span class="p">{</span>
 </span></span><span class="line"><span class="cl">        <span class="nf">dequeue_task</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">rq</span><span class="o">-&gt;</span><span class="n">active</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl">        <span class="nf">set_tsk_need_resched</span><span class="p">(</span><span class="n">p</span><span class="p">);</span>
 </span></span><span class="line"><span class="cl">        <span class="n">p</span><span class="o">-&gt;</span><span class="n">prio</span> <span class="o">=</span> <span class="nf">effective_prio</span><span class="p">(</span><span class="n">p</span><span class="p">);</span>
@@ -386,7 +386,7 @@ $$</p>
 </span></span></code></pre></div><p>==<strong><code>scheduler_tick()</code>会在<code>kernel/timer.c</code>中调用。</strong>==</p>
 <p>当<code>active</code>队列所有进程都被转移到<code>expired</code>中后，<code>runqueue</code>会交换两个队列的指针，即<code>expired</code>队列成为新的<code>active</code>队列。</p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="c1">// kernel/sched.c: schedule(void)
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span>	<span class="n">array</span> <span class="o">=</span> <span class="n">rq</span><span class="o">-&gt;</span><span class="n">active</span><span class="p">;</span>
+</span></span></span><span class="line"><span class="cl">	<span class="n">array</span> <span class="o">=</span> <span class="n">rq</span><span class="o">-&gt;</span><span class="n">active</span><span class="p">;</span>
 </span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="nf">unlikely</span><span class="p">(</span><span class="o">!</span><span class="n">array</span><span class="o">-&gt;</span><span class="n">nr_active</span><span class="p">))</span> <span class="p">{</span>
 </span></span><span class="line"><span class="cl">        <span class="cm">/*
 </span></span></span><span class="line"><span class="cl"><span class="cm">         * Switch the active and expired arrays.

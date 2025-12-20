@@ -393,9 +393,9 @@ curl https://api.openai.com/v1/chat/completions \ -H &#34;Content-Type: applicat
 <p>唯一的缺点就是 chat completions 已经被绝大部分模型兼容使用。。。</p>
 <p>请求示例：</p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">curl https://api.openai.com/v1/responses <span class="se">\
-</span></span></span><span class="line"><span class="cl"><span class="se"></span>  -H <span class="s2">&#34;Content-Type: application/json&#34;</span> <span class="se">\
-</span></span></span><span class="line"><span class="cl"><span class="se"></span>  -H <span class="s2">&#34;Authorization: Bearer </span><span class="nv">$OPENAI_API_KEY</span><span class="s2">&#34;</span> <span class="se">\
-</span></span></span><span class="line"><span class="cl"><span class="se"></span>  -d <span class="s1">&#39;{
+</span></span></span><span class="line"><span class="cl">  -H <span class="s2">&#34;Content-Type: application/json&#34;</span> <span class="se">\
+</span></span></span><span class="line"><span class="cl">  -H <span class="s2">&#34;Authorization: Bearer </span><span class="nv">$OPENAI_API_KEY</span><span class="s2">&#34;</span> <span class="se">\
+</span></span></span><span class="line"><span class="cl">  -d <span class="s1">&#39;{
 </span></span></span><span class="line"><span class="cl"><span class="s1">    &#34;model&#34;: &#34;o3-mini&#34;,
 </span></span></span><span class="line"><span class="cl"><span class="s1">    &#34;input&#34;: &#34;How much wood would a woodchuck chuck?&#34;,
 </span></span></span><span class="line"><span class="cl"><span class="s1">    &#34;reasoning&#34;: {
@@ -479,10 +479,10 @@ curl https://api.openai.com/v1/chat/completions \ -H &#34;Content-Type: applicat
 <p><a href="https://ai.google.dev/api">https://ai.google.dev/api</a></p>
 <p>请求示例：</p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">curl <span class="s2">&#34;https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent&#34;</span> <span class="se">\
-</span></span></span><span class="line"><span class="cl"><span class="se"></span>  -H <span class="s2">&#34;x-goog-api-key: </span><span class="nv">$GEMINI_API_KEY</span><span class="s2">&#34;</span> <span class="se">\
-</span></span></span><span class="line"><span class="cl"><span class="se"></span>  -H <span class="s1">&#39;Content-Type: application/json&#39;</span> <span class="se">\
-</span></span></span><span class="line"><span class="cl"><span class="se"></span>  -X POST <span class="se">\
-</span></span></span><span class="line"><span class="cl"><span class="se"></span>  -d <span class="s1">&#39;{
+</span></span></span><span class="line"><span class="cl">  -H <span class="s2">&#34;x-goog-api-key: </span><span class="nv">$GEMINI_API_KEY</span><span class="s2">&#34;</span> <span class="se">\
+</span></span></span><span class="line"><span class="cl">  -H <span class="s1">&#39;Content-Type: application/json&#39;</span> <span class="se">\
+</span></span></span><span class="line"><span class="cl">  -X POST <span class="se">\
+</span></span></span><span class="line"><span class="cl">  -d <span class="s1">&#39;{
 </span></span></span><span class="line"><span class="cl"><span class="s1">    &#34;system_instruction&#34;: {
 </span></span></span><span class="line"><span class="cl"><span class="s1">      &#34;parts&#34;: [
 </span></span></span><span class="line"><span class="cl"><span class="s1">        {
@@ -559,11 +559,11 @@ curl https://api.openai.com/v1/chat/completions \ -H &#34;Content-Type: applicat
 <p><a href="https://docs.claude.com/en/api/overview">https://docs.claude.com/en/api/overview</a></p>
 <p>请求示例：</p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">curl https://api.anthropic.com/v1/messages <span class="se">\
-</span></span></span><span class="line"><span class="cl"><span class="se"></span>     --header <span class="s2">&#34;x-api-key: </span><span class="nv">$ANTHROPIC_API_KEY</span><span class="s2">&#34;</span> <span class="se">\
-</span></span></span><span class="line"><span class="cl"><span class="se"></span>     --header <span class="s2">&#34;anthropic-version: 2023-06-01&#34;</span> <span class="se">\
-</span></span></span><span class="line"><span class="cl"><span class="se"></span>     --header <span class="s2">&#34;content-type: application/json&#34;</span> <span class="se">\
-</span></span></span><span class="line"><span class="cl"><span class="se"></span>     --data <span class="se">\
-</span></span></span><span class="line"><span class="cl"><span class="se"></span><span class="s1">&#39;{
+</span></span></span><span class="line"><span class="cl">     --header <span class="s2">&#34;x-api-key: </span><span class="nv">$ANTHROPIC_API_KEY</span><span class="s2">&#34;</span> <span class="se">\
+</span></span></span><span class="line"><span class="cl">     --header <span class="s2">&#34;anthropic-version: 2023-06-01&#34;</span> <span class="se">\
+</span></span></span><span class="line"><span class="cl">     --header <span class="s2">&#34;content-type: application/json&#34;</span> <span class="se">\
+</span></span></span><span class="line"><span class="cl">     --data <span class="se">\
+</span></span></span><span class="line"><span class="cl"><span class="s1">&#39;{
 </span></span></span><span class="line"><span class="cl"><span class="s1">    &#34;model&#34;: &#34;claude-sonnet-4-5-20250929&#34;,
 </span></span></span><span class="line"><span class="cl"><span class="s1">    &#34;max_tokens&#34;: 1024,
 </span></span></span><span class="line"><span class="cl"><span class="s1">	&#34;thinking&#34;: { &#34;type&#34;: &#34;enabled&#34;, &#34;budget_tokens&#34;: 10000 },
@@ -604,9 +604,9 @@ curl https://api.openai.com/v1/chat/completions \ -H &#34;Content-Type: applicat
 </span></span><span class="line"><span class="cl">
 </span></span><span class="line"><span class="cl"><span class="c1"># request</span>
 </span></span><span class="line"><span class="cl">curl https://api.openai.com/v1/embeddings <span class="se">\
-</span></span></span><span class="line"><span class="cl"><span class="se"></span>  -H <span class="s2">&#34;Authorization: Bearer </span><span class="nv">$OPENAI_API_KEY</span><span class="s2">&#34;</span> <span class="se">\
-</span></span></span><span class="line"><span class="cl"><span class="se"></span>  -H <span class="s2">&#34;Content-Type: application/json&#34;</span> <span class="se">\
-</span></span></span><span class="line"><span class="cl"><span class="se"></span>  -d <span class="s1">&#39;{
+</span></span></span><span class="line"><span class="cl">  -H <span class="s2">&#34;Authorization: Bearer </span><span class="nv">$OPENAI_API_KEY</span><span class="s2">&#34;</span> <span class="se">\
+</span></span></span><span class="line"><span class="cl">  -H <span class="s2">&#34;Content-Type: application/json&#34;</span> <span class="se">\
+</span></span></span><span class="line"><span class="cl">  -d <span class="s1">&#39;{
 </span></span></span><span class="line"><span class="cl"><span class="s1">    &#34;input&#34;: &#34;The food was delicious and the waiter...&#34;,
 </span></span></span><span class="line"><span class="cl"><span class="s1">    &#34;model&#34;: &#34;text-embedding-ada-002&#34;,
 </span></span></span><span class="line"><span class="cl"><span class="s1">    &#34;encoding_format&#34;: &#34;float&#34;

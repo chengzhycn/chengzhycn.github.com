@@ -262,16 +262,16 @@ DATA = 42; || if FLAG.load() { FLAG.store(1); || assert(DATA == 42); || } 如上
 <p><strong>interleaving semantics：</strong> 将多线程的指令交替组合成好像是单线程执行一样。</p>
 <p>不同线程间的Load/store指令是穿插执行的，导致最终的行为有多种多样的可能。</p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-rust" data-lang="rust"><span class="line"><span class="cl"><span class="k">static</span><span class="w"> </span><span class="no">COUNTER</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">AtomicUsize</span>::<span class="n">new</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="c1">// thread A &amp; B
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">let</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="no">COUNTER</span><span class="p">.</span><span class="n">load</span><span class="p">();</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w"></span><span class="no">COUNTER</span><span class="p">.</span><span class="n">store</span><span class="p">(</span><span class="n">c</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="c1">// thread A &amp; B
+</span></span></span><span class="line"><span class="cl"><span class="kd">let</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="no">COUNTER</span><span class="p">.</span><span class="n">load</span><span class="p">();</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="no">COUNTER</span><span class="p">.</span><span class="n">store</span><span class="p">(</span><span class="n">c</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">);</span><span class="w">
 </span></span></span></code></pre></div><p>如上示例，两个线程A和B同时对COUNTER进行+1操作，预期结果当然是2。但是<strong>由于线程调度的不确定性</strong>可能出现如下的执行顺序：</p>
 <pre tabindex="0"><code>[COUNTER=0] A load, B load, A store, B store [COUNTER=1]
 </code></pre><p>导致结果不符合预期。</p>
 <h4 id="解决方案">解决方案<a href="#解决方案" class="hanchor" ariaLabel="Anchor">#</a> </h4>
 <p>使用原子的reading &amp; writing，禁止掉这种不符预期的执行顺序。</p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-rust" data-lang="rust"><span class="line"><span class="cl"><span class="c1">// thread A &amp; B
-</span></span></span><span class="line"><span class="cl"><span class="c1"></span><span class="kd">let</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="no">COUNTER</span><span class="p">.</span><span class="n">fetch_and_add</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="kd">let</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="no">COUNTER</span><span class="p">.</span><span class="n">fetch_and_add</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span><span class="w">
 </span></span></span></code></pre></div><ul>
 <li><strong>“Read-modify-write”</strong>, e.g. swap, compare-and-swap, fetch-and-add</li>
 </ul>
