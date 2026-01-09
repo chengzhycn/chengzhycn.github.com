@@ -207,6 +207,50 @@
     
       <article class="post on-list">
         <h1 class="post-title">
+          <a href="https://www.jinzhi.site/posts/2026-01/%E6%97%B6%E5%BB%B6%E7%9A%84%E5%BB%BA%E6%A8%A1%E4%B8%8E%E6%B5%8B%E9%87%8F/">时延的建模与测量</a>
+        </h1>
+        <div class="post-meta"><time class="post-date">2026-01-09</time></div>
+
+        
+          <span class="post-tags">
+            
+            #<a href="https://www.jinzhi.site/tags/softwareengineering/">SoftwareEngineering</a>&nbsp;
+            
+          </span>
+        
+
+        
+
+
+        <div class="post-content">
+          
+            <p>本文是 2025年10月出版的《Latency： Reduce delay in software systems》第二章的读书笔记</p>
+<h2 id="时延的定律">时延的定律</h2>
+<h3 id="littles-law">Little&rsquo;s Law</h3>
+<p>利特尔法则（Little&rsquo;s Law）是排队论和运筹学中最经典、最直观，但也最具威力的定律之一。</p>
+<p>Little&rsquo;s Law 的数学表达式如下所示：
+$$L = \lambda \times W $$</p>
+<ul>
+<li>$L$ (Inventory / Queue Length)：系统中平均拥有的“东西”数量（比如排队的人数、仓库的库存、处理的任务）</li>
+<li>$\lambda$ (Throughput / Arrival Rate)：单位时间内进入或离开系统的平均数量（吞吐率/到达率）</li>
+<li>$W$ (Wait Time / Cycle Time)：一个“东西”在系统里停留的平均时间（前置时间/等待时间）</li>
+</ul>
+<p>需要注意的是，<strong>Little&rsquo;s Law 描述的是一个稳态系统：在一个稳定的系统中，存货数量 = 到达速率 x 停留时间</strong>。</p>
+<p>举个例子，一个咖啡馆内，平均每分钟有 2 个客人进店（$\lambda$），每个客人在店里从进门到拿咖啡走人平均停留 10 分钟（$W$）。那么，任一时刻店中的停留人数 $L = \lambda \times W$  为 20 人，即在这 10 分钟内店中累积的人数，第 11 分钟到达速率等于离开速率，系统达到平衡。</p>
+<p>在并发系统中，$\lambda$ (吞吐量) 可以理解为每秒处理多少个请求（QPS/TPS），$W$ (响应时间) 可以理解为每个请求平均花多少秒（Latency），$L$ (并发数) 可以理解为在任一给定时刻，已经进入系统但尚未处理完成的请求总数。</p>
+<p>在计算机系统中，每一个 $L$ 都不是免费的，它必须占用某种物理资源：</p>
+          
+        </div>
+
+        
+          <div>
+            <a class="read-more button inline" href="/posts/2026-01/%E6%97%B6%E5%BB%B6%E7%9A%84%E5%BB%BA%E6%A8%A1%E4%B8%8E%E6%B5%8B%E9%87%8F/">[Read more]</a>
+          </div>
+        
+      </article>
+    
+      <article class="post on-list">
+        <h1 class="post-title">
           <a href="https://www.jinzhi.site/posts/2022-03/a-philosophy-of-software-design/">A Philosophy of Software Design</a>
         </h1>
         <div class="post-meta"><time class="post-date">2022-03-25</time></div>
@@ -528,10 +572,42 @@
       
       
     
+      
+      
+      
+    
 
     
     
 
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2026-01/" class="archive-link">
+          <span class="archive-date">2026-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
     
       
       
@@ -1120,17 +1196,7 @@
       
         
       
-        
-      
     
-      
-        
-      
-        
-      
-    
-      
-        
       
         
       
@@ -1146,7 +1212,7 @@
       
         
       
-    
+        
       
         
       
@@ -1168,6 +1234,12 @@
       
         
       
+        
+      
+    
+      
+        
+      
     
       
         
@@ -1176,15 +1248,7 @@
       
         
       
-        
-      
-        
-      
     
-      
-        
-      
-        
       
         
       
@@ -1224,38 +1288,6 @@
       
         
       
-    
-      
-        
-      
-    
-      
-        
-      
-        
-      
-    
-      
-        
-      
-    
-      
-        
-      
-    
-      
-    
-      
-        
-      
-    
-      
-        
-      
-    
-      
-        
-      
         
       
         
@@ -1265,14 +1297,6 @@
         
       
         
-      
-    
-      
-        
-      
-        
-      
-    
       
         
       
@@ -1300,8 +1324,6 @@
       
     
       
-        
-      
     
       
         
@@ -1315,6 +1337,26 @@
         
       
         
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
       
         
       
@@ -1352,6 +1394,44 @@
       
         
       
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
     
       
         
@@ -1360,6 +1440,9 @@
     
     
     
+    
+      
+      
     
       
       
@@ -2336,9 +2419,9 @@
         <a href="https://www.jinzhi.site/tags/softwareengineering/" 
            class="tag-item" 
            style="font-size: 0.9em;"
-           title="1 article">
+           title="2 articles">
           SoftwareEngineering
-          <span class="tag-count">(1)</span>
+          <span class="tag-count">(2)</span>
         </a>
       
     

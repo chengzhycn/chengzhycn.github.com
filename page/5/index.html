@@ -216,6 +216,64 @@
     
       <article class="post on-list">
         <h2 class="post-title">
+          <a href="https://www.jinzhi.site/posts/2025-06/kubernetes-csi-%E7%AE%80%E4%BB%8B/">Kubernetes CSI 简介</a>
+        </h2>
+
+        <div class="post-meta"><time class="post-date">2025-06-24</time></div>
+
+        
+          <span class="post-tags">
+            
+            #<a href="https://www.jinzhi.site/tags/kubernetes/">kubernetes</a>&nbsp;
+            
+            #<a href="https://www.jinzhi.site/tags/csi/">csi</a>&nbsp;
+            
+          </span>
+        
+
+        
+
+
+        <div class="post-content">
+          
+            <p>K8s CSI 是 Kubernetes 中非常重要的一个组件，它解决了存储与计算分离的复杂性，并为容器化应用提供了持久化存储的能力。</p>
+<h2 id="1-基本概念">1. 基本概念</h2>
+<p><strong>CSI (Container Storage Interface)</strong> 译为 <strong>容器存储接口</strong>。它是由 Kubernetes 社区与存储厂商共同制定的一套标准接口规范。</p>
+<p>在 CSI 出现之前，Kubernetes 存储插件的开发和管理存在以下痛点：</p>
+<ul>
+<li><strong>紧耦合问题：</strong> Kubernetes 内部集成了大量的存储驱动（In-tree 存储插件），例如 AWS EBS、GCE PD、Azure Disk、Ceph RBD 等。这意味着每当存储厂商需要支持 Kubernetes 时，他们都必须将其存储驱动代码提交到 Kubernetes 的核心代码库中。这种方式导致了：
+<ul>
+<li><strong>Kubernetes 代码库臃肿：</strong> 集成了大量存储逻辑，增加了核心代码的复杂性和维护难度。</li>
+<li><strong>发布周期长：</strong> 存储驱动的更新需要跟随 Kubernetes 的发布周期，新功能和 bug 修复不能及时推送到用户。</li>
+<li><strong>存储厂商开发受限：</strong> 每次更新都需要与 Kubernetes 社区协调，开发和测试流程繁琐。</li>
+</ul>
+</li>
+<li><strong>兼容性问题：</strong> 不同存储厂商的存储系统差异巨大，缺乏统一的接口规范，导致存储系统与 Kubernetes 之间的集成困难。</li>
+</ul>
+<p><strong>CSI 的目标就是解决这些问题，实现存储系统与 Kubernetes 的解耦。</strong> 它定义了一套通用的接口，允许任何存储厂商开发自己的 CSI 驱动，然后通过这些驱动来与 Kubernetes 进行交互，从而为容器提供存储服务。</p>
+<h3 id="11-资源定义">1.1. 资源定义</h3>
+<h3 id="111-volumes">1.1.1. Volumes</h3>
+<p>Volumes 是 Kubernetes 中 Pod 通过文件系统访问和共享数据的抽象。它主要提供了如下功能：</p>
+<ul>
+<li>通过 ConfigMap 或者 Secret 共享配置；</li>
+<li>跨容器、跨 Pod 甚至跨 Node 共享数据；</li>
+<li>数据持久化。在 Pod 销毁之后仍能继续访问数据。
+对于 Pod 来说，Volumes 通过 <code>.spec.volumes</code> 提供给 Pod，容器通过 <code>.spec.containers[*].volumeMounts</code> 来将指定 Volumes 挂载到指定目录。</li>
+</ul>
+<h3 id="112-persistent-volumes-和-persistent-volumes-claim">1.1.2. Persistent Volumes 和 Persistent Volumes Claim</h3>
+<p>PV 和 PVC 提供了两套 API 将存储的提供和消费分离。</p>
+          
+        </div>
+
+        
+          <div>
+            <a class="read-more button inline" href="/posts/2025-06/kubernetes-csi-%E7%AE%80%E4%BB%8B/">[Read more]</a>
+          </div>
+        
+      </article>
+    
+      <article class="post on-list">
+        <h2 class="post-title">
           <a href="https://www.jinzhi.site/posts/2025-06/spurious-retransmit-%E5%AF%BC%E8%87%B4-nat-%E8%AE%BE%E5%A4%87%E5%93%8D%E5%BA%94-rst/">Spurious Retransmit 导致 NAT 设备响应 RST</a>
         </h2>
 
@@ -450,84 +508,6 @@ R0 - R5是临时寄存器，eBPF程序在函数调用时如需使用需要将它
         
           <div>
             <a class="read-more button inline" href="/posts/2024-01/ebpf-%E6%8C%87%E4%BB%A4%E9%9B%86%E8%A7%84%E8%8C%83/">[Read more]</a>
-          </div>
-        
-      </article>
-    
-      <article class="post on-list">
-        <h2 class="post-title">
-          <a href="https://www.jinzhi.site/posts/2024-01/ebpf-%E5%85%A8%E5%B1%80%E5%8F%98%E9%87%8F%E7%9A%84%E5%AE%9E%E7%8E%B0/">eBPF 全局变量的实现</a>
-        </h2>
-
-        <div class="post-meta"><time class="post-date">2024-01-02</time></div>
-
-        
-          <span class="post-tags">
-            
-            #<a href="https://www.jinzhi.site/tags/ebpf/">ebpf</a>&nbsp;
-            
-          </span>
-        
-
-        
-
-
-        <div class="post-content">
-          
-            <p>Linux内核在v5.2支持了eBPF全局变量（见<a href="https://www.yuque.com/chengzhycn/hx665b/cmbgkdheaf0wyqht#vVcxE">v5.2</a>）。</p>
-<p>全局变量会被Clang编译器放入<code>.bss</code>, <code>.data</code>, <code>.rodata</code> sections。那么支持全局变量即如何把这些sections中的数据加载进内核，并且在relocation时，给访问这些变量的指令正确的地址。</p>
-<h2 id="早期-workaround">早期 workaround</h2>
-<p>关于 eBPF 静态变量支持的讨论在<a href="https://lpc.events/event/2/contributions/115/">Linux Plumbers Conference 2018</a> 由Cilium提出。早期的 workaround 如下：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;linux/bpf.h&gt;</span><span class="cp">
-</span></span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl"><span class="k">typedef</span> <span class="kt">unsigned</span> <span class="kt">int</span> <span class="n">__u32</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl"><span class="k">typedef</span> <span class="kt">long</span> <span class="kt">long</span> <span class="kt">unsigned</span> <span class="kt">int</span> <span class="n">__64</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl"><span class="cp">#ifndef __section
-</span></span></span><span class="line"><span class="cl"><span class="cp"># define __section(NAME)				\
-</span></span></span><span class="line"><span class="cl"><span class="cp">	__attribute__((section(NAME), used))
-</span></span></span><span class="line"><span class="cl"><span class="cp">#endif
-</span></span></span><span class="line"><span class="cl"><span class="cp">#ifndef __fetch
-</span></span></span><span class="line"><span class="cl"><span class="cp"># define __fetch(x) (__u32)(__u64)(&amp;(x))
-</span></span></span><span class="line"><span class="cl"><span class="cp">#endif
-</span></span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl"><span class="n">__u32</span> <span class="n">foo</span> <span class="o">=</span> <span class="mi">42</span><span class="p">;</span> 			<span class="c1">// .data section
-</span></span></span><span class="line"><span class="cl"><span class="c1">// __u32 foo;   			// .bss section
-</span></span></span><span class="line"><span class="cl"><span class="c1">// const __u32 foo = 42; 	// .rodata section
-</span></span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl"><span class="kt">int</span> <span class="nf">__main</span><span class="p">(</span><span class="k">struct</span> <span class="n">__sk_buff</span> <span class="o">*</span><span class="n">skb</span><span class="p">)</span>
-</span></span><span class="line"><span class="cl"><span class="p">{</span>
-</span></span><span class="line"><span class="cl">    <span class="n">skb</span><span class="o">-&gt;</span><span class="n">mark</span> <span class="o">=</span> <span class="nf">__fetch</span><span class="p">(</span><span class="n">foo</span><span class="p">);</span>
-</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl"><span class="kt">char</span> <span class="n">__license</span><span class="p">[]</span> <span class="nf">__section</span><span class="p">(</span><span class="s">&#34;license&#34;</span><span class="p">)</span> <span class="o">=</span> <span class="s">&#34;&#34;</span><span class="p">;</span>
-</span></span></code></pre></div><p>编译后，foo变量存储在<code>.data</code> section内。</p>
-<pre tabindex="0"><code># llvm-readelf -S test.o
-There are 8 section headers, starting at offset 0x148:
-
-Section Headers:
-  [Nr] Name              Type            Address          Off    Size   ES Flg Lk Inf Al
-  [ 0]                   NULL            0000000000000000 000000 000000 00      0   0  0
-  [ 1] .strtab           STRTAB          0000000000000000 0000fa 00004b 00      0   0  1
-  [ 2] .text             PROGBITS        0000000000000000 000040 000028 00  AX  0   0  8
-  [ 3] .rel.text         REL             0000000000000000 0000e8 000010 10      7   2  8
-  [ 4] .data             PROGBITS        0000000000000000 000068 000004 00  WA  0   0  4
-  [ 5] license           PROGBITS        0000000000000000 00006c 000001 00  WA  0   0  1
-  [ 6] .llvm_addrsig     LLVM_ADDRSIG    0000000000000000 0000f8 000002 00   E  7   0  1
-  [ 7] .symtab           SYMTAB          0000000000000000 000070 000078 18      1   2  8
-Key to Flags:
-  W (write), A (alloc), X (execute), M (merge), S (strings), I (info),
-  L (link order), O (extra OS processing required), G (group), T (TLS),
-  C (compressed), x (unknown), o (OS specific), E (exclude),
-  p (processor specific)
-</code></pre><p><code>.rel.text</code> section中也存在foo变量的relocation信息：</p>
-          
-        </div>
-
-        
-          <div>
-            <a class="read-more button inline" href="/posts/2024-01/ebpf-%E5%85%A8%E5%B1%80%E5%8F%98%E9%87%8F%E7%9A%84%E5%AE%9E%E7%8E%B0/">[Read more]</a>
           </div>
         
       </article>
@@ -779,10 +759,42 @@ Key to Flags:
       
       
     
+      
+      
+      
+    
 
     
     
 
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2026-01/" class="archive-link">
+          <span class="archive-date">2026-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
     
       
       
@@ -1371,17 +1383,7 @@ Key to Flags:
       
         
       
-        
-      
     
-      
-        
-      
-        
-      
-    
-      
-        
       
         
       
@@ -1397,7 +1399,7 @@ Key to Flags:
       
         
       
-    
+        
       
         
       
@@ -1419,6 +1421,12 @@ Key to Flags:
       
         
       
+        
+      
+    
+      
+        
+      
     
       
         
@@ -1427,15 +1435,7 @@ Key to Flags:
       
         
       
-        
-      
-        
-      
     
-      
-        
-      
-        
       
         
       
@@ -1475,38 +1475,6 @@ Key to Flags:
       
         
       
-    
-      
-        
-      
-    
-      
-        
-      
-        
-      
-    
-      
-        
-      
-    
-      
-        
-      
-    
-      
-    
-      
-        
-      
-    
-      
-        
-      
-    
-      
-        
-      
         
       
         
@@ -1516,14 +1484,6 @@ Key to Flags:
         
       
         
-      
-    
-      
-        
-      
-        
-      
-    
       
         
       
@@ -1551,8 +1511,6 @@ Key to Flags:
       
     
       
-        
-      
     
       
         
@@ -1566,6 +1524,26 @@ Key to Flags:
         
       
         
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
       
         
       
@@ -1603,6 +1581,44 @@ Key to Flags:
       
         
       
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
     
       
         
@@ -1611,6 +1627,9 @@ Key to Flags:
     
     
     
+    
+      
+      
     
       
       
@@ -2587,9 +2606,9 @@ Key to Flags:
         <a href="https://www.jinzhi.site/tags/softwareengineering/" 
            class="tag-item" 
            style="font-size: 0.9em;"
-           title="1 article">
+           title="2 articles">
           SoftwareEngineering
-          <span class="tag-count">(1)</span>
+          <span class="tag-count">(2)</span>
         </a>
       
     

@@ -2,16 +2,23 @@
 <html lang="en">
 <head>
   
-    <title>Personal :: chengzhycn&#39;s blog</title>
+    <title>时延的建模与测量 :: chengzhycn&#39;s blog</title>
   
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="" />
+<meta name="description" content="本文是 2025年10月出版的《Latency： Reduce delay in software systems》第二章的读书笔记
+时延的定律 Little&rsquo;s Law 利特尔法则（Little&rsquo;s Law）是排队论和运筹学中最经典、最直观，但也最具威力的定律之一。
+Little&rsquo;s Law 的数学表达式如下所示： $$L = \lambda \times W $$
+$L$ (Inventory / Queue Length)：系统中平均拥有的“东西”数量（比如排队的人数、仓库的库存、处理的任务） $\lambda$ (Throughput / Arrival Rate)：单位时间内进入或离开系统的平均数量（吞吐率/到达率） $W$ (Wait Time / Cycle Time)：一个“东西”在系统里停留的平均时间（前置时间/等待时间） 需要注意的是，Little&rsquo;s Law 描述的是一个稳态系统：在一个稳定的系统中，存货数量 = 到达速率 x 停留时间。
+举个例子，一个咖啡馆内，平均每分钟有 2 个客人进店（$\lambda$），每个客人在店里从进门到拿咖啡走人平均停留 10 分钟（$W$）。那么，任一时刻店中的停留人数 $L = \lambda \times W$ 为 20 人，即在这 10 分钟内店中累积的人数，第 11 分钟到达速率等于离开速率，系统达到平衡。
+在并发系统中，$\lambda$ (吞吐量) 可以理解为每秒处理多少个请求（QPS/TPS），$W$ (响应时间) 可以理解为每个请求平均花多少秒（Latency），$L$ (并发数) 可以理解为在任一给定时刻，已经进入系统但尚未处理完成的请求总数。
+在计算机系统中，每一个 $L$ 都不是免费的，它必须占用某种物理资源：
+" />
 <meta name="keywords" content="" />
 
   <meta name="robots" content="noodp" />
 
-<link rel="canonical" href="https://www.jinzhi.site/categories/personal/" />
+<link rel="canonical" href="https://www.jinzhi.site/posts/2026-01/%E6%97%B6%E5%BB%B6%E7%9A%84%E5%BB%BA%E6%A8%A1%E4%B8%8E%E6%B5%8B%E9%87%8F/" />
 
 
 
@@ -76,10 +83,17 @@
 
 
 <meta property="og:locale" content="en" />
-<meta property="og:type" content="website" />
-<meta property="og:title" content="Personal">
-<meta property="og:description" content="" />
-<meta property="og:url" content="https://www.jinzhi.site/categories/personal/" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="时延的建模与测量">
+<meta property="og:description" content="本文是 2025年10月出版的《Latency： Reduce delay in software systems》第二章的读书笔记
+时延的定律 Little&rsquo;s Law 利特尔法则（Little&rsquo;s Law）是排队论和运筹学中最经典、最直观，但也最具威力的定律之一。
+Little&rsquo;s Law 的数学表达式如下所示： $$L = \lambda \times W $$
+$L$ (Inventory / Queue Length)：系统中平均拥有的“东西”数量（比如排队的人数、仓库的库存、处理的任务） $\lambda$ (Throughput / Arrival Rate)：单位时间内进入或离开系统的平均数量（吞吐率/到达率） $W$ (Wait Time / Cycle Time)：一个“东西”在系统里停留的平均时间（前置时间/等待时间） 需要注意的是，Little&rsquo;s Law 描述的是一个稳态系统：在一个稳定的系统中，存货数量 = 到达速率 x 停留时间。
+举个例子，一个咖啡馆内，平均每分钟有 2 个客人进店（$\lambda$），每个客人在店里从进门到拿咖啡走人平均停留 10 分钟（$W$）。那么，任一时刻店中的停留人数 $L = \lambda \times W$ 为 20 人，即在这 10 分钟内店中累积的人数，第 11 分钟到达速率等于离开速率，系统达到平衡。
+在并发系统中，$\lambda$ (吞吐量) 可以理解为每秒处理多少个请求（QPS/TPS），$W$ (响应时间) 可以理解为每个请求平均花多少秒（Latency），$L$ (并发数) 可以理解为在任一给定时刻，已经进入系统但尚未处理完成的请求总数。
+在计算机系统中，每一个 $L$ 都不是免费的，它必须占用某种物理资源：
+" />
+<meta property="og:url" content="https://www.jinzhi.site/posts/2026-01/%E6%97%B6%E5%BB%B6%E7%9A%84%E5%BB%BA%E6%A8%A1%E4%B8%8E%E6%B5%8B%E9%87%8F/" />
 <meta property="og:site_name" content="chengzhycn&#39;s blog" />
 
   <meta property="og:image" content="https://www.jinzhi.site/og-image.png">
@@ -87,11 +101,13 @@
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="627">
 
+  <meta property="article:section" content="Reading" />
+
+
+  <meta property="article:published_time" content="2026-01-09 23:18:28 &#43;0800 &#43;0800" />
 
 
 
-
-  <link href="/categories/personal/index.xml" rel="alternate" type="application/rss+xml" title="chengzhycn&#39;s blog" />
 
 
 
@@ -201,80 +217,255 @@
 
   <div class="content">
     
-  <h1>Posts for: #Personal</h1>
+<article class="post">
+  <h1 class="post-title">
+    <a href="https://www.jinzhi.site/posts/2026-01/%E6%97%B6%E5%BB%B6%E7%9A%84%E5%BB%BA%E6%A8%A1%E4%B8%8E%E6%B5%8B%E9%87%8F/">时延的建模与测量</a>
+  </h1>
+  <div class="post-meta"><time class="post-date">2026-01-09</time><span class="post-reading-time">3 min read (525 words)</span></div>
+
   
-  <div class="posts">
-    
-      <article class="post on-list">
-        <h1 class="post-title">
-          <a href="https://www.jinzhi.site/posts/2021-11/%E6%AD%A3%E5%BF%B5%E5%86%A5%E6%83%B3/">正念冥想</a>
-        </h1>
-        <div class="post-meta"><time class="post-date">2021-11-27</time></div>
-
-        
-          <span class="post-tags">
-            
-            #<a href="https://www.jinzhi.site/tags/mindfulness/">mindfulness</a>&nbsp;
-            
-          </span>
-        
-
-        
+    <span class="post-tags">
+      
+      #<a href="https://www.jinzhi.site/tags/softwareengineering/">SoftwareEngineering</a>&nbsp;
+      
+    </span>
+  
+  
 
 
-        <div class="post-content">
-          
-            <h2 id="正念是什么">正念是什么</h2>
+  
+    <div class="table-of-contents">
+      <h2>
+        Table of Contents
+      </h2>
+      <nav id="TableOfContents">
+  <ul>
+    <li><a href="#时延的定律">时延的定律</a>
+      <ul>
+        <li><a href="#littles-law">Little&rsquo;s Law</a></li>
+        <li><a href="#amdahls-law">Amdahl&rsquo;s Law</a></li>
+      </ul>
+    </li>
+    <li><a href="#时延分布和长尾时延">时延分布和长尾时延</a></li>
+    <li><a href="#时延产生的源">时延产生的源</a>
+      <ul>
+        <li><a href="#物理限制">物理限制</a></li>
+        <li><a href="#cpu-和硬件">CPU 和硬件</a></li>
+        <li><a href="#虚拟化层">虚拟化层</a></li>
+        <li><a href="#操作系统和驱动层">操作系统和驱动层</a></li>
+        <li><a href="#运行时">运行时</a></li>
+        <li><a href="#应用层">应用层</a></li>
+      </ul>
+    </li>
+    <li><a href="#时延的累积">时延的累积</a></li>
+    <li><a href="#时延的观测">时延的观测</a>
+      <ul>
+        <li><a href="#observer-effect">Observer Effect</a></li>
+        <li><a href="#coordinated-omission">Coordinated Omission</a></li>
+      </ul>
+    </li>
+    <li><a href="#时延的可视化">时延的可视化</a></li>
+  </ul>
+</nav>
+    </div>
+  
+
+  <div class="post-content"><div>
+        <p>本文是 2025年10月出版的《Latency： Reduce delay in software systems》第二章的读书笔记</p>
+<h2 id="时延的定律">时延的定律<a href="#时延的定律" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<h3 id="littles-law">Little&rsquo;s Law<a href="#littles-law" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>利特尔法则（Little&rsquo;s Law）是排队论和运筹学中最经典、最直观，但也最具威力的定律之一。</p>
+<p>Little&rsquo;s Law 的数学表达式如下所示：
+$$L = \lambda \times W $$</p>
+<ul>
+<li>$L$ (Inventory / Queue Length)：系统中平均拥有的“东西”数量（比如排队的人数、仓库的库存、处理的任务）</li>
+<li>$\lambda$ (Throughput / Arrival Rate)：单位时间内进入或离开系统的平均数量（吞吐率/到达率）</li>
+<li>$W$ (Wait Time / Cycle Time)：一个“东西”在系统里停留的平均时间（前置时间/等待时间）</li>
+</ul>
+<p>需要注意的是，<strong>Little&rsquo;s Law 描述的是一个稳态系统：在一个稳定的系统中，存货数量 = 到达速率 x 停留时间</strong>。</p>
+<p>举个例子，一个咖啡馆内，平均每分钟有 2 个客人进店（$\lambda$），每个客人在店里从进门到拿咖啡走人平均停留 10 分钟（$W$）。那么，任一时刻店中的停留人数 $L = \lambda \times W$  为 20 人，即在这 10 分钟内店中累积的人数，第 11 分钟到达速率等于离开速率，系统达到平衡。</p>
+<p>在并发系统中，$\lambda$ (吞吐量) 可以理解为每秒处理多少个请求（QPS/TPS），$W$ (响应时间) 可以理解为每个请求平均花多少秒（Latency），$L$ (并发数) 可以理解为在任一给定时刻，已经进入系统但尚未处理完成的请求总数。</p>
+<p>在计算机系统中，每一个 $L$ 都不是免费的，它必须占用某种物理资源：</p>
+<ul>
+<li><strong>内存</strong>：每个请求可能对应一个线程栈（Thread Stack）、一个对象、一块 Buffer。</li>
+<li><strong>连接</strong>：每个请求占用一个 TCP 连接、一个数据库连接池名额。</li>
+<li><strong>句柄</strong>：每个请求可能占用一个文件描述符。</li>
+<li><strong>CPU 调度</strong>：如果 $L$ 很大，CPU 需要在成千上万个线程间切换，产生巨大的上下文切换开销。</li>
+</ul>
+<p>而每个系统都有一个物理上的<strong>最大并发容量（$L_{max}$）</strong>：</p>
+<ul>
+<li>如果你的线程池大小是 200，那么你的核心处理能力 $L$ 被限制在 200 左右。</li>
+<li>当请求不断涌入，如果 $L$ 超过了系统的处理能力，多出来的请求就会进入<strong>队列（Queue）</strong>。</li>
+</ul>
+<p>这时的公式演变为：</p>
+<p>$$L_{total} = L_{processing} + L_{queuing}$$
+所以，当观察到 $L$ 增大，超过了 $L_{max}$，响应时间 $W$ 会迅速飙升（增加了排队时间）。常见的场景是 system load &raquo; cpu core 时，出现的系统雪崩。</p>
+<h4 id="如何利用-littles-law">如何利用 Little&rsquo;s Law<a href="#如何利用-littles-law" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<ol>
+<li>通过系统的平均响应时间和期望的吞吐量，计算出合理的线程池大小</li>
+<li>如果系统能够承受的最大并发数（资源上限）是 $L_{limit}$，那么当 $\lambda \times W &gt; L_{limit}$ 时，需要采取措施：
+<ol>
+<li>降低 $\lambda$：限流（Rate Limiting），拒绝多余请求</li>
+<li>降低 $W$：降级（Fallback），直接返回默认值或缓存，不调用耗时的下游服务</li>
+</ol>
+</li>
+<li>异步编程（如 Java 的 CompletableFuture, Go 的 Goroutine, Node.js）的本质就是<strong>极大地降低了单个 $L$ 占用的资源成本</strong>。
+<ol>
+<li>在同步模型中，一个 $L$ 占用一个操作系统线程（1MB 内存）。</li>
+<li>在异步模型中，一个 $L$ 只占用一个状态对象（几KB 内存）。</li>
+<li>因此，异步系统可以支撑大得多的 $L$（并发数），从而在 $W$ 变长时，系统不至于因为资源耗尽而崩溃。</li>
+</ol>
+</li>
+</ol>
+<p>在底层视角下，$L$ 是压力，$\lambda$ 是动力，$W$ 是阻力。高并发优化的核心，就是<strong>在 $L$（资源消耗）可控的前提下，通过降低 $W$（阻力）来提升 $\lambda$（动力）</strong>。</p>
+<h3 id="amdahls-law">Amdahl&rsquo;s Law<a href="#amdahls-law" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p><strong>阿姆达尔定律（Amdahl&rsquo;s Law）</strong> 是计算机科学、并行计算以及系统性能优化领域中一个非常重要的定律。它由 IBM 的计算机架构师吉恩·阿姆达尔（Gene Amdahl）在 1967 年提出。</p>
+<p>简单来说，这个定律描述了：<strong>在一个任务中，即使你增加了再多的并行计算资源（如 CPU 核心），系统的整体加速比（Speedup）仍然受限于该任务中“必须串行执行”的部分。</strong>
+$$S = \frac{1}{(1-p)+\frac{p}{n}}$$
+其中：</p>
+<ul>
+<li><strong>$S$ (Speedup)</strong>：总的加速比。</li>
+<li><strong>$p$ (Parallel fraction)</strong>：程序中可以并行化的部分所占的时间比例（0 到 1 之间）。</li>
+<li><strong>$1−p$ (Serial fraction)</strong>：程序中必须串行执行的部分所占的比例。</li>
+<li><strong>$n$ (Number of processors)</strong>：执行任务的处理器（核心）数量。</li>
+</ul>
+<p><img src="/images/notes/%E6%97%B6%E5%BB%B6%E7%9A%84%E5%BB%BA%E6%A8%A1%E4%B8%8E%E6%B5%8B%E9%87%8F/4a6f97960712b09039fde1069b76f53e_MD5.jpeg" alt="4a6f97960712b09039fde1069b76f53e_MD5"></p>
+<h4 id="amdahls-law-的启示">Amdahl&rsquo;s Law 的启示<a href="#amdahls-law-的启示" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<p><strong>收益递减律（Diminishing Returns）</strong></p>
+<p>随着处理器数量 $n$ 的增加，加速比的提升速度会越来越慢。当 $n$ 趋于无穷大时，最大加速比限制在：
+$$S_{max} = \frac{1}{1-p}$$
+这意味着，如果一个程序有 10% 的代码必须串行运行，那么无论你用多少个核心，你的最高加速比永远无法超过 10 倍。</p>
+<p><strong>串行部分是“致命伤”</strong></p>
+<p>定律强调了系统性能的瓶颈往往在于那小部分无法并行的代码。如果想显著提升性能，<strong>与其增加 CPU 核数，不如想办法减少串行部分的比例（即降低 $1-p$）</strong>。</p>
+<p>OSDI &lsquo;25 论文 <a href="https://www.usenix.org/conference/osdi25/presentation/park-sujin">Principles and Methodologies for Serial Performance Optimization</a> 总结了提高串行部分效率的三个原则：</p>
+<ul>
+<li>task removal</li>
+<li>replacement</li>
+<li>reordering</li>
+</ul>
+<p>并在这三个原则之上，提炼了 8 个可实践的方法（利用一个或多个上述原则达到提高串行效率的目的）：</p>
+<ul>
+<li>batching</li>
+<li>caching</li>
+<li>precomputing</li>
+<li>deferring</li>
+<li>relaxation</li>
+<li>contextualization</li>
+<li>hardware specialization</li>
+<li>layering</li>
+</ul>
+<p><img src="/images/notes/%E6%97%B6%E5%BB%B6%E7%9A%84%E5%BB%BA%E6%A8%A1%E4%B8%8E%E6%B5%8B%E9%87%8F/567e4e6ff62ea8a4ea3ff4ef5c951406_MD5.jpeg" alt="567e4e6ff62ea8a4ea3ff4ef5c951406_MD5"></p>
+<h2 id="时延分布和长尾时延">时延分布和长尾时延<a href="#时延分布和长尾时延" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>平均时延能够衡量一个系统的整体性能，但是往往会隐藏掉系统的长尾时延。这也是为什么在关注时延时，我们更多会关注时延的分位指标，如 P95，P99，P99.9 等。</p>
+<p><img src="/images/notes/%E6%97%B6%E5%BB%B6%E7%9A%84%E5%BB%BA%E6%A8%A1%E4%B8%8E%E6%B5%8B%E9%87%8F/1e4a6d30b31e83fe6bc6ae54a143745a_MD5.jpeg" alt="1e4a6d30b31e83fe6bc6ae54a143745a_MD5"></p>
+<p>Dean 和 Barroso 在 Google 2013 年的论文 “The Tail at Scale” 中介绍，当我们尝试使用分区和并行执行来降低 service latency 时，长尾时延往往会主导整个 service latency。</p>
+<p>论文中举了一个例子，service 并行向多个服务器发送了子请求，等待它们返回所有的结果。假设每个子请求需要花费 10 ms 来响应，但是其中会有偶发时延，需要花费 1s（长尾时延）。假设每 100 个请求会有 1 个请求遇到这种情况，service 需要发送 100 个子请求完成（fanout count 100，处理一个请求需要与 N 个其它组件通信，称作 fanout count N）。那么大约会有 63% 的用户会受到这个长尾时延的影响（$1 - 0.99^{100} = 0.63$）。</p>
+<p>用户可能比我们想象中更容易遇到组件长尾时延带来的体验下降。</p>
+<h2 id="时延产生的源">时延产生的源<a href="#时延产生的源" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<h3 id="物理限制">物理限制<a href="#物理限制" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>时延产生的最终限制是物理规则。不管怎么调优，光在介质中的传播时延是理论时延的极限。因此，通过就近访问原则（同可用区、同机房、同 TOR）降低链路物理距离是降低时延的有效手段。</p>
+<h3 id="cpu-和硬件">CPU 和硬件<a href="#cpu-和硬件" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>CPU 和硬件带来的时延开销通常涉及到缓存和时钟频率，比如 CPU 的多级缓存，在 cache miss 时造成 CPU 执行指令的等待时延，分支预测失败导致重新取指，跨 NUMA 访问，超线程产生的竞态，CPU 降频等。</p>
+<h3 id="虚拟化层">虚拟化层<a href="#虚拟化层" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>如果运行了虚拟化层（如 KVM、Docker 等），虚拟化的资源竞争也是时延产生的重要因素之一。如：</p>
+<ul>
+<li>Hypervisor 的开销</li>
+<li>不同虚机之间的资源抢占</li>
+<li>网络和 I/O 虚拟化带来的时延</li>
+<li>硬件仿真</li>
+</ul>
+<h3 id="操作系统和驱动层">操作系统和驱动层<a href="#操作系统和驱动层" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<ul>
+<li>上下文切换</li>
+<li>中断处理</li>
+<li>驱动中的 queuing、batching 等操作</li>
+</ul>
+<h3 id="运行时">运行时<a href="#运行时" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>编程语言的运行时带来的时延开销，常见的如 JIT，GC 开销等。</p>
+<h3 id="应用层">应用层<a href="#应用层" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>最后一层就是应用软件本身产生的处理时延。比如为了数据一致性、高可用、错误容忍产生的额外时延，不合理的算法产生的处理时延等等。</p>
+<h2 id="时延的累积">时延的累积<a href="#时延的累积" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>时延大致可以分为三类：</p>
+<ul>
+<li>传输时延：数据在物理链路中传递产生的时延</li>
+<li>处理时延：数据处理产生的时延</li>
+<li>排队时延：数据在等待被处理时产生的时延</li>
+</ul>
+<p>请求的总时延大致就是这三类时延的组合。而根据任务的处理模式，时延的累积又分为如下几种：</p>
+<ul>
+<li>串行累积（Serial compounding）：时延组合之间存在前后依赖关系，所以总时延是各个部分时延的累加。</li>
+<li>并行累积（Parallel compounding）：时延组合可以并行运行，那么总时延是所有部分时延中值最大的一个。比如 MapReduce 任务在 Map phase 进行的处理时延。如果这个最长时延很长，即便其它的任务处理得很快，总体时延仍不会短。</li>
+<li>多数共识累积（Quorum compounding）：常见的分布式共识算法如 Raft、Paxos 等，时延不需要等到所有的节点达成共识，只需要多数节点达成共识即可（N/2）+1。</li>
+</ul>
+<h2 id="时延的观测">时延的观测<a href="#时延的观测" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<h3 id="observer-effect">Observer Effect<a href="#observer-effect" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>观察者效应（Observer Effect）是一个跨学科概念，其核心含义是：<strong>“观察或测量一个系统的行为，必然会不可避免地改变这个系统。”</strong> 因为只要我们参与其中，我们就是系统的一部分。</p>
+<h4 id="如何缓解-observer-effect">如何缓解 Observer Effect<a href="#如何缓解-observer-effect" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<p>缓解 Observer Effect 的核心思路是：</p>
+<ul>
+<li><strong>减少交互：</strong> 尽量不触碰运行中的数据（采样、eBPF）。</li>
+<li><strong>解耦时间：</strong> 不要让观察行为阻塞主逻辑（异步日志）。</li>
+<li><strong>时空平移：</strong> 将观察行为转移到离线环境或镜像环境（Core Dump、影子流量）。</li>
+</ul>
+<p><strong>最好的观察者应该像一只“墙上的苍蝇”（Fly on the wall），存在但隐形。</strong></p>
+<h3 id="coordinated-omission">Coordinated Omission<a href="#coordinated-omission" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>协调遗漏（Coordinated Omission）是性能测试（尤其是延迟/响应时间测试）领域中一个非常重要且常见的<strong>陷阱</strong>。它指的是<strong>当被测系统发生延迟时，测试工具也无意中减慢了发送请求的速度，从而导致测量结果看起来比实际情况要好得多。</strong> 之所以叫“协同（Coordinated）”，是因为<strong>被测系统的阻塞</strong>与<strong>测试工具的发送节奏</strong>之间产生了一种无意的“步调一致”。系统慢了，工具也跟着慢了，导致那些本该在阻塞期间发生的、排长队的请求被“遗漏”掉了。</p>
+<p>举个例子，测试一个每秒处理 100 个请求的系统。测试程序每 10ms 发送一个请求。理想状态下，第 0ms 发送第一个请求，第 10ms 收到响应后发送第二个请求。平均时延是 10ms。</p>
+<p>当系统出现阻塞时，第一个请求在 1000ms 才返回，如果测试工具等待前一个请求返回后再发送第二个请求，那么第二个请求会在第 1000ms 发送，1010ms 收到响应。平均时延是 505ms。</p>
+<p>但是真实情况是，第一个用户的请求阻塞后，第二个用户不会等到第一个用户完成响应再发送请求。第二个请求原本是在第 10ms 发送，所以第二个请求的时延是 990ms（等待第一个请求完成）+ 10ms（处理时延）= 1000ms。平均时延是 1005ms。测试工具的结果完全失真。</p>
+<p>Coordinated Omission 会导致高分位（P99，P999）严重失真，掩盖了最坏的情况。另外，由于压力源会受到阻塞的影响给不到被测系统足够的压力，还会造成吞吐量假象。</p>
+<h4 id="如何避免">如何避免<a href="#如何避免" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<p>要避免 Coordinated Omission，测试工具必须采用**“开放系统模型”（Open System Model）**：</p>
+<ol>
+<li><strong>独立调度：</strong> 测试工具应该按照预定的频率（比如每 10ms 一个）发送请求，而不管前一个请求是否已经返回。</li>
+<li><strong>纠正计时：</strong> 记录时间时，应该基于“计划发送时间”计算，而不是“实际发送时间”。</li>
+<li><strong>使用支持修复该问题的工具：</strong>
+<ul>
+<li><strong>wrk2</strong>：由 Gil Tene 改进，专门修复了 Coordinated Omission。</li>
+<li><strong>Hyperfoil</strong></li>
+<li><strong>JMeter</strong>：需要正确配置（如使用非阻塞模型或专门的插件）。</li>
+<li><strong>HdrHistogram</strong>：一种用于准确记录和分析延迟分布的库，考虑了这种补偿。</li>
+</ul>
+</li>
+</ol>
+<h2 id="时延的可视化">时延的可视化<a href="#时延的可视化" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>常见的时延分布可视化方式有两种：</p>
+<ul>
+<li><strong>Histogram(直方图)</strong>：将数据范围划分为若干个连续的区间（Bins），并统计落入每个区间内的样本数量或频率。它本质上是对<strong>概率密度函数 (PDF)</strong> 的一种估计。</li>
+<li><strong>eCDF (经验累积分布函数)</strong>：对于每一个观测值 $x$，计算小于或等于 $x$ 的样本占总样本量的比例 $F(x) = \frac{count(X \le x)}{n}​$。它是一个从 0 到 1 递增的阶梯函数，是对<strong>累积分布函数 (CDF)</strong> 的直接估计。</li>
+</ul>
 <blockquote>
-<p>与事物的现实性达成一致，我们可以通过拥抱它们来接受它们，在一刻一刻的觉知里。</p>
+<p>CDF(累积分布函数 Cumulative Distribution Function)是基于概率密度的积分，来源于数学公式和参数：$F(x) = P(X \le x)$。而 eCDF(Empirical Cumulative Distribution Function)是基于实际观测点的样本统计量。</p>
 </blockquote>
-<p>正念不是一个概念，而是一种与生命保持<strong>明智关系</strong>的方式，在生命唯一的当下展开。</p>
-<h2 id="正念的态度因素">正念的态度因素</h2>
-<p>如果想要长期地实践正念，并将正念融入到生活当中，那么我们需要关注一些正念的态度因素。对于这些正念的态度因素，最主要的是让这些概念融入到脑内，心里，而并非是强制遵守它。记住即可。</p>
-<h3 id="不做评判">不做评判</h3>
-<p>不做评判并不意味着我们不去对事件品头论足，而是说==<strong>意识到在做评判，并且有目的地不陷入到评判中，这本身就是一种美丽而又温柔的修习。</strong>==从某种意义上来说，这种修习的目的是让我们==足够关心自己以及我们所处的环境，从而不会有那种瞬间崩溃，也不会拘泥于喜欢或者不喜欢，想要或者不想要。==归根结底，当我们做出一个评判时，实际上我们就成为了它的囚徒。因为当事情发生时，评判降低了我们应对挑战的可能性。我们会困在一个观点中，而这个观点可能并不是一个完整地故事，完整地视角（盲人摸象）。</p>
-<p>==<strong>关键点：不被自己地喜欢和厌恶所禁锢。把自己从下意识去评判“好”与“恶”这个习惯中解救出来，从自己的欲望和恐惧中解救出来。</strong>==</p>
-<h3 id="耐心">耐心</h3>
-<p>当我们失去耐心时，受害者往往是与我们生活在一起的人，我们最爱的人，还有和我们一起工作的人。</p>
-<p>我们都希望朝着一个真正变化的、有益的方向前进。但如禅语所说，==<strong>&ldquo;you can&rsquo;t push the river&rdquo;</strong>==，不能逆势而为。为了到达某个地方而逼自己加快脚步是不明智的，因为这样往往会让自己忘记了真正的目的。</p>
-<p>耐心是我们可以培养的一种非常可贵的品质。特别是在我们当下这个时代，它显得愈发重要。在这个电子信息时代，我们被电子产品吸引，甚至对其上瘾。我们的社会变成了一个点击型社会，所有在手机或者电脑上呈现的东西，逐步变得愈来愈“快餐”和“标题党”。它们通过社交媒体分发给我们，给我们想要的东西。这些“快餐”或者朋友圈的“点赞”实际上触发了我们大脑中神经元的连接，刺激多巴胺的释放，在这一瞬间会给人你一种非常非常满足的感觉。我们会因为朋友圈的一个“点赞”获得极大的满足感，但是这只持续了不到一秒，然后呢？我们会想要更多。我们开始观察社交媒体的生态，然后变得愈发不耐烦，这就是上瘾的一种表现，而我们甚至对此都毫无觉察。</p>
-<p>所以耐心实际上培养了对这种事情的免疫力。因为当我们意识到有那种想要得到什么的冲动时，我们可以让自己慢下来（延迟满足）。==<strong>所以在一整天里，不断地觉察到自己有多么不耐烦，这便能帮助我们培养耐心。</strong>==</p>
-<p>我们不必强迫自己变得耐心，而是去关注那些真的陷进去的时刻，强烈地想要去得到某个结果，然后引发出一系列蝴蝶效应般的结果，最后我们再也无法被满足（成瘾）。</p>
-<h3 id="初学者心态">初学者心态</h3>
-<blockquote>
-<p>In the beginner&rsquo;s mind there are many possibilities, in the expert&rsquo;s mind, there are few.</p>
-<p>—— Suzuki Roshi（铃木俊隆）</p>
-</blockquote>
-<p>==<strong>在某种意义上，我们所知道地一切都会妨碍我们看到那里的一些东西。因为我们是在透过我们的有色眼镜看面前的东西。</strong>==原有的知识结构，可能会演变为严重的问题。因为它会限定你，让你在已知的领域中对那些新兴未知的苗头视而不见，而那才是你想要发现的，全新的，前所未见的东西。</p>
-<h3 id="信任">信任</h3>
-<p>将信任带入修习实际上是在提醒自己有很多我们可以信任的东西，就比如我们可以相信我们的呼吸正在i体内穿梭，我们的脚将带着我们前行，我们的心脏仍会在今晚继续跳动。这些都是在提醒我们<strong>在当下这个时刻发生的事情中，有多少是可信的，是真正值得信任的。</strong> 最重要的是，我们的心是否值得信赖。==<strong>唯一能让自己的新值得信赖的方法就是相信自己，相信自己值得信赖，即便是我们把注意力放在了可能辜负自己或者他人信任的事情上</strong>==。</p>
-<p>信任是深刻的，象征洞察力的源泉。它包括如何将内在与外在的经历发散开，使其保持良好的关联。</p>
-<h3 id="不争">不争</h3>
-<p>不争不是反对积极。**不争可能会要你去做更多的事情——不依附于结果，不去拼命让结果显得更好，而是确保当下正在做的每一件都具有完整性，然后水到渠成。**现实中我们会有DDL，会有一些杂七杂八的事情，看起来和不争的概念相悖。但是当把不争带到我们的意识前，让我们专注于当下，实际上可以帮助我们更快地完成工作。</p>
-<p>当你的目标非常明确的时候，不争是很有效的。当我们太执着于胜利的结果时，可能会得不到很好的结果，因为心浮气躁。不争是将我们对胜利的渴望剥离出来，这并不意味着我们会成为一个消极的人，总是一事无成。</p>
-<h3 id="接纳">接纳</h3>
-<p><strong>接纳意味着看到事物的现实，承认并接受它们就是这样的。</strong> 接纳并不意味着我们不能努力去改变它们，接纳意味着看清现实，意味着你有时会意识到一些不可接受的事情。然后的问题是，我们该如何与这些不可容忍的事情，需要改变的事情保持明智的关系？这和消极的顺从一点关系都没有。</p>
-<p>==<strong>我们需要看到真实的现实，正在发生的一切，看到它的复杂性以及简洁性。看得清楚，然后开始行动。接纳意味着对事物的现状有深刻洞察的认识，如果你是唯一一个看清这件事情走向的人，相信自己。</strong>==</p>
-          
-        </div>
+<p>直方图的优势在于：</p>
+<p>• <strong>直观展示分布形状：</strong> 直方图能够非常直观地展示数据的<strong>双峰性（Bimodality）</strong> 或多峰性。例如，在双层缓存系统中，直方图可以清晰地显示出本地缓存和远程缓存产生的两个明显峰值。
+• <strong>易于识别众数</strong>：用户可以一眼看出数据最集中的区域（即“尖峰”出现的位置）。</p>
+<p>劣势：</p>
+<p>• <strong>受限于分桶（Bucketing）：</strong> 直方图必须将数据分配到不同的“桶”中。分桶会导致<strong>数据丢失</strong>，且具体的数值会被遮蔽，使得用户难以精确识别峰值的具体位置。
+• <strong>难以估算占比：</strong> 若想了解某个区间内数据占总量的比例，用户必须进行复杂的 <strong>“曲线下面积”心理估算</strong>，这在直方图上很难准确实现。
+• <strong>难以读取百分位数：</strong> 在直方图上直接读取如 P99 或 P75 等百分位数值是非常困难的</p>
+<p><img src="/images/notes/%E6%97%B6%E5%BB%B6%E7%9A%84%E5%BB%BA%E6%A8%A1%E4%B8%8E%E6%B5%8B%E9%87%8F/382e8ea6998cf88b2119d4fe23eb6812_MD5.jpeg" alt="382e8ea6998cf88b2119d4fe23eb6812_MD5"></p>
+<p>eCDF 的优势在于：</p>
+<p>• <strong>精确读取百分位数：</strong> eCDF 可以被看作是直方图的<strong>累加或积分</strong>。用户可以直接在 Y 轴找到对应的百分比（如 0.65 或 0.75），向右平移触碰曲线后，在 X 轴直接读出精确的数值。
+• <strong>清晰展示相对贡献：</strong> eCDF 极易展示不同部分的<strong>相对占比</strong>。例如在缓存系统中，如果第一个峰值对应 70% 的数据，曲线会在 0.7 处发生转折，这让用户能立刻判断出缓存命中率约为 70%。
+• <strong>无分桶限制：</strong> eCDF 不需要分桶，因此可以<strong>无损地缩放（Zoom）</strong>。无论是在 X 轴还是 Y 轴进行缩放，曲线的形状都不会改变，这使得观察<strong>尾部数据（Tail）</strong> 的细节变得非常容易。
+• <strong>数学应用广泛：</strong>  eCDF 方便计算机生成基于实测分布的随机数，也容易实现<strong>离群值（Outlier）检测</strong>（例如查询某个特定值在分布中处于什么百分位）。
+• <strong>信息无损转换：</strong> 从 eCDF 转换回直方图非常简单，但从直方图转换回 eCDF 则会因为分桶导致的信息丢失而变得困难。</p>
+<p>劣势：<strong>形态不如直方图直观：</strong> 对于习惯看“峰值”和“谷值”的用户来说，eCDF 的曲线形态可能需要一定的适应过程，它不如直方图那样能瞬间反映出分布的形状特征。</p>
+<p><img src="/images/notes/%E6%97%B6%E5%BB%B6%E7%9A%84%E5%BB%BA%E6%A8%A1%E4%B8%8E%E6%B5%8B%E9%87%8F/4fa6453b3fc13338dc0d39941dcd60b5_MD5.jpeg" alt="4fa6453b3fc13338dc0d39941dcd60b5_MD5"></p>
 
-        
-          <div>
-            <a class="read-more button inline" href="/posts/2021-11/%E6%AD%A3%E5%BF%B5%E5%86%A5%E6%83%B3/">[Read more]</a>
-          </div>
-        
-      </article>
+      </div></div>
+
+  
     
 
-    <div class="pagination">
-  <div class="pagination__buttons">
-    
-    
-    
-  </div>
-</div>
+  
 
-  </div>
+  
+    
+
+  
+</article>
 
   </div>
 
