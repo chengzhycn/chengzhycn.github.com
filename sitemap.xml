@@ -2,10 +2,16 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
   xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url>
-    <loc>https://www.jinzhi.site/categories/</loc>
-    <lastmod>2025-11-23T15:18:28+08:00</lastmod>
+    <loc>https://www.jinzhi.site/posts/2026-01/</loc>
+    <lastmod>2026-01-01T00:00:00+00:00</lastmod>
   </url><url>
     <loc>https://www.jinzhi.site/</loc>
+    <lastmod>2026-01-01T00:00:00+00:00</lastmod>
+  </url><url>
+    <loc>https://www.jinzhi.site/posts/</loc>
+    <lastmod>2026-01-01T00:00:00+00:00</lastmod>
+  </url><url>
+    <loc>https://www.jinzhi.site/categories/</loc>
     <lastmod>2025-11-23T15:18:28+08:00</lastmod>
   </url><url>
     <loc>https://www.jinzhi.site/tags/kubecon/</loc>
@@ -18,9 +24,6 @@
     <lastmod>2025-11-23T15:18:28+08:00</lastmod>
   </url><url>
     <loc>https://www.jinzhi.site/tags/network/</loc>
-    <lastmod>2025-11-23T15:18:28+08:00</lastmod>
-  </url><url>
-    <loc>https://www.jinzhi.site/posts/</loc>
     <lastmod>2025-11-23T15:18:28+08:00</lastmod>
   </url><url>
     <loc>https://www.jinzhi.site/tags/</loc>
