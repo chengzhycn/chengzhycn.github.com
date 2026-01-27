@@ -207,6 +207,68 @@
     
       <article class="post on-list">
         <h1 class="post-title">
+          <a href="https://www.jinzhi.site/posts/2026-01/nano-vllm-%E4%BB%A3%E7%A0%81%E6%B5%81%E7%A8%8B/">nano-vllm 代码流程</a>
+        </h1>
+        <div class="post-meta"><time class="post-date">2026-01-27</time></div>
+
+        
+          <span class="post-tags">
+            
+            #<a href="https://www.jinzhi.site/tags/llm/">LLM</a>&nbsp;
+            
+            #<a href="https://www.jinzhi.site/tags/inference/">Inference</a>&nbsp;
+            
+          </span>
+        
+
+        
+
+
+        <div class="post-content">
+          
+            <h2 id="整体架构图">整体架构图</h2>
+<pre tabindex="0"><code>┌─────────────────────────────────────────────────────────────────┐
+│                         用户入口层                               │
+│  example.py → LLM.generate() → add_request() + step() 循环      │
+└─────────────────────────────────────────────────────────────────┘
+                                │
+                                ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                         引擎层 (Engine)                          │
+│  ┌─────────────┐   ┌─────────────┐   ┌──────────────────┐      │
+│  │  Scheduler  │ → │ ModelRunner │ → │  BlockManager    │      │
+│  │  (调度器)    │   │ (模型执行器) │   │  (KV Cache管理)  │      │
+│  └─────────────┘   └─────────────┘   └──────────────────┘      │
+└─────────────────────────────────────────────────────────────────┘
+                                │
+                                ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                         模型层 (Models)                          │
+│  Qwen3ForCausalLM → Qwen3Model → [Qwen3DecoderLayer x N]       │
+└─────────────────────────────────────────────────────────────────┘
+                                │
+                                ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                         算子层 (Layers)                          │
+│  Attention │ Linear │ LayerNorm │ RoPE │ Activation │ Sampler  │
+└─────────────────────────────────────────────────────────────────┘
+</code></pre><h2 id="推理服务流程详解">推理服务流程详解</h2>
+<h3 id="阶段-1-初始化阶段">阶段 1: 初始化阶段</h3>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-python" data-lang="python"><span class="line"><span class="cl"><span class="c1"># example.py</span>
+</span></span><span class="line"><span class="cl"><span class="n">llm</span> <span class="o">=</span> <span class="n">LLM</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">enforce_eager</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">tensor_parallel_size</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+</span></span></code></pre></div><p><strong>调用链：</strong></p>
+          
+        </div>
+
+        
+          <div>
+            <a class="read-more button inline" href="/posts/2026-01/nano-vllm-%E4%BB%A3%E7%A0%81%E6%B5%81%E7%A8%8B/">[Read more]</a>
+          </div>
+        
+      </article>
+    
+      <article class="post on-list">
+        <h1 class="post-title">
           <a href="https://www.jinzhi.site/posts/2025-11/%E5%B8%B8%E8%A7%81%E7%9A%84%E5%A4%A7%E6%A8%A1%E5%9E%8B-openapi-%E8%A7%84%E8%8C%83/">常见的大模型 OpenAPI 规范</a>
         </h1>
         <div class="post-meta"><time class="post-date">2025-11-05</time></div>
@@ -531,6 +593,10 @@
       
       
     
+      
+      
+      
+    
 
     
     
@@ -560,7 +626,7 @@
         <a href="/posts/2026-01/" class="archive-link">
           <span class="archive-date">2026-01</span>
           <span class="archive-month-name">Jan</span>
-          <span class="archive-count">(1)</span>
+          <span class="archive-count">(2)</span>
         </a>
       </div>
     
@@ -1151,6 +1217,12 @@
       
         
       
+        
+      
+    
+      
+        
+      
     
       
         
@@ -1391,10 +1463,16 @@
       
         
       
+    
+    
     
     
     
+      
+      
     
+      
+      
     
       
       
@@ -1719,9 +1797,14 @@
       
       
     
+      
+      
     
     
     
+    
+    
+      
     
       
     
@@ -2048,6 +2131,25 @@
         
         
         
+        <a href="https://www.jinzhi.site/tags/inference/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Inference
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
         <a href="https://www.jinzhi.site/tags/kaist-cs431/" 
            class="tag-item" 
            style="font-size: 0.9em;"
@@ -2165,9 +2267,9 @@
         <a href="https://www.jinzhi.site/tags/llm/" 
            class="tag-item" 
            style="font-size: 0.9em;"
-           title="1 article">
+           title="2 articles">
           LLM
-          <span class="tag-count">(1)</span>
+          <span class="tag-count">(2)</span>
         </a>
       
     

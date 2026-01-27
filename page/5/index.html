@@ -216,6 +216,113 @@
     
       <article class="post on-list">
         <h2 class="post-title">
+          <a href="https://www.jinzhi.site/posts/2025-08/wasm-internals-stack-machine/">Wasm Internals: Stack Machine</a>
+        </h2>
+
+        <div class="post-meta"><time class="post-date">2025-08-20</time></div>
+
+        
+          <span class="post-tags">
+            
+            #<a href="https://www.jinzhi.site/tags/wasm/">wasm</a>&nbsp;
+            
+          </span>
+        
+
+        
+
+
+        <div class="post-content">
+          
+            <p>Wasm 中的“栈机”（Stack Machine），这正是其核心执行模型之一。Wasm 是一种基于栈的虚拟机，这意味着它的所有操作都通过从一个操作数栈中弹出值、执行操作并将结果压回栈中来完成。它没有传统的“寄存器”概念。</p>
+<h2 id="什么是栈机">什么是栈机？</h2>
+<p>在计算机科学中，栈机是一种计算模型，其中指令操作数被隐含地从一个被称为“操作数栈”的内存区域中获取，并且结果被隐含地压回这个栈。这种模型与基于寄存器或基于累加器的模型形成对比。</p>
+<h2 id="wasm-栈机的工作原理">Wasm 栈机的工作原理</h2>
+<p>Wasm 模块中的函数是由一系列指令组成的。这些指令会操作一个中央的操作数栈。</p>
+<ol>
+<li>
+<p><strong>操作数栈（Operand Stack）</strong>：</p>
+<ul>
+<li>这是 Wasm 执行函数时最核心的数据结构。</li>
+<li>所有的操作数（如整数、浮点数）和操作结果都临时存储在这个栈上。</li>
+<li>指令不会像在注册机中那样直接指定操作数的位置（如“将 R1 的值加到 R2”）。相反，它们会假定操作数已经在栈的顶部。</li>
+</ul>
+</li>
+<li>
+<p><strong>局部变量（Local Variables）</strong>：</p>
+<ul>
+<li>除了操作数栈，每个函数调用还有一个独立的“局部变量”区域。</li>
+<li>局部变量是命名的存储位置，可以在函数的整个执行过程中被访问和修改。</li>
+<li>虽然局部变量不是栈的一部分，但有很多指令允许你将局部变量的值压入栈中，或者将栈顶部的值存储到局部变量中。</li>
+</ul>
+</li>
+<li>
+<p><strong>参数（Parameters）</strong>：</p>
+<ul>
+<li>函数的参数在函数被调用时，会被初始化为局部变量的一部分（通常是前几个局部变量）。</li>
+<li>它们也可以被认为是函数执行上下文的一部分。</li>
+</ul>
+</li>
+<li>
+<p><strong>指令的操作</strong>：</p>
+<ul>
+<li><strong>压栈（Push）</strong>：很多指令会将值压入栈中。例如：
+<ul>
+<li><code>i32.const 42</code>：将整数常量 <code>42</code> 压入栈。</li>
+<li><code>local.get &lt;idx&gt;</code>：获取索引为 <code>&lt;idx&gt;</code> 的局部变量的值并压入栈。</li>
+</ul>
+</li>
+<li><strong>弹栈（Pop）</strong>：大多数操作指令会从栈顶弹出所需数量的操作数。例如：
+<ul>
+<li><code>i32.add</code>：弹出栈顶的两个 <code>i32</code> 整数，将它们相加，然后将结果压回栈。</li>
+<li><code>if</code>/<code>else</code>/<code>loop</code> 等控制流指令的条件值也会从栈中弹出。</li>
+</ul>
+</li>
+<li><strong>复合操作</strong>：一些指令可能弹出一个值，执行一些副作用（如内存写入），而不压入任何新值。例如：
+<ul>
+<li><code>i32.store</code>：弹出内存地址和要存储的值，将值写入内存。</li>
+</ul>
+</li>
+</ul>
+</li>
+</ol>
+<h2 id="栈机模型的优势与特点">栈机模型的优势与特点</h2>
+<ol>
+<li>
+<p><strong>紧凑性（Compactness）</strong>：</p>
+<ul>
+<li>指令更短，因为它们不需要编码操作数的位置。例如，一个加法操作，在寄存器机中可能需要指定两个源寄存器和一个目标寄存器；在栈机中，它只是一个简单的 <code>add</code> 指令。</li>
+<li>这有助于生成更小的二进制代码，对于 Web 环境中的快速下载和解析非常有利。</li>
+</ul>
+</li>
+<li>
+<p><strong>简化编译器后端（Simplified Compiler Backends）</strong>：</p>
+<ul>
+<li>IR（中间表示）到指令的映射通常更直接。许多高级语言的语义本身就可以很容易地映射到栈操作。</li>
+<li>这使得将 C/C++/Rust 等语言编译到 Wasm 变得相对容易。</li>
+</ul>
+</li>
+<li>
+<p><strong>易于验证（Easy to Validate）</strong>：</p>
+<ul>
+<li>Wasm 在加载时会进行严格的类型检查和结构验证。栈机模型使得验证其类型安全变得相对容易。例如，当检查 <code>i32.add</code> 指令时，验证器只需确保栈顶有两个 <code>i32</code> 类型的值。</li>
+<li>这对于沙盒环境中的安全性至关重要。</li>
+</ul>
+</li>
+<li>
+<p><strong>独立于目标架构（Architecture-Independent）</strong>：</p>
+          
+        </div>
+
+        
+          <div>
+            <a class="read-more button inline" href="/posts/2025-08/wasm-internals-stack-machine/">[Read more]</a>
+          </div>
+        
+      </article>
+    
+      <article class="post on-list">
+        <h2 class="post-title">
           <a href="https://www.jinzhi.site/posts/2025-06/kubernetes-csi-%E7%AE%80%E4%BB%8B/">Kubernetes CSI 简介</a>
         </h2>
 
@@ -431,83 +538,6 @@ instructions. In this Readme, we will shortly summarize the most important rules
         
           <div>
             <a class="read-more button inline" href="/posts/2025-03/c-common-coding-conventions/">[Read more]</a>
-          </div>
-        
-      </article>
-    
-      <article class="post on-list">
-        <h2 class="post-title">
-          <a href="https://www.jinzhi.site/posts/2024-01/ebpf-%E6%8C%87%E4%BB%A4%E9%9B%86%E8%A7%84%E8%8C%83/">eBPF 指令集规范</a>
-        </h2>
-
-        <div class="post-meta"><time class="post-date">2024-01-05</time></div>
-
-        
-          <span class="post-tags">
-            
-            #<a href="https://www.jinzhi.site/tags/ebpf/">eBPF</a>&nbsp;
-            
-          </span>
-        
-
-        
-
-
-        <div class="post-content">
-          
-            <p><a href="https://docs.kernel.org/bpf/standardization/instruction-set.html">1 BPF Instruction Set Specification, v1.0 — The Linux Kernel documentation</a></p>
-<h2 id="寄存器和调用约定">寄存器和调用约定</h2>
-<p>eBPF有10个通用寄存器和一个只读的帧指针寄存器，所有的寄存器都是64bits位长。</p>
-<p>eBPF的调用约定如下：</p>
-<ul>
-<li><strong>R0:</strong> 函数调用的返回值和eBPF程序的退出值</li>
-<li><strong>R1 - R5:</strong> 函数调用的参数</li>
-<li><strong>R6 - R9:</strong> callee saved registers，由函数调用负责保存到栈上</li>
-<li><strong>R10:</strong> 只读的帧指针，用于访问栈
-R0 - R5是临时寄存器，eBPF程序在函数调用时如需使用需要将它们保存/填充。</li>
-</ul>
-<h2 id="指令编码">指令编码</h2>
-<p>eBPF使用64bit指令，编码如下：</p>
-<table>
-  <thead>
-      <tr>
-          <th><strong>32位（最高有效位）</strong></th>
-          <th><strong>16位</strong></th>
-          <th><strong>4位</strong></th>
-          <th><strong>4位</strong></th>
-          <th><strong>8位（最低有效位）</strong></th>
-      </tr>
-  </thead>
-  <tbody>
-      <tr>
-          <td>immediate</td>
-          <td>offset</td>
-          <td>source register</td>
-          <td>dest register</td>
-          <td>opcode</td>
-      </tr>
-  </tbody>
-</table>
-<ul>
-<li>imm: 有符号整型立即数</li>
-<li>offset: 有符号整型数，用于指针算术</li>
-<li>src_reg: 除开特殊指令的编码外（如64位立即数指令）指的是源寄存器(R0 - R10)</li>
-<li>dst_reg: 目标寄存器(R0 - R10)</li>
-<li>opcode: 操作码</li>
-</ul>
-<p>绝大多数指令不会使用所有的字段。没有使用的字段应当被置0。多字节的字段（如imm和offset）在大端BPF中以大端字节序存储，小端BPF中以小端字节序存储。</p>
-<pre tabindex="0"><code>opcode                  offset imm          assembly
-       src_reg dst_reg
-07     0       1        00 00  44 33 22 11  r1 += 0x11223344 // little
-       dst_reg src_reg
-07     1       0        00 00  11 22 33 44  r1 += 0x11223344 // big
-</code></pre><p>除了这些基本指令编码外，eBPF还有一种宽指令编码，在基本指令之后使用第2个64位立即数做扩展。第2个立即数包括一个伪指令，和基本指令的格式一样，不过所有的字段（除了imm）都置为0。它的imm作为整个宽指令中的imm64值的高32位：</p>
-          
-        </div>
-
-        
-          <div>
-            <a class="read-more button inline" href="/posts/2024-01/ebpf-%E6%8C%87%E4%BB%A4%E9%9B%86%E8%A7%84%E8%8C%83/">[Read more]</a>
           </div>
         
       </article>
@@ -763,6 +793,10 @@ R0 - R5是临时寄存器，eBPF程序在函数调用时如需使用需要将它
       
       
     
+      
+      
+      
+    
 
     
     
@@ -792,7 +826,7 @@ R0 - R5是临时寄存器，eBPF程序在函数调用时如需使用需要将它
         <a href="/posts/2026-01/" class="archive-link">
           <span class="archive-date">2026-01</span>
           <span class="archive-month-name">Jan</span>
-          <span class="archive-count">(1)</span>
+          <span class="archive-count">(2)</span>
         </a>
       </div>
     
@@ -1383,6 +1417,12 @@ R0 - R5是临时寄存器，eBPF程序在函数调用时如需使用需要将它
       
         
       
+        
+      
+    
+      
+        
+      
     
       
         
@@ -1623,10 +1663,16 @@ R0 - R5是临时寄存器，eBPF程序在函数调用时如需使用需要将它
       
         
       
+    
+    
     
     
     
+      
+      
     
+      
+      
     
       
       
@@ -1951,9 +1997,14 @@ R0 - R5是临时寄存器，eBPF程序在函数调用时如需使用需要将它
       
       
     
+      
+      
     
     
     
+    
+    
+      
     
       
     
@@ -2280,6 +2331,25 @@ R0 - R5是临时寄存器，eBPF程序在函数调用时如需使用需要将它
         
         
         
+        <a href="https://www.jinzhi.site/tags/inference/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Inference
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
         <a href="https://www.jinzhi.site/tags/kaist-cs431/" 
            class="tag-item" 
            style="font-size: 0.9em;"
@@ -2397,9 +2467,9 @@ R0 - R5是临时寄存器，eBPF程序在函数调用时如需使用需要将它
         <a href="https://www.jinzhi.site/tags/llm/" 
            class="tag-item" 
            style="font-size: 0.9em;"
-           title="1 article">
+           title="2 articles">
           LLM
-          <span class="tag-count">(1)</span>
+          <span class="tag-count">(2)</span>
         </a>
       
     
