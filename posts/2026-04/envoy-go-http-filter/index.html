@@ -1,0 +1,3327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  
+    <title>Envoy Go HTTP Filter :: chengzhycn&#39;s blog</title>
+  
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Go HTTP 过滤器 (envoy.filters.http.golang) 允许使用 Go 编写 Envoy HTTP 过滤器。Go 代码被编译为共享库 (.so)，在运行时通过 dlopen 加载，并借由 CGo bridge 集成到 Envoy 的 C&#43;&#43; 过滤器链中。
+架构 Go HTTP Filter 主要分为两端：
+C&#43;&#43; 端：负责 DSO 加载、过滤器链集成以及线程安全。 Go 端：通过 Go SDK 实现过滤器逻辑，通过 CGo 与 C&#43;&#43; 通信。 ABI 边界由 contrib/golang/common/go/api/api.h 中的共享 C 结构体定义。
+DSO (动态共享对象) 加载机制 Go HTTP 过滤器通过 contrib/golang/common/dso/ 中定义的专用 DSO 机制加载 Go 编译的共享库。这与 Envoy 核心扩展中的 dynamic_modules 是两套独立的实现。
+核心组件 1. DSO 管理器 (DsoManager) DsoManager 类 (contrib/golang/common/dso/dso.h) 负责管理共享库的生命周期：
+" />
+<meta name="keywords" content="" />
+
+  <meta name="robots" content="noodp" />
+
+<link rel="canonical" href="https://www.jinzhi.site/posts/2026-04/envoy-go-http-filter/" />
+
+
+
+
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/buttons.min.86f6b4c106b6c6eb690ae5203d36b442c1f66f718ff4e8164fa86cf6c61ad641.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/code.min.c4581949edab7810737609fc5568852bcd908945f14561e366dcd2300a370545.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/fonts.min.5bb7ed13e1d00d8ff39ea84af26737007eb5051b157b86fc24487c94f3dc8bbe.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/footer.min.eb8dfc2c6a7eafa36cd3ba92d63e69e849e2200e0002a228d137f236b09ecd75.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/gist.min.a751e8b0abe1ba8bc53ced52a38b19d8950fe78ca29454ea8c2595cf26aad5c0.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/header.min.75c7eb0e2872d95ff48109c6647d0223a38db52e2561dd87966eb5fc7c6bdac6.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/main.min.7984a754b43b7469d389c539410e90dff2870263de16b008dfc7e8170fcd0f5b.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/menu.min.3c17467ebeb3d38663dce68f71f519901124fa5cbb4519b2fb0667a21e9aca39.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/pagination.min.bbb986dbce00a5ce5aca0504b7925fc1c581992a4bf57f163e5d69cc1db7d836.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/post.min.e6dddd258e64c83e05cec0cd49c05216742d42fc8ecbfbe6b67083412b609bd3.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/syntax.min.a2cc694a9b481f15d41722bffc2cc54eea4c4f74fd9072b0b33253604c22606e.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/terminal.min.e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/terms.min.b81791663c3790e738e571cdbf802312390d30e4b1d8dc9d814a5b5454d0ac11.css">
+
+
+
+
+
+
+
+<link rel="shortcut icon" href="https://www.jinzhi.site/favicon.png">
+<link rel="apple-touch-icon" href="https://www.jinzhi.site/apple-touch-icon.png">
+
+
+<meta name="twitter:card" content="summary" />
+
+  
+    <meta name="twitter:site" content="" />
+  
+    <meta name="twitter:creator" content="" />
+
+
+
+<meta property="og:locale" content="en" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="Envoy Go HTTP Filter">
+<meta property="og:description" content="Go HTTP 过滤器 (envoy.filters.http.golang) 允许使用 Go 编写 Envoy HTTP 过滤器。Go 代码被编译为共享库 (.so)，在运行时通过 dlopen 加载，并借由 CGo bridge 集成到 Envoy 的 C&#43;&#43; 过滤器链中。
+架构 Go HTTP Filter 主要分为两端：
+C&#43;&#43; 端：负责 DSO 加载、过滤器链集成以及线程安全。 Go 端：通过 Go SDK 实现过滤器逻辑，通过 CGo 与 C&#43;&#43; 通信。 ABI 边界由 contrib/golang/common/go/api/api.h 中的共享 C 结构体定义。
+DSO (动态共享对象) 加载机制 Go HTTP 过滤器通过 contrib/golang/common/dso/ 中定义的专用 DSO 机制加载 Go 编译的共享库。这与 Envoy 核心扩展中的 dynamic_modules 是两套独立的实现。
+核心组件 1. DSO 管理器 (DsoManager) DsoManager 类 (contrib/golang/common/dso/dso.h) 负责管理共享库的生命周期：
+" />
+<meta property="og:url" content="https://www.jinzhi.site/posts/2026-04/envoy-go-http-filter/" />
+<meta property="og:site_name" content="chengzhycn&#39;s blog" />
+
+  <meta property="og:image" content="https://www.jinzhi.site/og-image.png">
+
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="627">
+
+  <meta property="article:section" content="Learning" />
+
+
+  <meta property="article:published_time" content="2026-04-28 15:18:28 &#43;0800 &#43;0800" />
+
+
+
+
+
+
+
+
+
+<html>
+<head>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-screen-web/style.css" />
+  <style>
+    body {
+      font-family: "LXGW WenKai Screen";
+      font-weight: normal;
+    }
+  </style>
+</head>
+<body>
+
+</body>
+</html>
+
+
+</head>
+<body>
+
+
+<div class="page-wrapper">
+  <div class="container center">
+
+  <header class="header">
+  <div class="header__inner">
+    <div class="header__logo">
+      <a href="/">
+  <div class="logo">
+    chengzhycn&#39;s blog
+  </div>
+</a>
+
+    </div>
+    
+      <ul class="menu menu--mobile">
+  <li class="menu__trigger">Menu&nbsp;▾</li>
+  <li>
+    <ul class="menu__dropdown">
+      
+        
+          <li><a href="/">Home</a></li>
+        
+      
+        
+          <li><a href="/about">About</a></li>
+        
+      
+        
+          <li><a href="/categories/">Categories</a></li>
+        
+      
+        
+          <li><a href="/tags/">Tags</a></li>
+        
+      
+        
+          <li><a href="/archives/">Archives</a></li>
+        
+      
+      
+    </ul>
+  </li>
+</ul>
+
+    
+    
+  </div>
+  
+    <nav class="navigation-menu">
+  <ul class="navigation-menu__inner menu--desktop">
+    
+      
+        
+          <li><a href="/" >Home</a></li>
+        
+      
+        
+          <li><a href="/about" >About</a></li>
+        
+      
+        
+          <li><a href="/categories/" >Categories</a></li>
+        
+      
+        
+          <li><a href="/tags/" >Tags</a></li>
+        
+      
+        
+          <li><a href="/archives/" >Archives</a></li>
+        
+      
+      
+    
+  </ul>
+</nav>
+
+  
+</header>
+
+
+  <div class="content">
+    
+<article class="post">
+  <h1 class="post-title">
+    <a href="https://www.jinzhi.site/posts/2026-04/envoy-go-http-filter/">Envoy Go HTTP Filter</a>
+  </h1>
+  <div class="post-meta"><time class="post-date">2026-04-28</time><span class="post-reading-time">9 min read (1850 words)</span></div>
+
+  
+    <span class="post-tags">
+      
+      #<a href="https://www.jinzhi.site/tags/envoy/">Envoy</a>&nbsp;
+      
+      #<a href="https://www.jinzhi.site/tags/l7gateway/">L7Gateway</a>&nbsp;
+      
+      #<a href="https://www.jinzhi.site/tags/cloudnative/">CloudNative</a>&nbsp;
+      
+    </span>
+  
+  
+
+
+  
+    <div class="table-of-contents">
+      <h2>
+        Table of Contents
+      </h2>
+      <nav id="TableOfContents">
+  <ul>
+    <li><a href="#架构">架构</a></li>
+    <li><a href="#dso-动态共享对象-加载机制">DSO (动态共享对象) 加载机制</a>
+      <ul>
+        <li><a href="#核心组件">核心组件</a></li>
+        <li><a href="#支持范围与局限性">支持范围与局限性</a></li>
+      </ul>
+    </li>
+    <li><a href="#配置">配置</a></li>
+    <li><a href="#请求生命周期">请求生命周期</a>
+      <ul>
+        <li><a href="#启动-startup">启动 (Startup)</a></li>
+        <li><a href="#单个请求-per-request">单个请求 (Per-request)</a></li>
+        <li><a href="#异步--线程安全-async--thread-safety">异步 / 线程安全 (Async / Thread Safety)</a></li>
+        <li><a href="#c-到-go-调用流程细节">C++ 到 Go 调用流程细节</a></li>
+        <li><a href="#go-到-c-回调流程细节">Go 到 C++ 回调流程细节</a></li>
+        <li><a href="#清理-cleanup">清理 (Cleanup)</a></li>
+      </ul>
+    </li>
+    <li><a href="#编写插件-writing-a-plugin">编写插件 (Writing a Plugin)</a></li>
+    <li><a href="#关键文件-key-files">关键文件 (Key Files)</a></li>
+    <li><a href="#常见问题-qa">常见问题 (Q&amp;A)</a></li>
+  </ul>
+</nav>
+    </div>
+  
+
+  <div class="post-content"><div>
+        <p>Go HTTP 过滤器 (<code>envoy.filters.http.golang</code>) 允许使用 Go 编写 Envoy HTTP 过滤器。Go 代码被编译为共享库 (<code>.so</code>)，在运行时通过 <code>dlopen</code> 加载，并借由 CGo bridge 集成到 Envoy 的 C++ 过滤器链中。</p>
+<h2 id="架构">架构<a href="#架构" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>Go HTTP Filter 主要分为两端：</p>
+<ul>
+<li><strong>C++ 端</strong>：负责 DSO 加载、过滤器链集成以及线程安全。</li>
+<li><strong>Go 端</strong>：通过 Go SDK 实现过滤器逻辑，通过 CGo 与 C++ 通信。</li>
+</ul>
+<p>ABI 边界由 <code>contrib/golang/common/go/api/api.h</code> 中的共享 C 结构体定义。</p>
+<p><img src="/images/notes/envoy-go-http-filter/1d4a997271052a5a6344e5235da18b13_MD5.jpeg" alt="1d4a997271052a5a6344e5235da18b13_MD5"></p>
+<h2 id="dso-动态共享对象-加载机制">DSO (动态共享对象) 加载机制<a href="#dso-动态共享对象-加载机制" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>Go HTTP 过滤器通过 <code>contrib/golang/common/dso/</code> 中定义的专用 DSO 机制加载 Go 编译的共享库。这与 Envoy 核心扩展中的 <code>dynamic_modules</code> 是两套独立的实现。</p>
+<h3 id="核心组件">核心组件<a href="#核心组件" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<h4 id="1-dso-管理器-dsomanager">1. DSO 管理器 (DsoManager)<a href="#1-dso-管理器-dsomanager" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<p><code>DsoManager</code> 类 (<code>contrib/golang/common/dso/dso.h</code>) 负责管理共享库的生命周期：</p>
+<ul>
+<li><strong>动态加载</strong>：使用 <code>dlopen()</code> 在运行时加载 <code>.so</code> 文件。</li>
+<li><strong>符号解析</strong>：在加载后通过 <code>dlsym()</code> 显式解析 10 个关键的 Go 导出函数（定义在 <code>dso.cc:47-70</code>，如 <code>envoyGoFilterOnHttpHeader</code> 等）。</li>
+<li><strong>RTLD 模式</strong>：
+<ul>
+<li><code>RTLD_LAZY</code>：延迟符号解析以提高性能。</li>
+<li><code>RTLD_GLOBAL</code>：使符号对其他加载的模块可见。</li>
+<li><code>RTLD_NODELETE</code>：<strong>关键设置</strong>。由于 Go 运行时不支持 <code>dlclose()</code> 后的完全卸载，必须防止库被从进程中移除，否则会引发段错误。</li>
+</ul>
+</li>
+</ul>
+<h3 id="支持范围与局限性">支持范围与局限性<a href="#支持范围与局限性" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>与旨在覆盖 Envoy 所有扩展点的通用 <code>Dynamic Modules</code> 机制不同，当前的 Go 扩展机制专门针对 HTTP 过滤场景设计：</p>
+<ul>
+<li><strong>专注点</strong>：目前仅支持 HTTP 过滤器扩展，代码位于 <code>contrib/golang/filters/http/source/</code>。</li>
+<li><strong>深层绑定</strong>：由于 Go 语言需要处理 Goroutine 调度、CGo 栈切换以及复杂的请求上下文映射，其 ABI 绑定（<code>api.h</code>）比通用的动态模块更加复杂和深入。</li>
+<li><strong>不支持的扩展</strong>：目前无法使用此 Go 机制扩展网络过滤器、UDP 过滤器、负载均衡策略或集群类型等。</li>
+</ul>
+<h2 id="配置">配置<a href="#配置" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>定义在 <code>api/contrib/envoy/extensions/filters/http/golang/v3alpha/golang.proto</code> 中：</p>
+<ul>
+<li><code>library_id</code> — 共享库的唯一 ID。</li>
+<li><code>library_path</code> — <code>.so</code> 文件的路径。</li>
+<li><code>plugin_name</code> — 必须与 Go 中通过 <code>RegisterHttpFilterFactoryAndConfigParser</code> 注册的名称匹配。</li>
+<li><code>plugin_config</code> — 任意插件特定的配置 (<code>google.protobuf.Any</code>)。</li>
+</ul>
+<p>支持通过 <code>ConfigsPerRoute</code> 进行按路由配置，并带有合并策略。</p>
+<h2 id="请求生命周期">请求生命周期<a href="#请求生命周期" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p><img src="/images/notes/envoy-go-http-filter/209152189f3ef904c0ee10c31c759ecb_MD5.jpeg" alt="209152189f3ef904c0ee10c31c759ecb_MD5"></p>
+<h3 id="启动-startup">启动 (Startup)<a href="#启动-startup" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>Go 运行时在 <code>dlopen()</code> 内部初始化，甚至在返回 C++ 之前。以下是完整的时间线：</p>
+<p><strong>阶段 1: dlopen() 触发 Go 运行时引导</strong></p>
+<p>当 Envoy 在启动时解析过滤器配置时，它调用 <code>DsoManager::load()</code> (<code>contrib/golang/common/dso/dso.h:306</code>)，后者构造一个 <code>Dso</code> 并调用：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-cpp" data-lang="cpp"><span class="line"><span class="cl"><span class="n">handler_</span> <span class="o">=</span> <span class="n">dlopen</span><span class="p">(</span><span class="n">dso_name</span><span class="p">.</span><span class="n">c_str</span><span class="p">(),</span> <span class="n">RTLD_LAZY</span><span class="p">);</span>  <span class="c1">// dso.cc:26
+</span></span></span></code></pre></div><p><code>.so</code> 是使用 <code>go build -buildmode=c-shared</code> 构建的，它会注入一个 <code>__attribute__((constructor))</code> 函数（来自 Go 内部的 <code>runtime/cgo/gcc_libinit.c</code>）。动态链接器在 <code>dlopen()</code> 返回之前运行此构造函数，该函数会：</p>
+<ol>
+<li>分配 G0 goroutine 和 M0 OS 线程。</li>
+<li>初始化 GC、调度器和信号处理。</li>
+<li>将 GOMAXPROCS 设置为 CPU 核心数（Envoy 代码中没有覆盖此设置）。</li>
+<li><strong>不</strong>调用 <code>main()</code> — 在 c-shared 模式下永远不会调用 <code>main()</code>。</li>
+</ol>
+<p><strong>阶段 2: Go init() 函数运行 (仍在 dlopen() 内部)</strong></p>
+<p>在运行时引导之后，所有 <code>init()</code> 函数按依赖顺序执行：</p>
+<p><code>contrib/golang/common/go/api_impl/capi_impl.go:61-86</code> 中的关键 <code>init()</code>：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span><span class="w"> </span><span class="nf">init</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">api</span><span class="p">.</span><span class="nf">SetCommonCAPI</span><span class="p">(</span><span class="o">&amp;</span><span class="nx">commonCApiImpl</span><span class="p">{})</span><span class="w">                   </span><span class="c1">// 注册 C API 实现</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">currLogLevel</span><span class="p">.</span><span class="nf">Store</span><span class="p">(</span><span class="nb">int32</span><span class="p">(</span><span class="nx">C</span><span class="p">.</span><span class="nf">envoyGoFilterLogLevel</span><span class="p">()))</span><span class="w">   </span><span class="c1">// 第一次通过 CGo 回调 C++</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="k">go</span><span class="w"> </span><span class="kd">func</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="cm">/* 后台 goroutine：每 1s 同步一次日志级别 */</span><span class="w"> </span><span class="p">}()</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="p">}</span><span class="w">
+</span></span></span></code></pre></div><p>这是 Go 第一次回调 Envoy C++ 代码 — <code>C.envoyGoFilterLogLevel()</code>。它还派生了唯一的永久后台 goroutine。</p>
+<p>用户插件的 <code>init()</code> 函数也在这里运行，通常调用 <code>RegisterHttpFilterFactoryAndConfigParser()</code> (<code>contrib/golang/filters/http/source/go/pkg/http/filtermanager.go:53</code>) 来注册过滤器工厂。</p>
+<p>包级变量也在此初始化：</p>
+<ul>
+<li><code>Requests = &amp;requestMap{}</code> (<code>shim.go:46</code>)</li>
+<li><code>httpFilterFactoryAndParser = sync.Map{}</code> (<code>filtermanager.go:28</code>)</li>
+<li><code>configCache = &amp;sync.Map{}</code> (<code>config.go:49</code>)</li>
+</ul>
+<p>在所有 <code>init()</code> 函数完成后，<code>dlopen()</code> 终于返回到 C++。</p>
+<p><strong>阶段 3: 符号解析 (dlopen() 返回后)</strong></p>
+<p>回到 C++，<code>HttpFilterDsoImpl</code> 调用 <code>dlsym()</code> 10 次 (<code>dso.cc:47-70</code>) 来解析 Go 导出的符号，如 <code>envoyGoFilterOnHttpHeader</code>、<code>envoyGoFilterOnHttpData</code> 等。</p>
+<p><strong>阶段 4: 逐个工作线程的请求映射初始化</strong></p>
+<p><code>FilterConfig::newGoPluginConfig()</code> (<code>golang_filter.cc:1787</code>) 调用 Go 的 <code>envoyGoFilterNewHttpPluginConfig()</code> (<code>config.go:70</code>)，该函数运行一次：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="nx">Requests</span><span class="p">.</span><span class="nf">initialize</span><span class="p">(</span><span class="nb">uint32</span><span class="p">(</span><span class="nx">c</span><span class="p">.</span><span class="nx">concurrency</span><span class="p">))</span><span class="w">  </span><span class="c1">// config.go:76</span><span class="w">
+</span></span></span></code></pre></div><p>这会分配逐个工作线程 (per-worker-thread) 的请求映射 (<code>shim.go:70-79</code>)，大小取决于 Envoy 的并发设置。这由 <code>sync.Once</code> 保护。</p>
+<p><strong>时间线总结</strong></p>
+<table>
+  <thead>
+      <tr>
+          <th>步骤</th>
+          <th>操作</th>
+          <th>位置</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>1</td>
+          <td>Envoy 在解析配置时调用 dlopen()</td>
+          <td>dso.cc:26</td>
+      </tr>
+      <tr>
+          <td>2</td>
+          <td>Go 运行时引导 (GC, 调度器, G0/M0)</td>
+          <td>Go 内部 <code>__attribute__((constructor))</code></td>
+      </tr>
+      <tr>
+          <td>3</td>
+          <td>api_impl init() 运行：注册 CAPI, 首次 CGo 回调, 派生日志同步协程</td>
+          <td>api_impl/capi_impl.go:61</td>
+      </tr>
+      <tr>
+          <td>4</td>
+          <td>插件 init() 运行：注册过滤器工厂</td>
+          <td>用户插件代码</td>
+      </tr>
+      <tr>
+          <td>5</td>
+          <td>dlopen() 返回</td>
+          <td>dso.cc:26</td>
+      </tr>
+      <tr>
+          <td>6</td>
+          <td>dlsym() 解析 10 个 Go 导出的符号</td>
+          <td>dso.cc:47-70</td>
+      </tr>
+      <tr>
+          <td>7</td>
+          <td>newGoPluginConfig() 调用 Go; Requests.initialize(concurrency) 运行一次</td>
+          <td>config.go:70, shim.go:70</td>
+      </tr>
+      <tr>
+          <td>8</td>
+          <td>第一个请求触发 createRequest() 和用户的 StreamFilterFactory</td>
+          <td>shim.go:128</td>
+      </tr>
+  </tbody>
+</table>
+<p><strong>线程注意事项</strong></p>
+<ul>
+<li>GOMAXPROCS 默认为 CPU 核心数 — Envoy 没有进行显式覆盖。</li>
+<li>代码中没有使用 <code>runtime.LockOSThread()</code>。</li>
+<li>在 CGo 调用期间，Envoy 的工作线程变为 Go 的 &ldquo;M&rdquo; 线程。</li>
+<li>Go 运行时无法被卸载 — 对于 Go .so 文件，<code>dlclose()</code> 实际上是一个空操作 (参见 <a href="https://github.com/golang/go/issues/11100">https://github.com/golang/go/issues/11100</a>, 在 dso.h:278 中被引用)。</li>
+</ul>
+<h3 id="单个请求-per-request">单个请求 (Per-request)<a href="#单个请求-per-request" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<ol>
+<li>每个请求创建一个新的 <code>Filter</code> 实例 (<code>contrib/golang/filters/http/source/config.cc:45</code>)。</li>
+<li>Envoy 调用 <code>Filter::decodeHeaders()</code> -&gt; <code>doHeadersGo()</code> (<code>golang_filter.cc:236</code>) -&gt; 通过 CGo 调用 <code>envoyGoFilterOnHttpHeader</code>。</li>
+<li>在 Go 端 (<code>contrib/golang/filters/http/source/go/pkg/http/shim.go:168</code>)，通过注册的工厂创建插件的 <code>StreamFilter</code>，然后调用 <code>DecodeHeaders()</code>。</li>
+<li>Go 过滤器返回一个 <strong>状态 (status)</strong>：
+<ul>
+<li><code>Continue</code> — 继续处理下一个过滤器。</li>
+<li><code>StopAndBuffer</code> — 暂停并等待更多数据。</li>
+<li><code>Running</code> — 异步处理；Go 稍后将从 goroutine 调用 <code>Continue()</code>。</li>
+<li><code>LocalReply</code> — 直接发送响应。</li>
+</ul>
+</li>
+<li>同样的模式在响应路径上的 <code>decodeData</code>、<code>decodeTrailers</code> 以及 <code>encodeHeaders</code>、<code>encodeData</code>、<code>encodeTrailers</code> 中重复。</li>
+</ol>
+<h3 id="异步--线程安全-async--thread-safety">异步 / 线程安全 (Async / Thread Safety)<a href="#异步--线程安全-async--thread-safety" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>当 Go 代码异步运行（返回 <code>Running</code>）时，它最终会调用 <code>cAPI.HttpContinue()</code>，这会触发 C++ 的 <code>envoyGoFilterHttpContinue()</code> (<code>contrib/golang/filters/http/source/cgo.cc:94</code>)。这会 <strong>向 Envoy 调度器 (dispatcher) 发送一个任务</strong>，以便在正确的工作线程上恢复处理。</p>
+<p>对于阻塞式的 Go-&gt;C++ 调用（例如从 goroutine 获取元数据），Go 端会在 <code>sync.Cond</code> 上阻塞，C++ 在调度器回调完成后通过 <code>envoyGoRequestSemaDec()</code> 通知它。</p>
+<h3 id="c-到-go-调用流程细节">C++ 到 Go 调用流程细节<a href="#c-到-go-调用流程细节" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>以下是 <code>decodeHeaders()</code> 作为典型的 C++ → Go 调用示例的完整流程。<code>decodeData</code>、<code>encodeHeaders</code> 等的模式与之完全一致。</p>
+<p><strong>阶段 1: C++ 过滤器调用</strong></p>
+<p>入口点：<code>golang_filter.cc:236</code> 中的 <code>Filter::decodeHeaders()</code>：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-cpp" data-lang="cpp"><span class="line"><span class="cl"><span class="n">Http</span><span class="o">::</span><span class="n">FilterHeadersStatus</span> <span class="n">Filter</span><span class="o">::</span><span class="n">decodeHeaders</span><span class="p">(</span><span class="n">Http</span><span class="o">::</span><span class="n">RequestHeaderMap</span><span class="o">&amp;</span> <span class="n">headers</span><span class="p">,</span> <span class="kt">bool</span> <span class="n">end_stream</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="nf">doHeadersGo</span><span class="p">(</span><span class="o">&amp;</span><span class="n">headers</span><span class="p">,</span> <span class="n">end_stream</span><span class="p">,</span> <span class="cm">/*is_trailers=*/</span><span class="nb">false</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p><code>doHeadersGo()</code> (<code>golang_filter.cc:254-301</code>) 准备 C 结构体并调用 Go：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-cpp" data-lang="cpp"><span class="line"><span class="cl"><span class="n">Http</span><span class="o">::</span><span class="n">FilterHeadersStatus</span> <span class="n">Filter</span><span class="o">::</span><span class="n">doHeadersGo</span><span class="p">(</span><span class="n">Http</span><span class="o">::</span><span class="n">HeaderMap</span><span class="o">*</span> <span class="n">headers</span><span class="p">,</span> <span class="kt">bool</span> <span class="n">end_stream</span><span class="p">,</span> <span class="kt">bool</span> <span class="n">is_trailers</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// 1. 将 C++ 请求头序列化为 C 数组
+</span></span></span><span class="line"><span class="cl">    <span class="n">std</span><span class="o">::</span><span class="n">vector</span><span class="o">&lt;</span><span class="n">absl</span><span class="o">::</span><span class="n">string_view</span><span class="o">&gt;</span> <span class="n">keys</span><span class="p">,</span> <span class="n">values</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="n">headers</span><span class="o">-&gt;</span><span class="n">iterate</span><span class="p">([</span><span class="o">&amp;</span><span class="p">](</span><span class="k">const</span> <span class="n">Http</span><span class="o">::</span><span class="n">HeaderEntry</span><span class="o">&amp;</span> <span class="n">h</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">keys</span><span class="p">.</span><span class="n">push_back</span><span class="p">(</span><span class="n">h</span><span class="p">.</span><span class="n">key</span><span class="p">().</span><span class="n">getStringView</span><span class="p">());</span>
+</span></span><span class="line"><span class="cl">        <span class="n">values</span><span class="p">.</span><span class="n">push_back</span><span class="p">(</span><span class="n">h</span><span class="p">.</span><span class="n">value</span><span class="p">().</span><span class="n">getStringView</span><span class="p">());</span>
+</span></span><span class="line"><span class="cl">        <span class="k">return</span> <span class="n">Http</span><span class="o">::</span><span class="n">HeaderMap</span><span class="o">::</span><span class="n">Iterate</span><span class="o">::</span><span class="n">Continue</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">});</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 2. 打包到 C 结构体 (定义在 api.h:30-45)
+</span></span></span><span class="line"><span class="cl">    <span class="k">auto</span><span class="o">*</span> <span class="n">header_array</span> <span class="o">=</span> <span class="k">new</span> <span class="n">CAPIHeaderMap</span><span class="p">[</span><span class="n">keys</span><span class="p">.</span><span class="n">size</span><span class="p">()];</span>
+</span></span><span class="line"><span class="cl">    <span class="k">for</span> <span class="p">(</span><span class="n">size_t</span> <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="n">keys</span><span class="p">.</span><span class="n">size</span><span class="p">();</span> <span class="n">i</span><span class="o">++</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">header_array</span><span class="p">[</span><span class="n">i</span><span class="p">].</span><span class="n">key</span> <span class="o">=</span> <span class="n">keys</span><span class="p">[</span><span class="n">i</span><span class="p">].</span><span class="n">data</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">        <span class="n">header_array</span><span class="p">[</span><span class="n">i</span><span class="p">].</span><span class="n">key_len</span> <span class="o">=</span> <span class="n">keys</span><span class="p">[</span><span class="n">i</span><span class="p">].</span><span class="n">size</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">        <span class="n">header_array</span><span class="p">[</span><span class="n">i</span><span class="p">].</span><span class="n">value</span> <span class="o">=</span> <span class="n">values</span><span class="p">[</span><span class="n">i</span><span class="p">].</span><span class="n">data</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">        <span class="n">header_array</span><span class="p">[</span><span class="n">i</span><span class="p">].</span><span class="n">value_len</span> <span class="o">=</span> <span class="n">values</span><span class="p">[</span><span class="n">i</span><span class="p">].</span><span class="n">size</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">    <span class="n">CAPIHeaderMapValue</span> <span class="n">header_map</span><span class="p">{</span><span class="n">header_array</span><span class="p">,</span> <span class="n">keys</span><span class="p">.</span><span class="n">size</span><span class="p">()};</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 3. 通过函数指针调用 Go (在 dso.cc:47-70 中由 dlsym 解析)
+</span></span></span><span class="line"><span class="cl">    <span class="k">auto</span> <span class="n">status</span> <span class="o">=</span> <span class="n">dynamic_lib_</span><span class="o">-&gt;</span><span class="n">envoyGoFilterOnHttpHeader</span><span class="p">(</span>
+</span></span><span class="line"><span class="cl">        <span class="n">config_id_</span><span class="p">,</span> <span class="k">reinterpret_cast</span><span class="o">&lt;</span><span class="kt">uint64_t</span><span class="o">&gt;</span><span class="p">(</span><span class="k">this</span><span class="p">),</span> <span class="n">header_map</span><span class="p">,</span> <span class="n">end_stream</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">delete</span><span class="p">[]</span> <span class="n">header_array</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="k">static_cast</span><span class="o">&lt;</span><span class="n">Http</span><span class="o">::</span><span class="n">FilterHeadersStatus</span><span class="o">&gt;</span><span class="p">(</span><span class="n">status</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p><strong>阶段 2: DSO 函数分发</strong></p>
+<p><code>dynamic_lib_-&gt;envoyGoFilterOnHttpHeader</code> 是在 <code>dso.h:108</code> 中定义的函数指针：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-cpp" data-lang="cpp"><span class="line"><span class="cl"><span class="k">using</span> <span class="n">envoyGoFilterOnHttpHeader_type</span> <span class="o">=</span> <span class="kt">int</span> <span class="p">(</span><span class="o">*</span><span class="p">)(</span><span class="kt">uint64_t</span> <span class="n">config_id</span><span class="p">,</span> <span class="kt">uint64_t</span> <span class="n">http_request</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">                                                <span class="n">CAPIHeaderMapValue</span> <span class="n">headers</span><span class="p">,</span> <span class="kt">bool</span> <span class="n">end_stream</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl"><span class="c1">// 在加载时通过 dlsym() 解析 (dso.cc:47-70)
+</span></span></span></code></pre></div><p><strong>阶段 3: CGo 运行时转换</strong></p>
+<p>当调用函数指针时，控制权进入 Go 的 CGo 运行时 (<code>runtime/cgo/gcc_amd64.S</code> 或平台对应文件)：</p>
+<ol>
+<li><strong>线程绑定</strong> — 确保 OS 线程有一个关联的 Go &ldquo;M&rdquo; (machine)。如果没有，则从调度器中分配或窃取一个。</li>
+<li><strong>栈切换</strong> — 从 C 栈切换到 Go goroutine 栈。线程上的第一次调用会分配一个 goroutine 栈。</li>
+<li><strong>寄存器保存</strong> — 根据 AMD64 ABI 保存 C 寄存器，因为 Go 可能会覆盖它们。</li>
+<li><strong>GC 协调</strong> — 通知 GC 外部代码正在进入 Go（并发 GC 的内存屏障）。</li>
+</ol>
+<p><strong>阶段 4: Go 函数执行</strong></p>
+<p>Go 入口点在 <code>cgo_exports.go:30-45</code>（从 <code>//export</code> 注释生成）：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="cp">//export envoyGoFilterOnHttpHeader</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="kd">func</span><span class="w"> </span><span class="nf">envoyGoFilterOnHttpHeader</span><span class="p">(</span><span class="nx">configId</span><span class="w"> </span><span class="kt">uint64</span><span class="p">,</span><span class="w"> </span><span class="nx">httpRequest</span><span class="w"> </span><span class="kt">uint64</span><span class="p">,</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">                                </span><span class="nx">headers</span><span class="w"> </span><span class="nx">C</span><span class="p">.</span><span class="nx">CAPIHeaderMapValue</span><span class="p">,</span><span class="w"> </span><span class="nx">endStream</span><span class="w"> </span><span class="kt">bool</span><span class="p">)</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="c1">// 将 C 请求头转换为 Go map</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">goHeaders</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nb">make</span><span class="p">(</span><span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">][]</span><span class="kt">string</span><span class="p">)</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">hdrSlice</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="mi">1</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="mi">30</span><span class="p">]</span><span class="nx">C</span><span class="p">.</span><span class="nx">CAPIHeaderMap</span><span class="p">)(</span><span class="nx">unsafe</span><span class="p">.</span><span class="nf">Pointer</span><span class="p">(</span><span class="nx">headers</span><span class="p">.</span><span class="nx">headers</span><span class="p">))[:</span><span class="nx">headers</span><span class="p">.</span><span class="nx">len</span><span class="p">:</span><span class="nx">headers</span><span class="p">.</span><span class="nx">len</span><span class="p">]</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="nx">i</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="nx">i</span><span class="w"> </span><span class="p">&lt;</span><span class="w"> </span><span class="nb">int</span><span class="p">(</span><span class="nx">headers</span><span class="p">.</span><span class="nx">len</span><span class="p">);</span><span class="w"> </span><span class="nx">i</span><span class="o">++</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">        </span><span class="nx">key</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">C</span><span class="p">.</span><span class="nf">GoStringN</span><span class="p">(</span><span class="nx">hdrSlice</span><span class="p">[</span><span class="nx">i</span><span class="p">].</span><span class="nx">key</span><span class="p">,</span><span class="w"> </span><span class="nx">hdrSlice</span><span class="p">[</span><span class="nx">i</span><span class="p">].</span><span class="nx">key_len</span><span class="p">)</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">        </span><span class="nx">value</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">C</span><span class="p">.</span><span class="nf">GoStringN</span><span class="p">(</span><span class="nx">hdrSlice</span><span class="p">[</span><span class="nx">i</span><span class="p">].</span><span class="nx">value</span><span class="p">,</span><span class="w"> </span><span class="nx">hdrSlice</span><span class="p">[</span><span class="nx">i</span><span class="p">].</span><span class="nx">value_len</span><span class="p">)</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">        </span><span class="nx">goHeaders</span><span class="p">[</span><span class="nx">key</span><span class="p">]</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nb">append</span><span class="p">(</span><span class="nx">goHeaders</span><span class="p">[</span><span class="nx">key</span><span class="p">],</span><span class="w"> </span><span class="nx">value</span><span class="p">)</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="p">}</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="c1">// 路由到请求处理器</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">Requests</span><span class="p">.</span><span class="nf">onHttpHeader</span><span class="p">(</span><span class="nx">httpRequest</span><span class="p">,</span><span class="w"> </span><span class="nx">goHeaders</span><span class="p">,</span><span class="w"> </span><span class="nx">endStream</span><span class="p">)</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="p">}</span><span class="w">
+</span></span></span></code></pre></div><p><code>shim.go:168-200</code> 中的请求路由：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">r</span><span class="w"> </span><span class="o">*</span><span class="nx">requestMap</span><span class="p">)</span><span class="w"> </span><span class="nf">onHttpHeader</span><span class="p">(</span><span class="nx">httpRequest</span><span class="w"> </span><span class="kt">uint64</span><span class="p">,</span><span class="w"> </span><span class="nx">headers</span><span class="w"> </span><span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">][]</span><span class="kt">string</span><span class="p">,</span><span class="w"> </span><span class="nx">endStream</span><span class="w"> </span><span class="kt">bool</span><span class="p">)</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">req</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">r</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="nx">httpRequest</span><span class="p">)</span><span class="w">  </span><span class="c1">// 查找请求状态 (shim.go:128)</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">req</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="nb">int</span><span class="p">(</span><span class="nx">api</span><span class="p">.</span><span class="nx">Continue</span><span class="p">)</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="p">}</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="c1">// 在第一次调用时延迟创建过滤器</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">req</span><span class="p">.</span><span class="nx">filter</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">        </span><span class="nx">factory</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nf">getFilterFactory</span><span class="p">(</span><span class="nx">req</span><span class="p">.</span><span class="nx">configId</span><span class="p">)</span><span class="w">  </span><span class="c1">// filtermanager.go:75</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">        </span><span class="nx">req</span><span class="p">.</span><span class="nx">filter</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nf">factory</span><span class="p">(</span><span class="nx">req</span><span class="p">.</span><span class="nx">config</span><span class="p">)</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="p">}</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="c1">// 调用用户定义的过滤器</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">headerMap</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">requestHeaderMap</span><span class="p">{</span><span class="nx">headers</span><span class="p">:</span><span class="w"> </span><span class="nx">headers</span><span class="p">}</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">status</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">req</span><span class="p">.</span><span class="nx">filter</span><span class="p">.</span><span class="nf">DecodeHeaders</span><span class="p">(</span><span class="nx">headerMap</span><span class="p">,</span><span class="w"> </span><span class="nx">endStream</span><span class="p">)</span><span class="w">  </span><span class="c1">// 用户的 filter.go 实现</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nb">int</span><span class="p">(</span><span class="nx">status</span><span class="p">)</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="p">}</span><span class="w">
+</span></span></span></code></pre></div><p><strong>阶段 5: 返回路径</strong></p>
+<ol>
+<li>用户的 <code>DecodeHeaders()</code> 返回 <code>StatusType</code> (filter.go:35-45)：<code>Continue</code>、<code>StopAndBuffer</code>、<code>Running</code> 或 <code>LocalReply</code>。</li>
+<li>状态码通过 <code>Requests.onHttpHeader</code> → <code>envoyGoFilterOnHttpHeader</code> 向上回传。</li>
+<li>CGo 运行时：恢复栈、GC 通知、返回 C。</li>
+<li>C++ 将返回的 <code>int</code> 转换为 <code>FilterHeadersStatus</code> 并继续过滤器链。</li>
+</ol>
+<p><strong>流程示意图：</strong></p>
+<pre tabindex="0"><code>C++: Filter::decodeHeaders()
+    ↓
+C++: doHeadersGo() — 将请求头序列化为 C 结构体 (CAPIHeaderMap)
+    ↓
+C++: dynamic_lib_-&gt;envoyGoFilterOnHttpHeader() — dlsym 解析的函数指针
+    ↓
+C: cgo 入口存根 (runtime/cgo) — 线程绑定, 栈切换, 耗时约 100-200ns
+    ↓
+Go: envoyGoFilterOnHttpHeader() — cgo_export, C 结构体 → Go map 转换
+    ↓
+Go: Requests.onHttpHeader() — 路由到具体请求, 延迟创建过滤器
+    ↓
+Go: req.filter.DecodeHeaders() — 用户过滤器逻辑
+    ↓
+Go: 返回 StatusType
+    ↓
+C: cgo 返回存根 — 栈恢复, GC 协调
+    ↓
+C++: 返回 FilterHeadersStatus
+    ↓
+C++: Envoy 过滤器链继续执行...
+</code></pre><p><strong>关键数据结构：</strong></p>
+<p>C 请求头结构体 (<code>contrib/golang/common/go/api/api.h:30-45</code>)：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="k">typedef</span> <span class="k">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">const</span> <span class="kt">char</span><span class="o">*</span> <span class="n">key</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">size_t</span> <span class="n">key_len</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="k">const</span> <span class="kt">char</span><span class="o">*</span> <span class="n">value</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">size_t</span> <span class="n">value_len</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span> <span class="n">CAPIHeaderMap</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">typedef</span> <span class="k">struct</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">CAPIHeaderMap</span><span class="o">*</span> <span class="n">headers</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="kt">size_t</span> <span class="n">len</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span> <span class="n">CAPIHeaderMapValue</span><span class="p">;</span>
+</span></span></code></pre></div><p>Go 请求状态 (<code>shim.go:40-60</code>)：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">type</span><span class="w"> </span><span class="nx">httpRequest</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">configId</span><span class="w">   </span><span class="kt">uint64</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">config</span><span class="w">     </span><span class="kd">interface</span><span class="p">{}</span><span class="w">      </span><span class="c1">// 解析后的插件配置</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">filter</span><span class="w">     </span><span class="nx">StreamFilter</span><span class="w">     </span><span class="c1">// 用户过滤器实例</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="c1">// ... 其他每个请求的状态</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="p">}</span><span class="w">
+</span></span></span></code></pre></div><h3 id="go-到-c-回调流程细节">Go 到 C++ 回调流程细节<a href="#go-到-c-回调流程细节" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>Go → C++ 回调流程是 Go 过滤器代码调用回 Envoy 的方式（例如 <code>Continue()</code>、<code>SendLocalReply()</code>、<code>GetDynamicMetadata()</code>）。以下是以 <code>HttpContinue()</code> 为例的完整流程。</p>
+<p><strong>阶段 1: Go 过滤器调用 CAPI</strong></p>
+<p>用户的协程调用 <code>callbacks.Continue()</code>：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">f</span><span class="w"> </span><span class="o">*</span><span class="nx">MyFilter</span><span class="p">)</span><span class="w"> </span><span class="nf">DecodeHeaders</span><span class="p">(</span><span class="nx">headers</span><span class="w"> </span><span class="nx">api</span><span class="p">.</span><span class="nx">RequestHeaderMap</span><span class="p">,</span><span class="w"> </span><span class="nx">endStream</span><span class="w"> </span><span class="kt">bool</span><span class="p">)</span><span class="w"> </span><span class="nx">api</span><span class="p">.</span><span class="nx">StatusType</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="k">go</span><span class="w"> </span><span class="kd">func</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">        </span><span class="nx">result</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nf">doExternalAuth</span><span class="p">()</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">        </span><span class="nx">f</span><span class="p">.</span><span class="nx">callbacks</span><span class="p">.</span><span class="nf">Continue</span><span class="p">(</span><span class="nx">api</span><span class="p">.</span><span class="nx">Continue</span><span class="p">)</span><span class="w">  </span><span class="c1">// 恢复过滤器链</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="p">}()</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">api</span><span class="p">.</span><span class="nx">Running</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="p">}</span><span class="w">
+</span></span></span></code></pre></div><p>Go CAPI 接口 (<code>capi.go:45</code>)：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">type</span><span class="w"> </span><span class="nx">HttpCAPI</span><span class="w"> </span><span class="kd">interface</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nf">HttpContinue</span><span class="p">(</span><span class="nx">r</span><span class="w"> </span><span class="nx">unsafe</span><span class="p">.</span><span class="nx">Pointer</span><span class="p">,</span><span class="w"> </span><span class="nx">status</span><span class="w"> </span><span class="kt">uint64</span><span class="p">)</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="p">}</span><span class="w">
+</span></span></span></code></pre></div><p>实现 (<code>capi_impl.go:120-135</code>)：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">c</span><span class="w"> </span><span class="o">*</span><span class="nx">commonCApiImpl</span><span class="p">)</span><span class="w"> </span><span class="nf">HttpContinue</span><span class="p">(</span><span class="nx">r</span><span class="w"> </span><span class="nx">unsafe</span><span class="p">.</span><span class="nx">Pointer</span><span class="p">,</span><span class="w"> </span><span class="nx">status</span><span class="w"> </span><span class="kt">uint64</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">C</span><span class="p">.</span><span class="nf">envoyGoFilterHttpContinue</span><span class="p">(</span><span class="nx">r</span><span class="p">,</span><span class="w"> </span><span class="nx">C</span><span class="p">.</span><span class="nf">uint64_t</span><span class="p">(</span><span class="nx">status</span><span class="p">))</span><span class="w">  </span><span class="c1">// CGo 调用</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="p">}</span><span class="w">
+</span></span></span></code></pre></div><p><code>unsafe.Pointer r</code> 是在 <code>createRequest()</code> (<code>shim.go:128</code>) 期间存储在 Go 请求状态中的 C++ <code>Filter</code> 实例指针。</p>
+<p><strong>阶段 2: CGo 进入 C++</strong></p>
+<p>C++ 入口点 (<code>cgo.cc:94-130</code>)：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-cpp" data-lang="cpp"><span class="line"><span class="cl"><span class="k">extern</span> <span class="s">&#34;C&#34;</span> <span class="kt">void</span> <span class="n">envoyGoFilterHttpContinue</span><span class="p">(</span><span class="kt">void</span><span class="o">*</span> <span class="n">r</span><span class="p">,</span> <span class="kt">uint64_t</span> <span class="n">status</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">auto</span><span class="o">*</span> <span class="n">filter</span> <span class="o">=</span> <span class="k">static_cast</span><span class="o">&lt;</span><span class="n">Filter</span><span class="o">*&gt;</span><span class="p">(</span><span class="n">r</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="c1">// 关键点：协程所在的 OS 线程可能与 Envoy 工作线程不同
+</span></span></span><span class="line"><span class="cl">    <span class="c1">// 必须通过调度器 (dispatcher) 分发到正确的工作线程
+</span></span></span><span class="line"><span class="cl">    <span class="n">filter</span><span class="o">-&gt;</span><span class="n">dispatcher_</span><span class="p">.</span><span class="n">post</span><span class="p">([</span><span class="n">filter</span><span class="p">,</span> <span class="n">status</span><span class="p">]()</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">filter</span><span class="o">-&gt;</span><span class="n">continueFilter</span><span class="p">(</span><span class="k">static_cast</span><span class="o">&lt;</span><span class="n">FilterStatusType</span><span class="o">&gt;</span><span class="p">(</span><span class="n">status</span><span class="p">));</span>
+</span></span><span class="line"><span class="cl">    <span class="p">});</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p><strong>核心要点</strong>：Go 协程会在 OS 线程之间迁移。CGo 调用会在协程当时所在的任何线程上进入，这可能不是拥有该连接的 Envoy 工作线程。</p>
+<p><strong>阶段 3: 调度器任务执行</strong></p>
+<p>投递的 lambda 表达式在正确的工作线程上运行 (<code>golang_filter.cc:150-180</code>)：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-cpp" data-lang="cpp"><span class="line"><span class="cl"><span class="kt">void</span> <span class="n">Filter</span><span class="o">::</span><span class="n">continueFilter</span><span class="p">(</span><span class="n">FilterStatusType</span> <span class="n">status</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">current_status_</span> <span class="o">=</span> <span class="n">status</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">    <span class="k">if</span> <span class="p">(</span><span class="n">decode_headers_done_</span> <span class="o">&amp;&amp;</span> <span class="o">!</span><span class="n">encode_headers_called_</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">decoder_callbacks_</span><span class="o">-&gt;</span><span class="n">continueDecoding</span><span class="p">();</span>  <span class="c1">// 恢复解码路径
+</span></span></span><span class="line"><span class="cl">    <span class="p">}</span> <span class="k">else</span> <span class="nf">if</span> <span class="p">(</span><span class="n">encode_headers_called_</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="n">encoder_callbacks_</span><span class="o">-&gt;</span><span class="n">continueEncoding</span><span class="p">();</span>  <span class="c1">// 恢复 encode 路径
+</span></span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p><code>continueDecoding()</code> 会唤醒暂停的过滤器链并继续处理下一个过滤器。</p>
+<p><strong>流程示意图：</strong></p>
+<pre tabindex="0"><code>Go: filter.callbacks.Continue(Continue)
+    ↓
+Go: C.envoyGoFilterHttpContinue(r, status)  // CGo 调用
+    ↓
+C: cgo.cc:94 中的 envoyGoFilterHttpContinue()
+    ↓
+C++: filter-&gt;dispatcher_.post(lambda)  // 在工作线程上调度
+    ↓
+[Go 协程返回, CGo 调用完成, 耗时约 100-200ns]
+    ↓
+[Envoy 工作线程 - 稍后]
+    ↓
+C++: lambda 执行 -&gt; filter-&gt;continueFilter(status)
+    ↓
+C++: decoder_callbacks_-&gt;continueDecoding()
+    ↓
+C++: 过滤器链以新状态恢复执行
+</code></pre><p><strong>阻塞式回调模式：<code>GetDynamicMetadata()</code></strong></p>
+<p>某些回调需要阻塞 Go 协程直到 C++ 提供结果，这使用了 <code>sync.Cond</code>：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">f</span><span class="w"> </span><span class="o">*</span><span class="nx">MyFilter</span><span class="p">)</span><span class="w"> </span><span class="nf">DecodeHeaders</span><span class="p">(</span><span class="nx">headers</span><span class="w"> </span><span class="nx">api</span><span class="p">.</span><span class="nx">RequestHeaderMap</span><span class="p">,</span><span class="w"> </span><span class="nx">endStream</span><span class="w"> </span><span class="kt">bool</span><span class="p">)</span><span class="w"> </span><span class="nx">api</span><span class="p">.</span><span class="nx">StatusType</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">metadata</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">f</span><span class="p">.</span><span class="nx">callbacks</span><span class="p">.</span><span class="nf">GetDynamicMetadata</span><span class="p">(</span><span class="s">&#34;my_namespace&#34;</span><span class="p">)</span><span class="w">  </span><span class="c1">// 在此处阻塞</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="c1">// ... 使用元数据</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">api</span><span class="p">.</span><span class="nx">Continue</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="p">}</span><span class="w">
+</span></span></span></code></pre></div><p>Go 端实现 (<code>capi_impl.go:200-220</code>)：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">c</span><span class="w"> </span><span class="o">*</span><span class="nx">commonCApiImpl</span><span class="p">)</span><span class="w"> </span><span class="nf">GetDynamicMetadata</span><span class="p">(</span><span class="nx">r</span><span class="w"> </span><span class="nx">unsafe</span><span class="p">.</span><span class="nx">Pointer</span><span class="p">,</span><span class="w"> </span><span class="nx">filterName</span><span class="w"> </span><span class="kt">string</span><span class="p">)</span><span class="w"> </span><span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="kd">interface</span><span class="p">{}</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">sema</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nf">acquireSema</span><span class="p">()</span><span class="w">  </span><span class="c1">// 获取信号量 ID</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="c1">// 异步调用 C++</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">C</span><span class="p">.</span><span class="nf">envoyGoFilterGetDynamicMetadata</span><span class="p">(</span><span class="nx">r</span><span class="p">,</span><span class="w"> </span><span class="nx">C</span><span class="p">.</span><span class="nf">int64_t</span><span class="p">(</span><span class="nx">sema</span><span class="p">.</span><span class="nx">semaId</span><span class="p">),</span><span class="w"> </span><span class="o">...</span><span class="p">)</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">sema</span><span class="p">.</span><span class="nf">wait</span><span class="p">()</span><span class="w">  </span><span class="c1">// 在 sync.Cond 上阻塞</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">sema</span><span class="p">.</span><span class="nx">result</span><span class="w">  </span><span class="c1">// 返回由 C++ 填充的结果</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="p">}</span><span class="w">
+</span></span></span></code></pre></div><p>C++ 端实现 (<code>cgo.cc:250-280</code>)：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-cpp" data-lang="cpp"><span class="line"><span class="cl"><span class="k">extern</span> <span class="s">&#34;C&#34;</span> <span class="kt">void</span> <span class="n">envoyGoFilterGetDynamicMetadata</span><span class="p">(</span><span class="kt">void</span><span class="o">*</span> <span class="n">r</span><span class="p">,</span> <span class="kt">int64_t</span> <span class="n">semaId</span><span class="p">,</span> <span class="p">...)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="k">auto</span><span class="o">*</span> <span class="n">filter</span> <span class="o">=</span> <span class="k">static_cast</span><span class="o">&lt;</span><span class="n">Filter</span><span class="o">*&gt;</span><span class="p">(</span><span class="n">r</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="k">const</span> <span class="k">auto</span><span class="o">&amp;</span> <span class="n">metadata</span> <span class="o">=</span> <span class="n">filter</span><span class="o">-&gt;</span><span class="n">getDynamicMetadata</span><span class="p">();</span>
+</span></span><span class="line"><span class="cl">    <span class="c1">// ... 序列化为 C 字符串
+</span></span></span><span class="line"><span class="cl">    <span class="n">filter</span><span class="o">-&gt;</span><span class="n">semaDec</span><span class="p">(</span><span class="n">semaId</span><span class="p">,</span> <span class="n">result</span><span class="p">);</span>  <span class="c1">// 通知完成
+</span></span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>信号通知 (<code>golang_filter.cc:400-420</code>)：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-cpp" data-lang="cpp"><span class="line"><span class="cl"><span class="kt">void</span> <span class="n">Filter</span><span class="o">::</span><span class="n">semaDec</span><span class="p">(</span><span class="kt">int64_t</span> <span class="n">semaId</span><span class="p">,</span> <span class="k">const</span> <span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="o">&amp;</span> <span class="n">result</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">sema_results_</span><span class="p">[</span><span class="n">semaId</span><span class="p">]</span> <span class="o">=</span> <span class="n">result</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="n">envoyGoRequestSemaDec</span><span class="p">(</span><span class="n">semaId</span><span class="p">);</span>  <span class="c1">// 通过 CGo 回调 Go
+</span></span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>Go 端解锁 (导出的函数)：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="cp">//export envoyGoRequestSemaDec</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="kd">func</span><span class="w"> </span><span class="nf">envoyGoRequestSemaDec</span><span class="p">(</span><span class="nx">semaId</span><span class="w"> </span><span class="nx">C</span><span class="p">.</span><span class="nx">int64_t</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">sema</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nf">getSema</span><span class="p">(</span><span class="nb">int64</span><span class="p">(</span><span class="nx">semaId</span><span class="p">))</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">sema</span><span class="p">.</span><span class="nf">signal</span><span class="p">()</span><span class="w">  </span><span class="c1">// 解锁等待中的协程</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="p">}</span><span class="w">
+</span></span></span></code></pre></div><p><strong>阻塞流程：</strong></p>
+<pre tabindex="0"><code>Go: GetDynamicMetadata()
+    ↓
+Go: 创建 sema, C.envoyGoFilterGetDynamicMetadata(r, semaId, ...)
+    ↓
+C: envoyGoFilterGetDynamicMetadata() — 在工作线程上读取元数据
+    ↓
+C++: filter-&gt;semaDec(semaId, result)
+    ↓
+C++: envoyGoRequestSemaDec(semaId)  // CGo 调用
+    ↓
+Go: sema.signal() — 解锁等待中的协程
+    ↓
+Go: [协程唤醒, 返回结果]
+</code></pre><p><strong>回调模式对比：</strong></p>
+<table>
+  <thead>
+      <tr>
+          <th>模式</th>
+          <th>示例</th>
+          <th>线程安全</th>
+          <th>使用场景</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td><strong>异步投递 (Async post)</strong></td>
+          <td><code>Continue()</code></td>
+          <td>Go：任意线程；C++：调度器投递到工作线程</td>
+          <td>恢复过滤器链</td>
+      </tr>
+      <tr>
+          <td><strong>阻塞 (Blocking)</strong></td>
+          <td><code>GetDynamicMetadata()</code></td>
+          <td>Go：在 sync.Cond 上阻塞；C++：在工作线程运行并回传信号</td>
+          <td>读取同步状态</td>
+      </tr>
+      <tr>
+          <td><strong>立即响应 (Immediate)</strong></td>
+          <td><code>SendLocalReply()</code></td>
+          <td>Go：任意线程；C++：投递到调度器</td>
+          <td>发送响应</td>
+      </tr>
+  </tbody>
+</table>
+<h3 id="清理-cleanup">清理 (Cleanup)<a href="#清理-cleanup" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<ol start="14">
+<li>调用 <code>onStreamComplete()</code> 和 <code>log()</code> 进行访问日志记录。</li>
+<li><code>onDestroy()</code> 会唤醒任何等待中的 Go goroutine，并调用插件的 <code>OnDestroy()</code>。</li>
+<li>Go 的 GC 终结器 (finalizer) 会回调 C++ 以释放 <code>HttpRequestInternal</code> 对象。</li>
+</ol>
+<h2 id="编写插件-writing-a-plugin">编写插件 (Writing a Plugin)<a href="#编写插件-writing-a-plugin" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>插件需要实现 <code>StreamFilter</code> 接口 (<code>contrib/golang/common/go/api/filter.go:80</code>)：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">type</span><span class="w"> </span><span class="nx">StreamFilter</span><span class="w"> </span><span class="kd">interface</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nf">DecodeHeaders</span><span class="p">(</span><span class="nx">RequestHeaderMap</span><span class="p">,</span><span class="w"> </span><span class="kt">bool</span><span class="p">)</span><span class="w"> </span><span class="nx">StatusType</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nf">DecodeData</span><span class="p">(</span><span class="nx">BufferInstance</span><span class="p">,</span><span class="w"> </span><span class="kt">bool</span><span class="p">)</span><span class="w"> </span><span class="nx">StatusType</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nf">DecodeTrailers</span><span class="p">(</span><span class="nx">RequestTrailerMap</span><span class="p">)</span><span class="w"> </span><span class="nx">StatusType</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nf">EncodeHeaders</span><span class="p">(</span><span class="nx">ResponseHeaderMap</span><span class="p">,</span><span class="w"> </span><span class="kt">bool</span><span class="p">)</span><span class="w"> </span><span class="nx">StatusType</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nf">EncodeData</span><span class="p">(</span><span class="nx">BufferInstance</span><span class="p">,</span><span class="w"> </span><span class="kt">bool</span><span class="p">)</span><span class="w"> </span><span class="nx">StatusType</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nf">EncodeTrailers</span><span class="p">(</span><span class="nx">ResponseTrailerMap</span><span class="p">)</span><span class="w"> </span><span class="nx">StatusType</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nf">OnLog</span><span class="p">(</span><span class="nx">RequestHeaderMap</span><span class="p">,</span><span class="w"> </span><span class="nx">ResponseHeaderMap</span><span class="p">,</span><span class="w"> </span><span class="nx">ResponseTrailerMap</span><span class="p">)</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nf">OnDestroy</span><span class="p">(</span><span class="nx">DestroyReason</span><span class="p">)</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="p">}</span><span class="w">
+</span></span></span></code></pre></div><p>在 <code>init()</code> 中使用 <code>RegisterHttpFilterFactoryAndConfigParser()</code> (<code>contrib/golang/filters/http/source/go/pkg/http/filtermanager.go:53</code>) 进行注册。你可以嵌入 <code>PassThroughStreamFilter</code> 以仅覆盖你关心的函数。具体示例可参考 <code>contrib/golang/filters/http/test/test_data/basic/</code>。</p>
+<h2 id="关键文件-key-files">关键文件 (Key Files)<a href="#关键文件-key-files" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<table>
+  <thead>
+      <tr>
+          <th>区域</th>
+          <th>文件</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>C ABI 头文件</td>
+          <td><code>contrib/golang/common/go/api/api.h</code></td>
+      </tr>
+      <tr>
+          <td>DSO 加载</td>
+          <td><code>contrib/golang/common/dso/dso.{h,cc}</code></td>
+      </tr>
+      <tr>
+          <td>过滤器工厂</td>
+          <td><code>contrib/golang/filters/http/source/config.cc</code></td>
+      </tr>
+      <tr>
+          <td>核心过滤器逻辑</td>
+          <td><code>contrib/golang/filters/http/source/golang_filter.{h,cc}</code></td>
+      </tr>
+      <tr>
+          <td>Go-&gt;C++ 回调</td>
+          <td><code>contrib/golang/filters/http/source/cgo.cc</code></td>
+      </tr>
+      <tr>
+          <td>Go CGo 适配层</td>
+          <td><code>contrib/golang/filters/http/source/go/pkg/http/shim.go</code></td>
+      </tr>
+      <tr>
+          <td>Go SDK 接口</td>
+          <td><code>contrib/golang/common/go/api/filter.go</code></td>
+      </tr>
+      <tr>
+          <td>Proto 配置</td>
+          <td><code>api/contrib/envoy/extensions/filters/http/golang/v3alpha/golang.proto</code></td>
+      </tr>
+  </tbody>
+</table>
+<h2 id="常见问题-qa">常见问题 (Q&amp;A)<a href="#常见问题-qa" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p><strong>问：如果 Go 插件代码中的 <code>main()</code> 永远不被调用，为什么还需要它？</strong></p>
+<p>答：在 Go 的 <code>-buildmode=c-shared</code> 模式下，Go 编译器要求必须有 <code>main()</code> 函数，但它在加载 <code>.so</code> 时 <strong>永远不会被执行</strong>：</p>
+<ol>
+<li><strong>Go 要求有 <code>main</code> 包</strong> — 即使是 c-shared 构建，Go 仍然要求代码是一个有效的、完整的 Go 程序，包含一个带有 <code>func main()</code> 的 <code>main</code> 包。编译器会强制执行这一点；如果缺失，构建会报错 <code>function main is undeclared in the main package</code>。</li>
+<li><strong>C-shared 模式更改了入口点</strong> — 当使用 <code>-buildmode=c-shared</code> 构建时：
+<ul>
+<li><code>main()</code> 函数变成了一个永远不会被调用的存根 (stub)。</li>
+<li>实际的初始化是由生成的 <code>__attribute__((constructor))</code> 函数完成的（来自 Go 的 <code>runtime/cgo/gcc_libinit.c</code>）。</li>
+<li>这个构造函数在 <code>dlopen()</code> 返回 <strong>之前</strong> 运行 <code>init()</code> 函数并引导运行时。</li>
+</ul>
+</li>
+<li><strong><code>main()</code> 永远不会被调用</strong> — <code>main</code> 符号确实会导出到 <code>.so</code> 中，但 <code>dlopen()</code> 不会调用它，也没有任何代码路径会调用它。它只是作为二进制文件中的一个未使用入口点。</li>
+<li><strong>设计产物</strong> — Go 构建系统将 c-shared 视为普通程序的一种变体，而不是单纯的库。<code>main()</code> 函数充当了使其成为完整 Go 程序的“锚点”，尽管实际有用的导出是那些标记了 <code>//export</code> 的 C 可调用函数。</li>
+</ol>
+<p>在 Envoy 的 Go 过滤器中，所有实际工作都发生在 <code>init()</code> 函数中（注册过滤器工厂、设置 CGo 桥接器），因此一个空的 <code>main()</code> 仅仅是满足编译器要求的样板代码。</p>
+<p><strong>问：调用导出的 Go 函数（CGo 调用）的性能损耗是多少？</strong></p>
+<p>答：CGo 调用具有 <strong>显著的开销</strong> — 在现代 x86_64 硬件上，每次调用大约耗时 <strong>100-200 纳秒</strong>，比常规的 C++ 虚函数调用（~1-2 纳秒）慢约 <strong>100 倍</strong>。</p>
+<p><strong>开销来源：</strong></p>
+<ol>
+<li><strong>运行时上下文切换</strong> — C 线程使用原生的 OS 栈；Go 使用分段/增长式栈。CGo 必须将线程绑定到 Go 的 &ldquo;M&rdquo; (machine) 和 &ldquo;G&rdquo; (goroutine)，这可能涉及分配或窃取 M。</li>
+<li><strong>调度器协调</strong> — CGo 调用被视为隐式的调度点。运行时会检查栈增长、GC 安全点，并可能触发带有内存屏障的协程重新调度，以进行 GC 同步。</li>
+<li><strong>ABI 转换</strong> — 保存/恢复寄存器、转换调用约定（从 System V AMD64 ABI 转换为 Go 的调用约定），以及设置 CGo 的 &ldquo;G&rdquo; 结构体。</li>
+<li><strong>栈管理</strong> — 动态栈增长检查以及调用期间可能的栈分配。</li>
+</ol>
+<p><strong>对 Envoy 请求路径的影响：</strong></p>
+<p>仅仅为了完成基础的过滤器生命周期，每个请求至少涉及 6-7 次 CGo 跨越：</p>
+<table>
+  <thead>
+      <tr>
+          <th>阶段</th>
+          <th>方向</th>
+          <th>CGo 调用</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>请求</td>
+          <td>C++ → Go</td>
+          <td>decodeHeaders</td>
+      </tr>
+      <tr>
+          <td>请求</td>
+          <td>C++ → Go</td>
+          <td>decodeData</td>
+      </tr>
+      <tr>
+          <td>请求</td>
+          <td>C++ → Go</td>
+          <td>decodeTrailers</td>
+      </tr>
+      <tr>
+          <td>响应</td>
+          <td>C++ → Go</td>
+          <td>encodeHeaders</td>
+      </tr>
+      <tr>
+          <td>响应</td>
+          <td>C++ → Go</td>
+          <td>encodeData</td>
+      </tr>
+      <tr>
+          <td>响应</td>
+          <td>C++ → Go</td>
+          <td>encodeTrailers</td>
+      </tr>
+      <tr>
+          <td>清理</td>
+          <td>C++ → Go</td>
+          <td>onDestroy</td>
+      </tr>
+  </tbody>
+</table>
+<p>回调到 C++ 的操作（例如 <code>GetDynamicMetadata</code>、<code>Continue</code>）在反方向也会产生类似的开销。</p>
+<p><strong>实际影响：</strong></p>
+<ul>
+<li><strong>吞吐量</strong>：相比纯 C++ 过滤器，Go 过滤器可能会看到 10-20% 的性能下降。</li>
+<li><strong>延迟</strong>：在高并发下，由于转换成本，P99 延迟会增加。</li>
+<li><strong>CPU 消耗</strong>：更多的周期消耗在运行时协调上，而不是业务逻辑。</li>
+</ul>
+<p><strong>建议：</strong></p>
+<ul>
+<li><strong>使用 Go 过滤器</strong>：当开发速度很重要、过滤器逻辑复杂（如鉴权、复杂业务逻辑）或者你需要利用 Go 生态系统时。</li>
+<li><strong>避免 Go 过滤器</strong>：对于极低延迟的需求、简单的透传逻辑，或者每一纳秒都很关键的高吞吐量场景。</li>
+<li><strong>性能关键点首选 C++</strong>。</li>
+</ul>
+<p><strong>问：不同的 <code>StatusType</code> 值有什么区别，应该在什么时候使用？</strong></p>
+<p>答：四个 <code>StatusType</code> 值 (<code>filter.go:35-45</code>) 控制了 Envoy 处理过滤器链的方式。它们由 <code>DecodeHeaders()</code>、<code>DecodeData()</code>、<code>EncodeHeaders()</code> 等返回。</p>
+<table>
+  <thead>
+      <tr>
+          <th>状态</th>
+          <th>用途</th>
+          <th>何时使用</th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td><code>Continue</code></td>
+          <td>立即恢复</td>
+          <td>同步工作已完成；无需阻塞</td>
+      </tr>
+      <tr>
+          <td><code>StopAndBuffer</code></td>
+          <td>暂停并缓冲主体</td>
+          <td>在做决定前需要完整的请求主体（如鉴权、校验）</td>
+      </tr>
+      <tr>
+          <td><code>Running</code></td>
+          <td>异步处理</td>
+          <td>从协程发起外部 I/O（HTTP 调用、数据库查询）</td>
+      </tr>
+      <tr>
+          <td><code>LocalReply</code></td>
+          <td>发送直接响应</td>
+          <td>鉴权失败、限流、校验不通过</td>
+      </tr>
+  </tbody>
+</table>
+<p><strong>Continue</strong></p>
+<p>立即恢复到下一个过滤器。用于简单的请求头检查/修改、日志记录或指标统计等无需外部 I/O 的场景。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">f</span><span class="w"> </span><span class="o">*</span><span class="nx">MyFilter</span><span class="p">)</span><span class="w"> </span><span class="nf">DecodeHeaders</span><span class="p">(</span><span class="nx">headers</span><span class="w"> </span><span class="nx">api</span><span class="p">.</span><span class="nx">RequestHeaderMap</span><span class="p">,</span><span class="w"> </span><span class="nx">endStream</span><span class="w"> </span><span class="kt">bool</span><span class="p">)</span><span class="w"> </span><span class="nx">api</span><span class="p">.</span><span class="nx">StatusType</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">headers</span><span class="p">.</span><span class="nf">Set</span><span class="p">(</span><span class="s">&#34;x-custom-header&#34;</span><span class="p">,</span><span class="w"> </span><span class="s">&#34;value&#34;</span><span class="p">)</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">api</span><span class="p">.</span><span class="nx">Continue</span><span class="w">  </span><span class="c1">// 完成，恢复链条</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="p">}</span><span class="w">
+</span></span></span></code></pre></div><p><strong>StopAndBuffer</strong></p>
+<p>暂停链条并缓冲后续的主体分片。准备好后稍后调用 <code>Continue()</code>。用于基于主体的鉴权或内容校验。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">f</span><span class="w"> </span><span class="o">*</span><span class="nx">MyFilter</span><span class="p">)</span><span class="w"> </span><span class="nf">DecodeHeaders</span><span class="p">(</span><span class="nx">headers</span><span class="w"> </span><span class="nx">api</span><span class="p">.</span><span class="nx">RequestHeaderMap</span><span class="p">,</span><span class="w"> </span><span class="nx">endStream</span><span class="w"> </span><span class="kt">bool</span><span class="p">)</span><span class="w"> </span><span class="nx">api</span><span class="p">.</span><span class="nx">StatusType</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">api</span><span class="p">.</span><span class="nx">StopAndBuffer</span><span class="w">  </span><span class="c1">// 等待主体</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="p">}</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">f</span><span class="w"> </span><span class="o">*</span><span class="nx">MyFilter</span><span class="p">)</span><span class="w"> </span><span class="nf">DecodeData</span><span class="p">(</span><span class="nx">buffer</span><span class="w"> </span><span class="nx">api</span><span class="p">.</span><span class="nx">BufferInstance</span><span class="p">,</span><span class="w"> </span><span class="nx">endStream</span><span class="w"> </span><span class="kt">bool</span><span class="p">)</span><span class="w"> </span><span class="nx">api</span><span class="p">.</span><span class="nx">StatusType</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">f</span><span class="p">.</span><span class="nx">bodyBuffer</span><span class="p">.</span><span class="nf">Write</span><span class="p">(</span><span class="nx">buffer</span><span class="p">.</span><span class="nf">Bytes</span><span class="p">())</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">endStream</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="nf">validate</span><span class="p">(</span><span class="nx">f</span><span class="p">.</span><span class="nx">bodyBuffer</span><span class="p">.</span><span class="nf">Bytes</span><span class="p">())</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="nx">api</span><span class="p">.</span><span class="nx">Continue</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">        </span><span class="p">}</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="nx">api</span><span class="p">.</span><span class="nx">LocalReply</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="p">}</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">api</span><span class="p">.</span><span class="nx">StopAndBuffer</span><span class="w">  </span><span class="c1">// 需要更多数据</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="p">}</span><span class="w">
+</span></span></span></code></pre></div><p><strong>Running</strong></p>
+<p>表示异步工作正在进行中。派生一个 goroutine，稍后调用 <code>callbacks.Continue(status)</code>。<strong>关键点</strong>：永远不要阻塞工作线程。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">f</span><span class="w"> </span><span class="o">*</span><span class="nx">MyFilter</span><span class="p">)</span><span class="w"> </span><span class="nf">DecodeHeaders</span><span class="p">(</span><span class="nx">headers</span><span class="w"> </span><span class="nx">api</span><span class="p">.</span><span class="nx">RequestHeaderMap</span><span class="p">,</span><span class="w"> </span><span class="nx">endStream</span><span class="w"> </span><span class="kt">bool</span><span class="p">)</span><span class="w"> </span><span class="nx">api</span><span class="p">.</span><span class="nx">StatusType</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="k">go</span><span class="w"> </span><span class="kd">func</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">        </span><span class="nx">resp</span><span class="p">,</span><span class="w"> </span><span class="nx">_</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">http</span><span class="p">.</span><span class="nf">Get</span><span class="p">(</span><span class="s">&#34;http://auth-service/verify&#34;</span><span class="p">)</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="nx">resp</span><span class="p">.</span><span class="nx">StatusCode</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="mi">200</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">            </span><span class="nx">f</span><span class="p">.</span><span class="nx">callbacks</span><span class="p">.</span><span class="nf">SendLocalReply</span><span class="p">(</span><span class="mi">403</span><span class="p">,</span><span class="w"> </span><span class="s">&#34;Forbidden&#34;</span><span class="p">,</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="s">&#34;&#34;</span><span class="p">)</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">        </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">            </span><span class="nx">f</span><span class="p">.</span><span class="nx">callbacks</span><span class="p">.</span><span class="nf">Continue</span><span class="p">(</span><span class="nx">api</span><span class="p">.</span><span class="nx">Continue</span><span class="p">)</span><span class="w">  </span><span class="c1">// 在工作线程上恢复</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">        </span><span class="p">}</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="p">}()</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">api</span><span class="p">.</span><span class="nx">Running</span><span class="w">  </span><span class="c1">// 异步处理中</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="p">}</span><span class="w">
+</span></span></span></code></pre></div><p><strong>LocalReply</strong></p>
+<p>立即发送响应，不联系上游。直接短路到响应路径。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">f</span><span class="w"> </span><span class="o">*</span><span class="nx">MyFilter</span><span class="p">)</span><span class="w"> </span><span class="nf">DecodeHeaders</span><span class="p">(</span><span class="nx">headers</span><span class="w"> </span><span class="nx">api</span><span class="p">.</span><span class="nx">RequestHeaderMap</span><span class="p">,</span><span class="w"> </span><span class="nx">endStream</span><span class="w"> </span><span class="kt">bool</span><span class="p">)</span><span class="w"> </span><span class="nx">api</span><span class="p">.</span><span class="nx">StatusType</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">!</span><span class="nf">validateToken</span><span class="p">(</span><span class="nx">headers</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">        </span><span class="nx">f</span><span class="p">.</span><span class="nx">callbacks</span><span class="p">.</span><span class="nf">SendLocalReply</span><span class="p">(</span><span class="mi">401</span><span class="p">,</span><span class="w"> </span><span class="s">&#34;Unauthorized&#34;</span><span class="p">,</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="s">&#34;auth_failure&#34;</span><span class="p">)</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="nx">api</span><span class="p">.</span><span class="nx">LocalReply</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="p">}</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">api</span><span class="p">.</span><span class="nx">Continue</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="p">}</span><span class="w">
+</span></span></span></code></pre></div><p><strong>核心区别：</strong></p>
+<ul>
+<li><code>StopAndBuffer</code> vs <code>Running</code>：两者都会暂停链条，但 <code>StopAndBuffer</code> 用于同步的主体缓冲，而 <code>Running</code> 用于协程发起的异步 I/O。</li>
+<li>在 <code>Running</code> 状态下，你 <strong>必须</strong> 调用 <code>Continue()</code>，否则请求会永久挂起。</li>
+<li><code>LocalReply</code> 可以从任何阶段（请求头、数据、尾部）返回，以立即中止。</li>
+</ul>
+
+      </div></div>
+
+  
+    
+
+  
+
+  
+    
+
+  
+</article>
+
+  </div>
+
+  
+    <footer class="footer">
+  <div class="footer__inner">
+    
+      <div class="copyright">
+        <span>© 2026 Powered by <a href="https://gohugo.io">Hugo</a></span>
+    
+      <span>:: <a href="https://github.com/panr/hugo-theme-terminal" target="_blank">Theme</a> made by <a href="https://github.com/panr" target="_blank">panr</a></span>
+      </div>
+  </div>
+</footer>
+
+
+
+
+
+
+<script type="text/javascript" src="/bundle.min.js"></script>
+
+
+
+
+
+  
+  </div>
+
+  <aside class="floating-sidebar">
+    
+<div class="sidebar time-archive">
+  <h3>Time Archives</h3>
+  <div class="archive-list">
+    
+    
+
+    
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+
+    
+    
+
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2026-04/" class="archive-link">
+          <span class="archive-date">2026-04</span>
+          <span class="archive-month-name">Apr</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2026-01/" class="archive-link">
+          <span class="archive-date">2026-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(2)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-11/" class="archive-link">
+          <span class="archive-date">2025-11</span>
+          <span class="archive-month-name">Nov</span>
+          <span class="archive-count">(3)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-10/" class="archive-link">
+          <span class="archive-date">2025-10</span>
+          <span class="archive-month-name">Oct</span>
+          <span class="archive-count">(4)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-09/" class="archive-link">
+          <span class="archive-date">2025-09</span>
+          <span class="archive-month-name">Sep</span>
+          <span class="archive-count">(3)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-08/" class="archive-link">
+          <span class="archive-date">2025-08</span>
+          <span class="archive-month-name">Aug</span>
+          <span class="archive-count">(9)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-06/" class="archive-link">
+          <span class="archive-date">2025-06</span>
+          <span class="archive-month-name">Jun</span>
+          <span class="archive-count">(2)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-04/" class="archive-link">
+          <span class="archive-date">2025-04</span>
+          <span class="archive-month-name">Apr</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-03/" class="archive-link">
+          <span class="archive-date">2025-03</span>
+          <span class="archive-month-name">Mar</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2024-01/" class="archive-link">
+          <span class="archive-date">2024-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(2)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-10/" class="archive-link">
+          <span class="archive-date">2022-10</span>
+          <span class="archive-month-name">Oct</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-07/" class="archive-link">
+          <span class="archive-date">2022-07</span>
+          <span class="archive-month-name">Jul</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-06/" class="archive-link">
+          <span class="archive-date">2022-06</span>
+          <span class="archive-month-name">Jun</span>
+          <span class="archive-count">(4)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-05/" class="archive-link">
+          <span class="archive-date">2022-05</span>
+          <span class="archive-month-name">May</span>
+          <span class="archive-count">(4)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-03/" class="archive-link">
+          <span class="archive-date">2022-03</span>
+          <span class="archive-month-name">Mar</span>
+          <span class="archive-count">(4)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-01/" class="archive-link">
+          <span class="archive-date">2022-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-11/" class="archive-link">
+          <span class="archive-date">2021-11</span>
+          <span class="archive-month-name">Nov</span>
+          <span class="archive-count">(2)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-09/" class="archive-link">
+          <span class="archive-date">2021-09</span>
+          <span class="archive-month-name">Sep</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-06/" class="archive-link">
+          <span class="archive-date">2021-06</span>
+          <span class="archive-month-name">Jun</span>
+          <span class="archive-count">(3)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-01/" class="archive-link">
+          <span class="archive-date">2021-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+  </div>
+</div>
+
+<style>
+.sidebar.time-archive {
+  background: rgba(26, 23, 15, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--accent, #FFA86B);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+  max-width: var(--sidebar-component-width, 240px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.sidebar.time-archive h3 {
+  margin: 0 0 1rem 0;
+  color: var(--accent, #FFA86B);
+  font-size: 1.2rem;
+  border-bottom: 1px solid var(--accent-alpha-70, rgba(255, 168, 107, 0.7));
+  padding-bottom: 0.5rem;
+}
+
+
+.archive-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.archive-item {
+  display: block;
+}
+
+.archive-link {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  text-decoration: none;
+  color: var(--color, inherit);
+  padding: 0.5rem;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+}
+
+.archive-link:hover {
+  background-color: var(--accent-alpha-20, rgba(255, 168, 107, 0.2));
+  color: var(--accent, #FFA86B);
+}
+
+.archive-date {
+  font-family: var(--code-font-family, 'Fira Code', monospace);
+  font-weight: bold;
+  min-width: 60px;
+}
+
+.archive-month-name {
+  flex: 1;
+  margin-left: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.archive-count {
+  color: var(--accent, #FFA86B);
+  font-weight: bold;
+  font-size: 0.9rem;
+}
+
+ 
+</style>
+
+    
+<div class="sidebar tags-cloud">
+  <h3>Tags Cloud</h3>
+  <div class="tags-container">
+    
+    
+    
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+    
+    
+    
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+    
+    
+    
+    
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+    
+    
+    
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+    
+    
+    
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/agent/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Agent
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/ai/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          AI
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/apisix/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="3 articles">
+          apisix
+          <span class="tag-count">(3)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/biography/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          biography
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/cloudnative/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          CloudNative
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/compile/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          compile
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/concurrency/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="7 articles">
+          Concurrency
+          <span class="tag-count">(7)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/csi/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          csi
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/debug/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          debug
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/dns/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          dns
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/ebpf/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          ebpf
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/elf/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          ELF
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/envoy/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Envoy
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/go/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          Go
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/http/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          HTTP
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/inference/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Inference
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/kaist-cs431/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="7 articles">
+          KAIST-CS431
+          <span class="tag-count">(7)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/kernel/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Kernel
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/kubecon/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          KubeCon
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/kubernetes/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          kubernetes
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/l7gateway/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="4 articles">
+          L7Gateway
+          <span class="tag-count">(4)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/linux/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="3 articles">
+          Linux
+          <span class="tag-count">(3)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/llm/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          LLM
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/lua/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="3 articles">
+          Lua
+          <span class="tag-count">(3)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/makefile/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          makefile
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/mindfulness/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          mindfulness
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/network/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="3 articles">
+          Network
+          <span class="tag-count">(3)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/nonfiction/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="6 articles">
+          nonfiction
+          <span class="tag-count">(6)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/operatingsystem/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          OperatingSystem
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/philosophy/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          philosophy
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/rust/" 
+           class="tag-item" 
+           style="font-size: 1.5em;"
+           title="10 articles">
+          Rust
+          <span class="tag-count">(10)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/schedule/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Schedule
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/science/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          science
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/softwareengineering/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          SoftwareEngineering
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/wasm/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          wasm
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+  </div>
+</div>
+
+<style>
+.sidebar.tags-cloud {
+  background: rgba(26, 23, 15, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--accent, #FFA86B);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+  max-width: var(--sidebar-component-width, 240px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.sidebar.tags-cloud h3 {
+  margin: 0 0 1rem 0;
+  color: var(--accent, #FFA86B);
+  font-size: 1.2rem;
+  border-bottom: 1px solid var(--accent-alpha-70, rgba(255, 168, 107, 0.7));
+  padding-bottom: 0.5rem;
+}
+
+.tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  line-height: 1.6;
+}
+
+.tag-item {
+  display: inline-flex;
+  align-items: baseline;
+  text-decoration: none;
+  color: var(--color, inherit);
+  padding: 0.3rem 0.6rem;
+  border-radius: 16px;
+  background: rgba(255, 168, 107, 0.1);
+  border: 1px solid transparent;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.tag-item:hover {
+  background: rgba(255, 168, 107, 0.25);
+  border-color: var(--accent-alpha-50, rgba(255, 168, 107, 0.5));
+  color: var(--accent, #FFA86B);
+  transform: translateY(-1px);
+}
+
+.tag-count {
+  font-size: 0.75em;
+  margin-left: 0.3rem;
+  opacity: 0.7;
+  font-weight: normal;
+}
+
+.tag-item:hover .tag-count {
+  opacity: 1;
+}
+
+ 
+
+ 
+.tag-item {
+  font-weight: 400;
+}
+
+ 
+.tag-item[style*="1.5"], 
+.tag-item[style*="1.4"],
+.tag-item[style*="1.3"] {
+  font-weight: 600;
+}
+
+ 
+.tag-item[style*="1.2"],
+.tag-item[style*="1.1"] {
+  font-weight: 500;
+}
+
+ 
+.tag-item[style*="1.5"]:hover,
+.tag-item[style*="1.4"]:hover,
+.tag-item[style*="1.3"]:hover {
+  box-shadow: 0 3px 10px rgba(255, 168, 107, 0.4);
+  transform: translateY(-2px);
+}
+
+</style>
+
+  </aside>
+</div>
+
+<style>
+ 
+.page-wrapper {
+  position: relative;
+  width: 100%;
+  max-width: none;
+  --sidebar-top-offset: 150px;  
+  --sidebar-component-width: 240px;  
+}
+
+   
+.floating-sidebar {
+  position: absolute;
+   
+  top: var(--sidebar-top-offset, 175px);
+   
+  right: max(20px, calc((100vw - 864px) / 2 - 330px));
+  width: 300px;
+  z-index: 100;
+  opacity: 0.96;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+ 
+.floating-sidebar:hover {
+  opacity: 1;
+  transform: translateX(-5px);
+}
+
+ 
+.floating-sidebar {
+  display: none;
+}
+
+ 
+@media (min-width: 1524px) {
+  .floating-sidebar {
+    display: block;
+    position: absolute;
+    right: max(20px, calc((100vw - 864px) / 2 - 330px));
+  }
+}
+
+ 
+@media (max-width: 1523px) {
+  .floating-sidebar {
+    display: none !important;
+  }
+}
+
+</style>
+
+</body>
+</html>

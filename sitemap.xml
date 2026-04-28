@@ -3,27 +3,42 @@
   xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url>
     <loc>https://www.jinzhi.site/categories/</loc>
-    <lastmod>2026-01-27T09:18:28+08:00</lastmod>
+    <lastmod>2026-04-28T15:18:28+08:00</lastmod>
   </url><url>
     <loc>https://www.jinzhi.site/</loc>
-    <lastmod>2026-01-27T09:18:28+08:00</lastmod>
+    <lastmod>2026-04-28T15:18:28+08:00</lastmod>
   </url><url>
-    <loc>https://www.jinzhi.site/tags/inference/</loc>
-    <lastmod>2026-01-27T09:18:28+08:00</lastmod>
+    <loc>https://www.jinzhi.site/tags/cloudnative/</loc>
+    <lastmod>2026-04-28T15:18:28+08:00</lastmod>
+  </url><url>
+    <loc>https://www.jinzhi.site/tags/envoy/</loc>
+    <lastmod>2026-04-28T15:18:28+08:00</lastmod>
+  </url><url>
+    <loc>https://www.jinzhi.site/posts/2026-04/envoy-go-http-filter/</loc>
+    <lastmod>2026-04-28T15:18:28+08:00</lastmod>
+  </url><url>
+    <loc>https://www.jinzhi.site/tags/l7gateway/</loc>
+    <lastmod>2026-04-28T15:18:28+08:00</lastmod>
   </url><url>
     <loc>https://www.jinzhi.site/categories/learning/</loc>
+    <lastmod>2026-04-28T15:18:28+08:00</lastmod>
+  </url><url>
+    <loc>https://www.jinzhi.site/posts/</loc>
+    <lastmod>2026-04-28T15:18:28+08:00</lastmod>
+  </url><url>
+    <loc>https://www.jinzhi.site/tags/</loc>
+    <lastmod>2026-04-28T15:18:28+08:00</lastmod>
+  </url><url>
+    <loc>https://www.jinzhi.site/posts/2026-04/</loc>
+    <lastmod>2026-04-01T00:00:00+00:00</lastmod>
+  </url><url>
+    <loc>https://www.jinzhi.site/tags/inference/</loc>
     <lastmod>2026-01-27T09:18:28+08:00</lastmod>
   </url><url>
     <loc>https://www.jinzhi.site/tags/llm/</loc>
     <lastmod>2026-01-27T09:18:28+08:00</lastmod>
   </url><url>
     <loc>https://www.jinzhi.site/posts/2026-01/nano-vllm-%E4%BB%A3%E7%A0%81%E6%B5%81%E7%A8%8B/</loc>
-    <lastmod>2026-01-27T09:18:28+08:00</lastmod>
-  </url><url>
-    <loc>https://www.jinzhi.site/posts/</loc>
-    <lastmod>2026-01-27T09:18:28+08:00</lastmod>
-  </url><url>
-    <loc>https://www.jinzhi.site/tags/</loc>
     <lastmod>2026-01-27T09:18:28+08:00</lastmod>
   </url><url>
     <loc>https://www.jinzhi.site/categories/reading/</loc>
@@ -48,9 +63,6 @@
     <lastmod>2025-11-23T15:18:28+08:00</lastmod>
   </url><url>
     <loc>https://www.jinzhi.site/tags/apisix/</loc>
-    <lastmod>2025-11-16T15:18:28+08:00</lastmod>
-  </url><url>
-    <loc>https://www.jinzhi.site/tags/l7gateway/</loc>
     <lastmod>2025-11-16T15:18:28+08:00</lastmod>
   </url><url>
     <loc>https://www.jinzhi.site/posts/2025-11/%E7%BD%91%E5%85%B3%E7%9A%84%E9%99%90%E6%B5%81%E6%96%B9%E6%A1%88/</loc>

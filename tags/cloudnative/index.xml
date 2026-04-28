@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>CloudNative on chengzhycn&#39;s blog</title>
+    <link>https://www.jinzhi.site/tags/cloudnative/</link>
+    <description>Recent content in CloudNative on chengzhycn&#39;s blog</description>
+    <generator>Hugo</generator>
+    <language>en-us</language>
+    <lastBuildDate>Tue, 28 Apr 2026 15:18:28 +0800</lastBuildDate>
+    <atom:link href="https://www.jinzhi.site/tags/cloudnative/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Envoy Go HTTP Filter</title>
+      <link>https://www.jinzhi.site/posts/2026-04/envoy-go-http-filter/</link>
+      <pubDate>Tue, 28 Apr 2026 15:18:28 +0800</pubDate>
+      <guid>https://www.jinzhi.site/posts/2026-04/envoy-go-http-filter/</guid>
+      <description>&lt;p&gt;Go HTTP 过滤器 (&lt;code&gt;envoy.filters.http.golang&lt;/code&gt;) 允许使用 Go 编写 Envoy HTTP 过滤器。Go 代码被编译为共享库 (&lt;code&gt;.so&lt;/code&gt;)，在运行时通过 &lt;code&gt;dlopen&lt;/code&gt; 加载，并借由 CGo bridge 集成到 Envoy 的 C++ 过滤器链中。&lt;/p&gt;&#xA;&lt;h2 id=&#34;架构&#34;&gt;架构&lt;/h2&gt;&#xA;&lt;p&gt;Go HTTP Filter 主要分为两端：&lt;/p&gt;&#xA;&lt;ul&gt;&#xA;&lt;li&gt;&lt;strong&gt;C++ 端&lt;/strong&gt;：负责 DSO 加载、过滤器链集成以及线程安全。&lt;/li&gt;&#xA;&lt;li&gt;&lt;strong&gt;Go 端&lt;/strong&gt;：通过 Go SDK 实现过滤器逻辑，通过 CGo 与 C++ 通信。&lt;/li&gt;&#xA;&lt;/ul&gt;&#xA;&lt;p&gt;ABI 边界由 &lt;code&gt;contrib/golang/common/go/api/api.h&lt;/code&gt; 中的共享 C 结构体定义。&lt;/p&gt;&#xA;&lt;p&gt;&lt;img src=&#34;https://www.jinzhi.site/images/notes/envoy-go-http-filter/1d4a997271052a5a6344e5235da18b13_MD5.jpeg&#34; alt=&#34;1d4a997271052a5a6344e5235da18b13_MD5&#34;&gt;&lt;/p&gt;&#xA;&lt;h2 id=&#34;dso-动态共享对象-加载机制&#34;&gt;DSO (动态共享对象) 加载机制&lt;/h2&gt;&#xA;&lt;p&gt;Go HTTP 过滤器通过 &lt;code&gt;contrib/golang/common/dso/&lt;/code&gt; 中定义的专用 DSO 机制加载 Go 编译的共享库。这与 Envoy 核心扩展中的 &lt;code&gt;dynamic_modules&lt;/code&gt; 是两套独立的实现。&lt;/p&gt;&#xA;&lt;h3 id=&#34;核心组件&#34;&gt;核心组件&lt;/h3&gt;&#xA;&lt;h4 id=&#34;1-dso-管理器-dsomanager&#34;&gt;1. DSO 管理器 (DsoManager)&lt;/h4&gt;&#xA;&lt;p&gt;&lt;code&gt;DsoManager&lt;/code&gt; 类 (&lt;code&gt;contrib/golang/common/dso/dso.h&lt;/code&gt;) 负责管理共享库的生命周期：&lt;/p&gt;</description>
+    </item>
+  </channel>
+</rss>

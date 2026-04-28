@@ -216,6 +216,54 @@
     
       <article class="post on-list">
         <h2 class="post-title">
+          <a href="https://www.jinzhi.site/posts/2026-04/envoy-go-http-filter/">Envoy Go HTTP Filter</a>
+        </h2>
+
+        <div class="post-meta"><time class="post-date">2026-04-28</time></div>
+
+        
+          <span class="post-tags">
+            
+            #<a href="https://www.jinzhi.site/tags/envoy/">Envoy</a>&nbsp;
+            
+            #<a href="https://www.jinzhi.site/tags/l7gateway/">L7Gateway</a>&nbsp;
+            
+            #<a href="https://www.jinzhi.site/tags/cloudnative/">CloudNative</a>&nbsp;
+            
+          </span>
+        
+
+        
+
+
+        <div class="post-content">
+          
+            <p>Go HTTP 过滤器 (<code>envoy.filters.http.golang</code>) 允许使用 Go 编写 Envoy HTTP 过滤器。Go 代码被编译为共享库 (<code>.so</code>)，在运行时通过 <code>dlopen</code> 加载，并借由 CGo bridge 集成到 Envoy 的 C++ 过滤器链中。</p>
+<h2 id="架构">架构</h2>
+<p>Go HTTP Filter 主要分为两端：</p>
+<ul>
+<li><strong>C++ 端</strong>：负责 DSO 加载、过滤器链集成以及线程安全。</li>
+<li><strong>Go 端</strong>：通过 Go SDK 实现过滤器逻辑，通过 CGo 与 C++ 通信。</li>
+</ul>
+<p>ABI 边界由 <code>contrib/golang/common/go/api/api.h</code> 中的共享 C 结构体定义。</p>
+<p><img src="/images/notes/envoy-go-http-filter/1d4a997271052a5a6344e5235da18b13_MD5.jpeg" alt="1d4a997271052a5a6344e5235da18b13_MD5"></p>
+<h2 id="dso-动态共享对象-加载机制">DSO (动态共享对象) 加载机制</h2>
+<p>Go HTTP 过滤器通过 <code>contrib/golang/common/dso/</code> 中定义的专用 DSO 机制加载 Go 编译的共享库。这与 Envoy 核心扩展中的 <code>dynamic_modules</code> 是两套独立的实现。</p>
+<h3 id="核心组件">核心组件</h3>
+<h4 id="1-dso-管理器-dsomanager">1. DSO 管理器 (DsoManager)</h4>
+<p><code>DsoManager</code> 类 (<code>contrib/golang/common/dso/dso.h</code>) 负责管理共享库的生命周期：</p>
+          
+        </div>
+
+        
+          <div>
+            <a class="read-more button inline" href="/posts/2026-04/envoy-go-http-filter/">[Read more]</a>
+          </div>
+        
+      </article>
+    
+      <article class="post on-list">
+        <h2 class="post-title">
           <a href="https://www.jinzhi.site/posts/2026-01/nano-vllm-%E4%BB%A3%E7%A0%81%E6%B5%81%E7%A8%8B/">nano-vllm 代码流程</a>
         </h2>
 
@@ -426,92 +474,6 @@ $$L = \lambda \times W $$</p>
         
           <div>
             <a class="read-more button inline" href="/posts/2025-11/%E7%BD%91%E5%85%B3%E7%9A%84%E9%99%90%E6%B5%81%E6%96%B9%E6%A1%88/">[Read more]</a>
-          </div>
-        
-      </article>
-    
-      <article class="post on-list">
-        <h2 class="post-title">
-          <a href="https://www.jinzhi.site/posts/2025-11/%E5%B8%B8%E8%A7%81%E7%9A%84%E5%A4%A7%E6%A8%A1%E5%9E%8B-openapi-%E8%A7%84%E8%8C%83/">常见的大模型 OpenAPI 规范</a>
-        </h2>
-
-        <div class="post-meta"><time class="post-date">2025-11-05</time></div>
-
-        
-          <span class="post-tags">
-            
-            #<a href="https://www.jinzhi.site/tags/ai/">AI</a>&nbsp;
-            
-            #<a href="https://www.jinzhi.site/tags/llm/">LLM</a>&nbsp;
-            
-            #<a href="https://www.jinzhi.site/tags/agent/">Agent</a>&nbsp;
-            
-          </span>
-        
-
-        
-
-
-        <div class="post-content">
-          
-            <p>AI Gateway 的对接开发中，一个重要的内容就是对接不同厂商推理服务的接口协议。目前，推理服务的接口协议主要分为以下几种类型：</p>
-<ul>
-<li>文本对话接口，如 OpenAI 的 chat completions 和 response API 等</li>
-<li>向量接口，向量接口用于将输入的文本或者图片、视频（多模态）等转换成向量表示，适用于搜索（文搜图、图搜图、图文混合搜索）、聚类、推荐等场景。</li>
-</ul>
-<h2 id="文本对话">文本对话</h2>
-<p>文本对话 API 需要提供如下能力支持：</p>
-<ol>
-<li>模型选择</li>
-<li>用户、系统、模型输入内容角色区分</li>
-<li>模型参数调整</li>
-<li>工具调用</li>
-<li>MCP 支持</li>
-<li>用量统计</li>
-</ol>
-<p>目前使用最广泛的文本对话接口自然是 OpenAI 的 chat completions API。几乎所有的 LLM 服务提供商都支持 chat completions compatible 调用。</p>
-<p><a href="https://platform.openai.com/docs/api-reference/introduction">https://platform.openai.com/docs/api-reference/introduction</a></p>
-<h3 id="chat-completions">chat completions</h3>
-<p>基本调用：</p>
-<pre tabindex="0"><code>curl https://api.openai.com/v1/chat/completions \
-  -H &#34;Content-Type: application/json&#34; \
-  -H &#34;Authorization: Bearer $OPENAI_API_KEY&#34; \
-  -d &#39;{
-    &#34;model&#34;: &#34;gpt-5&#34;,
-    &#34;messages&#34;: [
-      {
-        &#34;role&#34;: &#34;developer&#34;,
-        &#34;content&#34;: &#34;You are a helpful assistant.&#34;
-      },
-      {
-        &#34;role&#34;: &#34;user&#34;,
-        &#34;content&#34;: &#34;Hello!&#34;
-      }
-    ]
-  }&#39;
-</code></pre><ul>
-<li>model: 请求调用的模型</li>
-<li>messages：构成对话的消息体。根据消息的来源角色，message 可以分为 developer/system（开发者，系统提供的 prompt），user（用户自身的输入）和 assistant（模型的响应，用于多轮对话时模型的上下文传递）。
-<ul>
-<li>content 分为两种类型，纯文本即为 string，非纯文本 content 为列表类型，内容根据 type（text，image_url，input_audio 等）有不同的字段</li>
-</ul>
-</li>
-<li>stream：采用正常 HTTP 响应还是 sse 响应</li>
-<li>stream_options: 在 sse 响应时，有些模型默认不会输出 usage 信息，需要显式将 stream_options.include_usage 设置成 true</li>
-<li>temperature：模型温度，取值范围 0 - 2，值越高，输出的 tokens 随机性越大</li>
-<li>top_p：和 tempreature 一样对模型输出进行调整的参数，模型会考虑概率质量最高的top_p个tokens的结果。所以0.1意味着只考虑概率质量最高的10%的tokens。</li>
-<li>reasoning_effort：模型的推理深度，比如对于 OpenAI 模型来说有 minimal，low，medium，high 等多种选择。</li>
-<li>max_completion_tokens：最大输出 tokens 数，包括 output tokens 和 reasoning tokens。替代原来的 max_tokens 字段。</li>
-<li>tools：告知大模型本地可调用的工具列表。工具里面定义了工具的名称、描述和 json schema 表示的参数描述。替代原来的 functions 字段。</li>
-<li>tool_choice：告知模型对于工具的调用选择。none 表示不要调用任何工具直接生成 messages，auto 表示由模型自己决定是否调用 allowed_tools。required 表示模型必须调用至少一个工具。</li>
-</ul>
-<p>除此之外，各家可以在 OpenAI 标准的 API 上扩展自己的字段，比如 cherry studio 会使用 thinking 字段来开启/关闭模型思考：</p>
-          
-        </div>
-
-        
-          <div>
-            <a class="read-more button inline" href="/posts/2025-11/%E5%B8%B8%E8%A7%81%E7%9A%84%E5%A4%A7%E6%A8%A1%E5%9E%8B-openapi-%E8%A7%84%E8%8C%83/">[Read more]</a>
           </div>
         
       </article>
@@ -765,10 +727,42 @@ $$L = \lambda \times W $$</p>
       
       
     
+      
+      
+      
+    
 
     
     
 
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2026-04/" class="archive-link">
+          <span class="archive-date">2026-04</span>
+          <span class="archive-month-name">Apr</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
     
       
       
@@ -1387,6 +1381,14 @@ $$L = \lambda \times W $$</p>
       
         
       
+        
+      
+    
+      
+        
+      
+        
+      
     
       
         
@@ -1631,10 +1633,19 @@ $$L = \lambda \times W $$</p>
       
         
       
+    
     
     
+    
+    
+      
+      
     
+      
+      
     
+      
+      
     
       
       
@@ -1863,11 +1874,17 @@ $$L = \lambda \times W $$</p>
     
       
       
+    
     
     
     
     
+    
+      
+      
     
+      
+      
     
       
       
@@ -1971,6 +1988,10 @@ $$L = \lambda \times W $$</p>
     
     
     
+    
+      
+    
+      
     
       
     
@@ -2128,6 +2149,25 @@ $$L = \lambda \times W $$</p>
         
         
         
+        <a href="https://www.jinzhi.site/tags/cloudnative/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          CloudNative
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
         <a href="https://www.jinzhi.site/tags/compile/" 
            class="tag-item" 
            style="font-size: 0.9em;"
@@ -2247,6 +2287,25 @@ $$L = \lambda \times W $$</p>
            style="font-size: 0.9em;"
            title="1 article">
           ELF
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/envoy/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Envoy
           <span class="tag-count">(1)</span>
         </a>
       
@@ -2397,9 +2456,9 @@ $$L = \lambda \times W $$</p>
         <a href="https://www.jinzhi.site/tags/l7gateway/" 
            class="tag-item" 
            style="font-size: 0.9em;"
-           title="3 articles">
+           title="4 articles">
           L7Gateway
-          <span class="tag-count">(3)</span>
+          <span class="tag-count">(4)</span>
         </a>
       
     

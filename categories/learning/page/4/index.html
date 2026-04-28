@@ -207,6 +207,82 @@
     
       <article class="post on-list">
         <h1 class="post-title">
+          <a href="https://www.jinzhi.site/posts/2024-01/ebpf-%E6%8C%87%E4%BB%A4%E9%9B%86%E8%A7%84%E8%8C%83/">eBPF 指令集规范</a>
+        </h1>
+        <div class="post-meta"><time class="post-date">2024-01-05</time></div>
+
+        
+          <span class="post-tags">
+            
+            #<a href="https://www.jinzhi.site/tags/ebpf/">eBPF</a>&nbsp;
+            
+          </span>
+        
+
+        
+
+
+        <div class="post-content">
+          
+            <p><a href="https://docs.kernel.org/bpf/standardization/instruction-set.html">1 BPF Instruction Set Specification, v1.0 — The Linux Kernel documentation</a></p>
+<h2 id="寄存器和调用约定">寄存器和调用约定</h2>
+<p>eBPF有10个通用寄存器和一个只读的帧指针寄存器，所有的寄存器都是64bits位长。</p>
+<p>eBPF的调用约定如下：</p>
+<ul>
+<li><strong>R0:</strong> 函数调用的返回值和eBPF程序的退出值</li>
+<li><strong>R1 - R5:</strong> 函数调用的参数</li>
+<li><strong>R6 - R9:</strong> callee saved registers，由函数调用负责保存到栈上</li>
+<li><strong>R10:</strong> 只读的帧指针，用于访问栈
+R0 - R5是临时寄存器，eBPF程序在函数调用时如需使用需要将它们保存/填充。</li>
+</ul>
+<h2 id="指令编码">指令编码</h2>
+<p>eBPF使用64bit指令，编码如下：</p>
+<table>
+  <thead>
+      <tr>
+          <th><strong>32位（最高有效位）</strong></th>
+          <th><strong>16位</strong></th>
+          <th><strong>4位</strong></th>
+          <th><strong>4位</strong></th>
+          <th><strong>8位（最低有效位）</strong></th>
+      </tr>
+  </thead>
+  <tbody>
+      <tr>
+          <td>immediate</td>
+          <td>offset</td>
+          <td>source register</td>
+          <td>dest register</td>
+          <td>opcode</td>
+      </tr>
+  </tbody>
+</table>
+<ul>
+<li>imm: 有符号整型立即数</li>
+<li>offset: 有符号整型数，用于指针算术</li>
+<li>src_reg: 除开特殊指令的编码外（如64位立即数指令）指的是源寄存器(R0 - R10)</li>
+<li>dst_reg: 目标寄存器(R0 - R10)</li>
+<li>opcode: 操作码</li>
+</ul>
+<p>绝大多数指令不会使用所有的字段。没有使用的字段应当被置0。多字节的字段（如imm和offset）在大端BPF中以大端字节序存储，小端BPF中以小端字节序存储。</p>
+<pre tabindex="0"><code>opcode                  offset imm          assembly
+       src_reg dst_reg
+07     0       1        00 00  44 33 22 11  r1 += 0x11223344 // little
+       dst_reg src_reg
+07     1       0        00 00  11 22 33 44  r1 += 0x11223344 // big
+</code></pre><p>除了这些基本指令编码外，eBPF还有一种宽指令编码，在基本指令之后使用第2个64位立即数做扩展。第2个立即数包括一个伪指令，和基本指令的格式一样，不过所有的字段（除了imm）都置为0。它的imm作为整个宽指令中的imm64值的高32位：</p>
+          
+        </div>
+
+        
+          <div>
+            <a class="read-more button inline" href="/posts/2024-01/ebpf-%E6%8C%87%E4%BB%A4%E9%9B%86%E8%A7%84%E8%8C%83/">[Read more]</a>
+          </div>
+        
+      </article>
+    
+      <article class="post on-list">
+        <h1 class="post-title">
           <a href="https://www.jinzhi.site/posts/2024-01/ebpf-%E5%85%A8%E5%B1%80%E5%8F%98%E9%87%8F%E7%9A%84%E5%AE%9E%E7%8E%B0/">eBPF 全局变量的实现</a>
         </h1>
         <div class="post-meta"><time class="post-date">2024-01-02</time></div>
@@ -560,66 +636,6 @@ typedef struct {
         
       </article>
     
-      <article class="post on-list">
-        <h1 class="post-title">
-          <a href="https://www.jinzhi.site/posts/2022-01/linux-%E8%BF%9B%E7%A8%8B%E8%B0%83%E5%BA%A6/">Linux 进程调度</a>
-        </h1>
-        <div class="post-meta"><time class="post-date">2022-01-11</time></div>
-
-        
-          <span class="post-tags">
-            
-            #<a href="https://www.jinzhi.site/tags/linux/">Linux</a>&nbsp;
-            
-            #<a href="https://www.jinzhi.site/tags/schedule/">Schedule</a>&nbsp;
-            
-          </span>
-        
-
-        
-
-
-        <div class="post-content">
-          
-            <p>总体来说，调度主要解决两类问题：</p>
-<ul>
-<li>什么时候调度</li>
-<li>调度的目标是谁
-而一个优秀的调度系统，可以从如下几个指标判断：</li>
-<li>fast process response time</li>
-<li>good throughput for background jobs</li>
-<li>avoidance of process starvation</li>
-<li>reconciliation of the needs of low- and high- priority processes</li>
-</ul>
-<p>Linux调度基于分时（Time-Sharing）：多个进程共享同一个CPU，CPU运行时切分成多个时间片。分时技术依赖于timer interrupt，对进程来说是透明的。</p>
-<p>Linux进程是<strong>可抢占</strong>的。当进程切换到<code>TASK_RUNNING</code>状态，内核检查其动态优先级是否比当前运行的进程的优先级高。如果更高，当前执行的进程中断掉，调度器切入，选择另外一个进程运行（通常是刚刚切换成runnable的进程）。当进程的时间片消耗完毕时，进程也是可被抢占的。当前进程<code>struct thread_info</code>中的<code>TIF_NEED_RESCHED</code>被设置，timer interrupt handler终止后，scheduler切入。</p>
-<p>一个被抢占的进程并不是被暂停，它还维持在<code>TASK_RUNNING</code>状态，只不过不再使用CPU。</p>
-<h2 id="调度算法">调度算法</h2>
-<p>Linux 2.6版本之前的调度算法很简单，进程切换时，内核扫描runnable进程列表，计算它们的优先级，选择“最优”的进程运行。这种算法的问题是切换时的时间开销会随着进程数目的增多呈线性增长。</p>
-<p>调度策略：</p>
-<ul>
-<li><code>SCHED_FIFO</code></li>
-<li><code>SCHED_RR</code></li>
-<li><code>SCHED_NORMAL</code></li>
-</ul>
-<h3 id="o1-scheduler">O(1) Scheduler</h3>
-<p>基于Linux-2.6.12版本。</p>
-<h4 id="优先级">优先级</h4>
-<p>Linux 2.6.12 内核里，优先级表示分为用户态和内核态。用户态优先级就是我们常用的nice值。取值范围[-20, 19]。内核态优先级被称作静态优先级（static priority），取值范围是[0, 139]。其中，[0, 99]是Real-Time Process，[100, 139]对应用户态nice值。</p>
-<p>在静态优先级外，真正发挥作用的是<strong>动态优先级（dynamic priority）</strong>。动态优先级实际上是静态优先级加上了一个运行时补偿（bonus）：
-$$
-dynamic_priority = max(100, min((static_priority - 5 + bonus), 139)), bonus \in [0, 10]
-$$</p>
-          
-        </div>
-
-        
-          <div>
-            <a class="read-more button inline" href="/posts/2022-01/linux-%E8%BF%9B%E7%A8%8B%E8%B0%83%E5%BA%A6/">[Read more]</a>
-          </div>
-        
-      </article>
-    
 
     <div class="pagination">
   <div class="pagination__buttons">
@@ -875,10 +891,42 @@ $$</p>
       
       
     
+      
+      
+      
+    
 
     
     
 
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2026-04/" class="archive-link">
+          <span class="archive-date">2026-04</span>
+          <span class="archive-month-name">Apr</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
     
       
       
@@ -1497,6 +1545,14 @@ $$</p>
       
         
       
+        
+      
+    
+      
+        
+      
+        
+      
     
       
         
@@ -1741,10 +1797,19 @@ $$</p>
       
         
       
+    
     
     
+    
+    
+      
+      
     
+      
+      
     
+      
+      
     
       
       
@@ -1973,11 +2038,17 @@ $$</p>
     
       
       
+    
     
     
     
     
+    
+      
+      
     
+      
+      
     
       
       
@@ -2081,6 +2152,10 @@ $$</p>
     
     
     
+    
+      
+    
+      
     
       
     
@@ -2238,6 +2313,25 @@ $$</p>
         
         
         
+        <a href="https://www.jinzhi.site/tags/cloudnative/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          CloudNative
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
         <a href="https://www.jinzhi.site/tags/compile/" 
            class="tag-item" 
            style="font-size: 0.9em;"
@@ -2357,6 +2451,25 @@ $$</p>
            style="font-size: 0.9em;"
            title="1 article">
           ELF
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/envoy/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Envoy
           <span class="tag-count">(1)</span>
         </a>
       
@@ -2507,9 +2620,9 @@ $$</p>
         <a href="https://www.jinzhi.site/tags/l7gateway/" 
            class="tag-item" 
            style="font-size: 0.9em;"
-           title="3 articles">
+           title="4 articles">
           L7Gateway
-          <span class="tag-count">(3)</span>
+          <span class="tag-count">(4)</span>
         </a>
       
     
