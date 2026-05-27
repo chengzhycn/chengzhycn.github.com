@@ -444,42 +444,42 @@
 </ul>
 <p>以 Qwen3-0.6B（hidden=1024, intermediate=2816, layers=28）处理 4096 tokens 为例：</p>
 <table>
-  <thead>
-      <tr>
-          <th>用途</th>
-          <th>估算大小</th>
-      </tr>
-  </thead>
-  <tbody>
-      <tr>
-          <td>Embedding 输出</td>
-          <td>4096 × 1024 × 2 = 8 MB</td>
-      </tr>
-      <tr>
-          <td>每层 QKV</td>
-          <td>4096 × 3 × 1024 × 2 = 24 MB</td>
-      </tr>
-      <tr>
-          <td>每层 MLP 中间</td>
-          <td>4096 × 2 × 2816 × 2 = 44 MB</td>
-      </tr>
-      <tr>
-          <td>每层 Attention 输出</td>
-          <td>4096 × 1024 × 2 = 8 MB</td>
-      </tr>
-      <tr>
-          <td><strong>28 层累计</strong></td>
-          <td>~(24 + 44 + 8) × 28 ≈ <strong>2.1 GB</strong></td>
-      </tr>
-      <tr>
-          <td>Logits</td>
-          <td>4096 × 151936 × 4 = 2.4 GB</td>
-      </tr>
-      <tr>
-          <td>cuBLAS workspace</td>
-          <td>~100-500 MB</td>
-      </tr>
-  </tbody>
+	<thead>
+			<tr>
+					<th>用途</th>
+					<th>估算大小</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>Embedding 输出</td>
+					<td>4096 × 1024 × 2 = 8 MB</td>
+			</tr>
+			<tr>
+					<td>每层 QKV</td>
+					<td>4096 × 3 × 1024 × 2 = 24 MB</td>
+			</tr>
+			<tr>
+					<td>每层 MLP 中间</td>
+					<td>4096 × 2 × 2816 × 2 = 44 MB</td>
+			</tr>
+			<tr>
+					<td>每层 Attention 输出</td>
+					<td>4096 × 1024 × 2 = 8 MB</td>
+			</tr>
+			<tr>
+					<td><strong>28 层累计</strong></td>
+					<td>~(24 + 44 + 8) × 28 ≈ <strong>2.1 GB</strong></td>
+			</tr>
+			<tr>
+					<td>Logits</td>
+					<td>4096 × 151936 × 4 = 2.4 GB</td>
+			</tr>
+			<tr>
+					<td>cuBLAS workspace</td>
+					<td>~100-500 MB</td>
+			</tr>
+	</tbody>
 </table>
 <p><strong>注意</strong>：PyTorch 会复用内存，实际峰值比简单累加要小。</p>
 <hr>
@@ -631,38 +631,38 @@ KV Cache 物理布局:
 └─────────────────────────────────────────────────────────────────┘
 </code></pre><hr>
 <table>
-  <thead>
-      <tr>
-          <th>功能</th>
-          <th>对应属性/方法</th>
-      </tr>
-  </thead>
-  <tbody>
-      <tr>
-          <td>唯一标识</td>
-          <td><code>seq_id</code></td>
-      </tr>
-      <tr>
-          <td>Token 管理</td>
-          <td><code>token_ids</code>, <code>last_token</code>, <code>num_tokens</code></td>
-      </tr>
-      <tr>
-          <td>状态追踪</td>
-          <td><code>status</code> (WAITING/RUNNING/FINISHED)</td>
-      </tr>
-      <tr>
-          <td>KV Cache 映射</td>
-          <td><code>block_table</code>, <code>num_cached_tokens</code></td>
-      </tr>
-      <tr>
-          <td>采样控制</td>
-          <td><code>temperature</code>, <code>max_tokens</code>, <code>ignore_eos</code></td>
-      </tr>
-      <tr>
-          <td>生成进度</td>
-          <td><code>num_completion_tokens</code>, <code>completion_token_ids</code></td>
-      </tr>
-  </tbody>
+	<thead>
+			<tr>
+					<th>功能</th>
+					<th>对应属性/方法</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>唯一标识</td>
+					<td><code>seq_id</code></td>
+			</tr>
+			<tr>
+					<td>Token 管理</td>
+					<td><code>token_ids</code>, <code>last_token</code>, <code>num_tokens</code></td>
+			</tr>
+			<tr>
+					<td>状态追踪</td>
+					<td><code>status</code> (WAITING/RUNNING/FINISHED)</td>
+			</tr>
+			<tr>
+					<td>KV Cache 映射</td>
+					<td><code>block_table</code>, <code>num_cached_tokens</code></td>
+			</tr>
+			<tr>
+					<td>采样控制</td>
+					<td><code>temperature</code>, <code>max_tokens</code>, <code>ignore_eos</code></td>
+			</tr>
+			<tr>
+					<td>生成进度</td>
+					<td><code>num_completion_tokens</code>, <code>completion_token_ids</code></td>
+			</tr>
+	</tbody>
 </table>
 <h3 id="阶段-3-调度阶段-每次-step">阶段 3: 调度阶段 (每次 step)<a href="#阶段-3-调度阶段-每次-step" class="hanchor" ariaLabel="Anchor">#</a> </h3>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-python" data-lang="python"><span class="line"><span class="cl"><span class="c1"># llm_engine.py</span>
@@ -880,30 +880,30 @@ running 队列恢复: [Seq A, Seq B, Seq C]  (D 被抢占)
   → sampler(logits, temperatures)  # 采样得到 token_ids
 </code></pre><h4 id="prepare_prefill">prepare_prefill<a href="#prepare_prefill" class="hanchor" ariaLabel="Anchor">#</a> </h4>
 <table>
-  <thead>
-      <tr>
-          <th>任务</th>
-          <th>说明</th>
-      </tr>
-  </thead>
-  <tbody>
-      <tr>
-          <td>收集 input_ids</td>
-          <td>所有序列的 token IDs（跳过已缓存部分）</td>
-      </tr>
-      <tr>
-          <td>计算 positions</td>
-          <td>每个 token 的位置索引（用于 RoPE）</td>
-      </tr>
-      <tr>
-          <td>构建 cu_seqlens</td>
-          <td>Flash Attention 需要的累积序列长度</td>
-      </tr>
-      <tr>
-          <td>计算 slot_mapping</td>
-          <td>KV Cache 写入位置</td>
-      </tr>
-  </tbody>
+	<thead>
+			<tr>
+					<th>任务</th>
+					<th>说明</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>收集 input_ids</td>
+					<td>所有序列的 token IDs（跳过已缓存部分）</td>
+			</tr>
+			<tr>
+					<td>计算 positions</td>
+					<td>每个 token 的位置索引（用于 RoPE）</td>
+			</tr>
+			<tr>
+					<td>构建 cu_seqlens</td>
+					<td>Flash Attention 需要的累积序列长度</td>
+			</tr>
+			<tr>
+					<td>计算 slot_mapping</td>
+					<td>KV Cache 写入位置</td>
+			</tr>
+	</tbody>
 </table>
 <h5 id="详细流程">详细流程<a href="#详细流程" class="hanchor" ariaLabel="Anchor">#</a> </h5>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-python" data-lang="python"><span class="line"><span class="cl"><span class="c1"># 假设有 2 个序列:</span>
@@ -958,34 +958,34 @@ cu_seqlens_k: [0, 1000, 1500]  ← Key 的累积长度（包含缓存）
 </span></span><span class="line"><span class="cl"><span class="c1"># slot_mapping = [5*256..5*256+255, 12*256..12*256+255, ...]</span>
 </span></span></code></pre></div><h4 id="prepare_decode">prepare_decode<a href="#prepare_decode" class="hanchor" ariaLabel="Anchor">#</a> </h4>
 <table>
-  <thead>
-      <tr>
-          <th>任务</th>
-          <th>说明</th>
-      </tr>
-  </thead>
-  <tbody>
-      <tr>
-          <td>收集 input_ids</td>
-          <td>每个序列只取 <strong>last_token</strong></td>
-      </tr>
-      <tr>
-          <td>计算 positions</td>
-          <td>每个序列只有 <strong>一个位置</strong></td>
-      </tr>
-      <tr>
-          <td>计算 slot_mapping</td>
-          <td>新 token 的 KV 写入位置</td>
-      </tr>
-      <tr>
-          <td>收集 context_lens</td>
-          <td>每个序列的总长度（用于 attention）</td>
-      </tr>
-      <tr>
-          <td>构建 block_tables</td>
-          <td>KV Cache 的 block 映射</td>
-      </tr>
-  </tbody>
+	<thead>
+			<tr>
+					<th>任务</th>
+					<th>说明</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>收集 input_ids</td>
+					<td>每个序列只取 <strong>last_token</strong></td>
+			</tr>
+			<tr>
+					<td>计算 positions</td>
+					<td>每个序列只有 <strong>一个位置</strong></td>
+			</tr>
+			<tr>
+					<td>计算 slot_mapping</td>
+					<td>新 token 的 KV 写入位置</td>
+			</tr>
+			<tr>
+					<td>收集 context_lens</td>
+					<td>每个序列的总长度（用于 attention）</td>
+			</tr>
+			<tr>
+					<td>构建 block_tables</td>
+					<td>KV Cache 的 block 映射</td>
+			</tr>
+	</tbody>
 </table>
 <h5 id="详细流程-1">详细流程<a href="#详细流程-1" class="hanchor" ariaLabel="Anchor">#</a> </h5>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-python" data-lang="python"><span class="line"><span class="cl"><span class="c1"># 假设有 3 个序列正在 decode:</span>
@@ -1136,94 +1136,94 @@ Decode (一次只处理一个 token):
 </span></span><span class="line"><span class="cl">    <span class="p">)</span>
 </span></span></code></pre></div><h6 id="效率对比">效率对比<a href="#效率对比" class="hanchor" ariaLabel="Anchor">#</a> </h6>
 <table>
-  <thead>
-      <tr>
-          <th>方式</th>
-          <th>每步计算量</th>
-          <th>生成 N 个 token 总量</th>
-      </tr>
-  </thead>
-  <tbody>
-      <tr>
-          <td>无 KV Cache</td>
-          <td>O(N × d)</td>
-          <td>O(N² × d)</td>
-      </tr>
-      <tr>
-          <td>有 KV Cache</td>
-          <td>O(1 × d)</td>
-          <td>O(N × d)</td>
-      </tr>
-  </tbody>
+	<thead>
+			<tr>
+					<th>方式</th>
+					<th>每步计算量</th>
+					<th>生成 N 个 token 总量</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>无 KV Cache</td>
+					<td>O(N × d)</td>
+					<td>O(N² × d)</td>
+			</tr>
+			<tr>
+					<td>有 KV Cache</td>
+					<td>O(1 × d)</td>
+					<td>O(N × d)</td>
+			</tr>
+	</tbody>
 </table>
 <p><strong>KV Cache 让 decode 阶段从 O(N²) 降到 O(N)！</strong></p>
 <h6 id="总结">总结<a href="#总结" class="hanchor" ariaLabel="Anchor">#</a> </h6>
 <table>
-  <thead>
-      <tr>
-          <th>阶段</th>
-          <th>输入</th>
-          <th>计算</th>
-          <th>原因</th>
-      </tr>
-  </thead>
-  <tbody>
-      <tr>
-          <td>Prefill</td>
-          <td>全部 prompt tokens</td>
-          <td>全部 Q,K,V + 写入 cache</td>
-          <td>第一次见到这些 token</td>
-      </tr>
-      <tr>
-          <td>Decode</td>
-          <td>仅 last token</td>
-          <td>只算新 Q,K,V + 读 cache</td>
-          <td>历史 K,V 已缓存，只需计算新 token</td>
-      </tr>
-  </tbody>
+	<thead>
+			<tr>
+					<th>阶段</th>
+					<th>输入</th>
+					<th>计算</th>
+					<th>原因</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>Prefill</td>
+					<td>全部 prompt tokens</td>
+					<td>全部 Q,K,V + 写入 cache</td>
+					<td>第一次见到这些 token</td>
+			</tr>
+			<tr>
+					<td>Decode</td>
+					<td>仅 last token</td>
+					<td>只算新 Q,K,V + 读 cache</td>
+					<td>历史 K,V 已缓存，只需计算新 token</td>
+			</tr>
+	</tbody>
 </table>
 <p><strong>一句话</strong>：因为 attention 需要的历史 K,V 已经存在 cache 里了，新 token 只需要计算自己的 K,V 并追加到 cache，然后用自己的 Q 去查询全部历史即可。</p>
 <h5 id="对比总结">对比总结<a href="#对比总结" class="hanchor" ariaLabel="Anchor">#</a> </h5>
 <table>
-  <thead>
-      <tr>
-          <th>特征</th>
-          <th>prepare_prefill</th>
-          <th>prepare_decode</th>
-      </tr>
-  </thead>
-  <tbody>
-      <tr>
-          <td><strong>input_ids 数量</strong></td>
-          <td>所有待处理 token（可能上千）</td>
-          <td>每序列仅 1 个</td>
-      </tr>
-      <tr>
-          <td><strong>positions</strong></td>
-          <td>连续范围 [start, end)</td>
-          <td>单个位置</td>
-      </tr>
-      <tr>
-          <td><strong>cu_seqlens</strong></td>
-          <td>需要（Flash Attention varlen）</td>
-          <td>不需要</td>
-      </tr>
-      <tr>
-          <td><strong>context_lens</strong></td>
-          <td>不需要</td>
-          <td>需要（告诉 attention 历史长度）</td>
-      </tr>
-      <tr>
-          <td><strong>block_tables</strong></td>
-          <td>仅 prefix cache 时需要</td>
-          <td>始终需要</td>
-      </tr>
-      <tr>
-          <td><strong>slot_mapping</strong></td>
-          <td>多个连续槽位</td>
-          <td>每序列仅 1 个槽位</td>
-      </tr>
-  </tbody>
+	<thead>
+			<tr>
+					<th>特征</th>
+					<th>prepare_prefill</th>
+					<th>prepare_decode</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td><strong>input_ids 数量</strong></td>
+					<td>所有待处理 token（可能上千）</td>
+					<td>每序列仅 1 个</td>
+			</tr>
+			<tr>
+					<td><strong>positions</strong></td>
+					<td>连续范围 [start, end)</td>
+					<td>单个位置</td>
+			</tr>
+			<tr>
+					<td><strong>cu_seqlens</strong></td>
+					<td>需要（Flash Attention varlen）</td>
+					<td>不需要</td>
+			</tr>
+			<tr>
+					<td><strong>context_lens</strong></td>
+					<td>不需要</td>
+					<td>需要（告诉 attention 历史长度）</td>
+			</tr>
+			<tr>
+					<td><strong>block_tables</strong></td>
+					<td>仅 prefix cache 时需要</td>
+					<td>始终需要</td>
+			</tr>
+			<tr>
+					<td><strong>slot_mapping</strong></td>
+					<td>多个连续槽位</td>
+					<td>每序列仅 1 个槽位</td>
+			</tr>
+	</tbody>
 </table>
 <h5 id="数据流向">数据流向<a href="#数据流向" class="hanchor" ariaLabel="Anchor">#</a> </h5>
 <pre tabindex="0"><code>prepare_prefill / prepare_decode
@@ -1303,45 +1303,45 @@ Decode (一次只处理一个 token):
 </span></span><span class="line"><span class="cl"><span class="n">k_cache</span><span class="p">,</span> <span class="n">v_cache</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">k_cache</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">v_cache</span>
 </span></span></code></pre></div><p><code>context</code> 包含当前 batch 的元信息（在 <code>prepare_prefill/decode</code> 中设置）：</p>
 <table>
-  <thead>
-      <tr>
-          <th>字段</th>
-          <th>Prefill</th>
-          <th>Decode</th>
-      </tr>
-  </thead>
-  <tbody>
-      <tr>
-          <td><code>is_prefill</code></td>
-          <td>True</td>
-          <td>False</td>
-      </tr>
-      <tr>
-          <td><code>cu_seqlens_q</code></td>
-          <td>累积 Q 长度</td>
-          <td>-</td>
-      </tr>
-      <tr>
-          <td><code>cu_seqlens_k</code></td>
-          <td>累积 K 长度</td>
-          <td>-</td>
-      </tr>
-      <tr>
-          <td><code>slot_mapping</code></td>
-          <td>KV 写入位置</td>
-          <td>单个位置</td>
-      </tr>
-      <tr>
-          <td><code>context_lens</code></td>
-          <td>-</td>
-          <td>每序列历史长度</td>
-      </tr>
-      <tr>
-          <td><code>block_tables</code></td>
-          <td>(prefix cache时)</td>
-          <td>必需</td>
-      </tr>
-  </tbody>
+	<thead>
+			<tr>
+					<th>字段</th>
+					<th>Prefill</th>
+					<th>Decode</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td><code>is_prefill</code></td>
+					<td>True</td>
+					<td>False</td>
+			</tr>
+			<tr>
+					<td><code>cu_seqlens_q</code></td>
+					<td>累积 Q 长度</td>
+					<td>-</td>
+			</tr>
+			<tr>
+					<td><code>cu_seqlens_k</code></td>
+					<td>累积 K 长度</td>
+					<td>-</td>
+			</tr>
+			<tr>
+					<td><code>slot_mapping</code></td>
+					<td>KV 写入位置</td>
+					<td>单个位置</td>
+			</tr>
+			<tr>
+					<td><code>context_lens</code></td>
+					<td>-</td>
+					<td>每序列历史长度</td>
+			</tr>
+			<tr>
+					<td><code>block_tables</code></td>
+					<td>(prefix cache时)</td>
+					<td>必需</td>
+			</tr>
+	</tbody>
 </table>
 <h5 id="step-2-写入-kv-cache">Step 2: 写入 KV Cache<a href="#step-2-写入-kv-cache" class="hanchor" ariaLabel="Anchor">#</a> </h5>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-python" data-lang="python"><span class="line"><span class="cl"><span class="k">if</span> <span class="n">k_cache</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span> <span class="ow">and</span> <span class="n">v_cache</span><span class="o">.</span><span class="n">numel</span><span class="p">():</span>
@@ -1482,26 +1482,26 @@ KV heads: [  kv0     ] [  kv1     ] [  kv2      ] [   kv3      ]
 KV Cache 大小减少 4 倍！
 </code></pre><h5 id="为什么用-flash-attention">为什么用 Flash Attention？<a href="#为什么用-flash-attention" class="hanchor" ariaLabel="Anchor">#</a> </h5>
 <table>
-  <thead>
-      <tr>
-          <th>传统 Attention</th>
-          <th>Flash Attention</th>
-      </tr>
-  </thead>
-  <tbody>
-      <tr>
-          <td>显存 O(N²)</td>
-          <td>显存 O(N)</td>
-      </tr>
-      <tr>
-          <td>需要存完整 attention matrix</td>
-          <td>分块计算，不存中间结果</td>
-      </tr>
-      <tr>
-          <td>内存带宽瓶颈</td>
-          <td>IO-aware，减少 HBM 访问</td>
-      </tr>
-  </tbody>
+	<thead>
+			<tr>
+					<th>传统 Attention</th>
+					<th>Flash Attention</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>显存 O(N²)</td>
+					<td>显存 O(N)</td>
+			</tr>
+			<tr>
+					<td>需要存完整 attention matrix</td>
+					<td>分块计算，不存中间结果</td>
+			</tr>
+			<tr>
+					<td>内存带宽瓶颈</td>
+					<td>IO-aware，减少 HBM 访问</td>
+			</tr>
+	</tbody>
 </table>
 <p><strong>Flash Attention 的核心思想</strong>：</p>
 <pre tabindex="0"><code>传统: Q @ K^T → [N, N] attention matrix → softmax → @ V
@@ -1512,30 +1512,30 @@ Flash: 分块处理，在 SRAM 中完成 softmax
        - 通过 online softmax 技巧保证正确性
 </code></pre><h5 id="总结-1">总结<a href="#总结-1" class="hanchor" ariaLabel="Anchor">#</a> </h5>
 <table>
-  <thead>
-      <tr>
-          <th>阶段</th>
-          <th>函数</th>
-          <th>特点</th>
-      </tr>
-  </thead>
-  <tbody>
-      <tr>
-          <td>Prefill</td>
-          <td><code>flash_attn_varlen_func</code></td>
-          <td>多 token，变长 batch，自己算的 K,V</td>
-      </tr>
-      <tr>
-          <td>Prefill + Prefix Cache</td>
-          <td><code>flash_attn_varlen_func</code> + block_table</td>
-          <td>部分 K,V 从 cache 读取</td>
-      </tr>
-      <tr>
-          <td>Decode</td>
-          <td><code>flash_attn_with_kvcache</code></td>
-          <td>单 token，全部 K,V 从 cache 读取</td>
-      </tr>
-  </tbody>
+	<thead>
+			<tr>
+					<th>阶段</th>
+					<th>函数</th>
+					<th>特点</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>Prefill</td>
+					<td><code>flash_attn_varlen_func</code></td>
+					<td>多 token，变长 batch，自己算的 K,V</td>
+			</tr>
+			<tr>
+					<td>Prefill + Prefix Cache</td>
+					<td><code>flash_attn_varlen_func</code> + block_table</td>
+					<td>部分 K,V 从 cache 读取</td>
+			</tr>
+			<tr>
+					<td>Decode</td>
+					<td><code>flash_attn_with_kvcache</code></td>
+					<td>单 token，全部 K,V 从 cache 读取</td>
+			</tr>
+	</tbody>
 </table>
 <h3 id="阶段-6-后处理与输出">阶段 6: 后处理与输出<a href="#阶段-6-后处理与输出" class="hanchor" ariaLabel="Anchor">#</a> </h3>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-python" data-lang="python"><span class="line"><span class="cl"><span class="c1"># llm_engine.py</span>
@@ -1565,22 +1565,22 @@ Flash: 分块处理，在 SRAM 中完成 softmax
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-python" data-lang="python"><span class="line"><span class="cl"><span class="k">if</span> <span class="p">(</span><span class="ow">not</span> <span class="n">seq</span><span class="o">.</span><span class="n">ignore_eos</span> <span class="ow">and</span> <span class="n">token_id</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">eos</span><span class="p">)</span> <span class="ow">or</span> <span class="n">seq</span><span class="o">.</span><span class="n">num_completion_tokens</span> <span class="o">==</span> <span class="n">seq</span><span class="o">.</span><span class="n">max_tokens</span><span class="p">:</span>
 </span></span></code></pre></div><p><strong>两种完成条件</strong>：</p>
 <table>
-  <thead>
-      <tr>
-          <th>条件</th>
-          <th>说明</th>
-      </tr>
-  </thead>
-  <tbody>
-      <tr>
-          <td><code>token_id == self.eos</code></td>
-          <td>生成了 EOS (End of Sequence) token</td>
-      </tr>
-      <tr>
-          <td><code>num_completion_tokens == max_tokens</code></td>
-          <td>达到最大生成长度</td>
-      </tr>
-  </tbody>
+	<thead>
+			<tr>
+					<th>条件</th>
+					<th>说明</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td><code>token_id == self.eos</code></td>
+					<td>生成了 EOS (End of Sequence) token</td>
+			</tr>
+			<tr>
+					<td><code>num_completion_tokens == max_tokens</code></td>
+					<td>达到最大生成长度</td>
+			</tr>
+	</tbody>
 </table>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-python" data-lang="python"><span class="line"><span class="cl"><span class="c1"># sampling_params.py</span>
 </span></span><span class="line"><span class="cl"><span class="nd">@dataclass</span>
@@ -1632,38 +1632,38 @@ scheduler.postprocess(seqs, token_ids)
                        Yes → FINISHED, deallocate, remove
 </code></pre><h3 id="核心特性总结">核心特性总结<a href="#核心特性总结" class="hanchor" ariaLabel="Anchor">#</a> </h3>
 <table>
-  <thead>
-      <tr>
-          <th>特性</th>
-          <th>实现方式</th>
-      </tr>
-  </thead>
-  <tbody>
-      <tr>
-          <td><strong>Continuous Batching</strong></td>
-          <td>Scheduler 的 waiting/running 双队列管理</td>
-      </tr>
-      <tr>
-          <td><strong>Paged Attention</strong></td>
-          <td>BlockManager + flash_attn_with_kvcache</td>
-      </tr>
-      <tr>
-          <td><strong>Prefix Cache</strong></td>
-          <td>基于 xxhash 的 block hash 匹配</td>
-      </tr>
-      <tr>
-          <td><strong>CUDA Graph</strong></td>
-          <td>decode 阶段预捕获多种 batch size 的 graph</td>
-      </tr>
-      <tr>
-          <td><strong>Tensor Parallelism</strong></td>
-          <td>SharedMemory + Event 同步多 GPU</td>
-      </tr>
-      <tr>
-          <td><strong>抢占机制</strong></td>
-          <td>preempt() 回收 KV Cache 资源</td>
-      </tr>
-  </tbody>
+	<thead>
+			<tr>
+					<th>特性</th>
+					<th>实现方式</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td><strong>Continuous Batching</strong></td>
+					<td>Scheduler 的 waiting/running 双队列管理</td>
+			</tr>
+			<tr>
+					<td><strong>Paged Attention</strong></td>
+					<td>BlockManager + flash_attn_with_kvcache</td>
+			</tr>
+			<tr>
+					<td><strong>Prefix Cache</strong></td>
+					<td>基于 xxhash 的 block hash 匹配</td>
+			</tr>
+			<tr>
+					<td><strong>CUDA Graph</strong></td>
+					<td>decode 阶段预捕获多种 batch size 的 graph</td>
+			</tr>
+			<tr>
+					<td><strong>Tensor Parallelism</strong></td>
+					<td>SharedMemory + Event 同步多 GPU</td>
+			</tr>
+			<tr>
+					<td><strong>抢占机制</strong></td>
+					<td>preempt() 回收 KV Cache 资源</td>
+			</tr>
+	</tbody>
 </table>
 <h3 id="完整一轮推理的调用序列">完整一轮推理的调用序列<a href="#完整一轮推理的调用序列" class="hanchor" ariaLabel="Anchor">#</a> </h3>
 <pre tabindex="0"><code>generate()
@@ -1740,30 +1740,30 @@ scheduler.postprocess(seqs, token_ids)
 </span></span><span class="line"><span class="cl">        <span class="bp">self</span><span class="o">.</span><span class="n">free_block_ids</span><span class="p">:</span> <span class="n">deque</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="n">deque</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">num_blocks</span><span class="p">))</span>
 </span></span><span class="line"><span class="cl">        <span class="bp">self</span><span class="o">.</span><span class="n">used_block_ids</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
 </span></span></code></pre></div><table>
-  <thead>
-      <tr>
-          <th>属性</th>
-          <th>作用</th>
-      </tr>
-  </thead>
-  <tbody>
-      <tr>
-          <td><code>blocks</code></td>
-          <td>所有 Block 对象的列表</td>
-      </tr>
-      <tr>
-          <td><code>free_block_ids</code></td>
-          <td>空闲 block 的 ID 队列</td>
-      </tr>
-      <tr>
-          <td><code>used_block_ids</code></td>
-          <td>已使用 block 的 ID 集合</td>
-      </tr>
-      <tr>
-          <td><code>hash_to_block_id</code></td>
-          <td>用于 Prefix Cache 的哈希映射</td>
-      </tr>
-  </tbody>
+	<thead>
+			<tr>
+					<th>属性</th>
+					<th>作用</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td><code>blocks</code></td>
+					<td>所有 Block 对象的列表</td>
+			</tr>
+			<tr>
+					<td><code>free_block_ids</code></td>
+					<td>空闲 block 的 ID 队列</td>
+			</tr>
+			<tr>
+					<td><code>used_block_ids</code></td>
+					<td>已使用 block 的 ID 集合</td>
+			</tr>
+			<tr>
+					<td><code>hash_to_block_id</code></td>
+					<td>用于 Prefix Cache 的哈希映射</td>
+			</tr>
+	</tbody>
 </table>
 <p>Block:</p>
 <div class="highlight"><pre tabindex="0" class="chroma"><code class="language-8:23:nanovllm/engine/block_manager.py" data-lang="8:23:nanovllm/engine/block_manager.py"><span class="line"><span class="cl"><span class="k">class</span> <span class="nc">Block</span><span class="p">:</span>
@@ -1909,40 +1909,40 @@ Block 2 hash = hash(tokens_2, prefix=Block_1_hash)
 效果: 请求 2 跳过了 Block 0 的 256 tokens 的 prefill 计算
 </code></pre><h3 id="总结-2">总结<a href="#总结-2" class="hanchor" ariaLabel="Anchor">#</a> </h3>
 <table>
-  <thead>
-      <tr>
-          <th>功能</th>
-          <th>方法</th>
-          <th>调用时机</th>
-      </tr>
-  </thead>
-  <tbody>
-      <tr>
-          <td>检查能否分配</td>
-          <td><code>can_allocate(seq)</code></td>
-          <td>Prefill 调度前</td>
-      </tr>
-      <tr>
-          <td>分配 blocks</td>
-          <td><code>allocate(seq)</code></td>
-          <td>Prefill 调度时</td>
-      </tr>
-      <tr>
-          <td>检查能否追加</td>
-          <td><code>can_append(seq)</code></td>
-          <td>Decode 调度前</td>
-      </tr>
-      <tr>
-          <td>追加 block</td>
-          <td><code>may_append(seq)</code></td>
-          <td>Decode 调度时</td>
-      </tr>
-      <tr>
-          <td>释放 blocks</td>
-          <td><code>deallocate(seq)</code></td>
-          <td>完成/抢占时</td>
-      </tr>
-  </tbody>
+	<thead>
+			<tr>
+					<th>功能</th>
+					<th>方法</th>
+					<th>调用时机</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>检查能否分配</td>
+					<td><code>can_allocate(seq)</code></td>
+					<td>Prefill 调度前</td>
+			</tr>
+			<tr>
+					<td>分配 blocks</td>
+					<td><code>allocate(seq)</code></td>
+					<td>Prefill 调度时</td>
+			</tr>
+			<tr>
+					<td>检查能否追加</td>
+					<td><code>can_append(seq)</code></td>
+					<td>Decode 调度前</td>
+			</tr>
+			<tr>
+					<td>追加 block</td>
+					<td><code>may_append(seq)</code></td>
+					<td>Decode 调度时</td>
+			</tr>
+			<tr>
+					<td>释放 blocks</td>
+					<td><code>deallocate(seq)</code></td>
+					<td>完成/抢占时</td>
+			</tr>
+	</tbody>
 </table>
 
       </div></div>

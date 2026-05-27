@@ -361,55 +361,55 @@ Lock-Free Lock-Free 是一个相对较弱的保证，但仍然非常强大和有
 <li><strong>不广泛适用：</strong> 只有少数特定场景（例如，需要极高可靠性和确定性实时响应的系统）才值得投入巨大的成本去实现 Wait-Free。</li>
 </ul>
 <table>
-  <thead>
-      <tr>
-          <th style="text-align: left">特性</th>
-          <th style="text-align: left">Lock-Free (无锁)</th>
-          <th style="text-align: left">Wait-Free (无等待)</th>
-      </tr>
-  </thead>
-  <tbody>
-      <tr>
-          <td style="text-align: left"><strong>死锁</strong></td>
-          <td style="text-align: left">否（Deadlock-Free）</td>
-          <td style="text-align: left">否（Deadlock-Free）</td>
-      </tr>
-      <tr>
-          <td style="text-align: left"><strong>活锁</strong></td>
-          <td style="text-align: left">否（Livelock-Free，通常通过设计避免，但非严格保证）</td>
-          <td style="text-align: left">否（Livelock-Free）</td>
-      </tr>
-      <tr>
-          <td style="text-align: left"><strong>饥饿</strong></td>
-          <td style="text-align: left">可能（Starvation Possible）</td>
-          <td style="text-align: left">否（Starvation-Free）</td>
-      </tr>
-      <tr>
-          <td style="text-align: left"><strong>进度保证</strong></td>
-          <td style="text-align: left">系统整体有进度，总有一个线程能前进。</td>
-          <td style="text-align: left">每个线程都有进度，每个线程都能在有限步内完成操作。</td>
-      </tr>
-      <tr>
-          <td style="text-align: left"><strong>实现难度</strong></td>
-          <td style="text-align: left">困难，需要深入理解内存模型和原子操作。</td>
-          <td style="text-align: left">极难，需要高级理论知识和复杂算法，通常涉及帮助其他线程。</td>
-      </tr>
-      <tr>
-          <td style="text-align: left"><strong>典型实现</strong></td>
-          <td style="text-align: left">CAS, LL/SC 等原子操作。</td>
-          <td style="text-align: left">更复杂的帮助机制，结合原子操作。</td>
-      </tr>
-      <tr>
-          <td style="text-align: left"><strong>性能</strong></td>
-          <td style="text-align: left">通常高于锁，尤其在竞争不激烈时。可能因重试导致性能波动。</td>
-          <td style="text-align: left">通常比 Lock-Free 更低，因为需要额外工作来保证无饥饿。</td>
-      </tr>
-      <tr>
-          <td style="text-align: left"><strong>适用场景</strong></td>
-          <td style="text-align: left">大多数高性能并发数据结构，对吞吐量要求高，可容忍少量饥饿。</td>
-          <td style="text-align: left">对实时性、可靠性要求极高，任何线程阻塞都不可接受的系统（例如，操作系统内核、高性能交换机等）。</td>
-      </tr>
-  </tbody>
+	<thead>
+			<tr>
+					<th style="text-align: left">特性</th>
+					<th style="text-align: left">Lock-Free (无锁)</th>
+					<th style="text-align: left">Wait-Free (无等待)</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td style="text-align: left"><strong>死锁</strong></td>
+					<td style="text-align: left">否（Deadlock-Free）</td>
+					<td style="text-align: left">否（Deadlock-Free）</td>
+			</tr>
+			<tr>
+					<td style="text-align: left"><strong>活锁</strong></td>
+					<td style="text-align: left">否（Livelock-Free，通常通过设计避免，但非严格保证）</td>
+					<td style="text-align: left">否（Livelock-Free）</td>
+			</tr>
+			<tr>
+					<td style="text-align: left"><strong>饥饿</strong></td>
+					<td style="text-align: left">可能（Starvation Possible）</td>
+					<td style="text-align: left">否（Starvation-Free）</td>
+			</tr>
+			<tr>
+					<td style="text-align: left"><strong>进度保证</strong></td>
+					<td style="text-align: left">系统整体有进度，总有一个线程能前进。</td>
+					<td style="text-align: left">每个线程都有进度，每个线程都能在有限步内完成操作。</td>
+			</tr>
+			<tr>
+					<td style="text-align: left"><strong>实现难度</strong></td>
+					<td style="text-align: left">困难，需要深入理解内存模型和原子操作。</td>
+					<td style="text-align: left">极难，需要高级理论知识和复杂算法，通常涉及帮助其他线程。</td>
+			</tr>
+			<tr>
+					<td style="text-align: left"><strong>典型实现</strong></td>
+					<td style="text-align: left">CAS, LL/SC 等原子操作。</td>
+					<td style="text-align: left">更复杂的帮助机制，结合原子操作。</td>
+			</tr>
+			<tr>
+					<td style="text-align: left"><strong>性能</strong></td>
+					<td style="text-align: left">通常高于锁，尤其在竞争不激烈时。可能因重试导致性能波动。</td>
+					<td style="text-align: left">通常比 Lock-Free 更低，因为需要额外工作来保证无饥饿。</td>
+			</tr>
+			<tr>
+					<td style="text-align: left"><strong>适用场景</strong></td>
+					<td style="text-align: left">大多数高性能并发数据结构，对吞吐量要求高，可容忍少量饥饿。</td>
+					<td style="text-align: left">对实时性、可靠性要求极高，任何线程阻塞都不可接受的系统（例如，操作系统内核、高性能交换机等）。</td>
+			</tr>
+	</tbody>
 </table>
 <h2 id="lock-coupling">Lock Coupling<a href="#lock-coupling" class="hanchor" ariaLabel="Anchor">#</a> </h2>
 <h3 id="lock-coupled-linked-list">Lock-coupled linked list<a href="#lock-coupled-linked-list" class="hanchor" ariaLabel="Anchor">#</a> </h3>

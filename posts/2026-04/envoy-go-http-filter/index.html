@@ -347,55 +347,55 @@ DSO (动态共享对象) 加载机制 Go HTTP 过滤器通过 contrib/golang/com
 </span></span></span></code></pre></div><p>这会分配逐个工作线程 (per-worker-thread) 的请求映射 (<code>shim.go:70-79</code>)，大小取决于 Envoy 的并发设置。这由 <code>sync.Once</code> 保护。</p>
 <p><strong>时间线总结</strong></p>
 <table>
-  <thead>
-      <tr>
-          <th>步骤</th>
-          <th>操作</th>
-          <th>位置</th>
-      </tr>
-  </thead>
-  <tbody>
-      <tr>
-          <td>1</td>
-          <td>Envoy 在解析配置时调用 dlopen()</td>
-          <td>dso.cc:26</td>
-      </tr>
-      <tr>
-          <td>2</td>
-          <td>Go 运行时引导 (GC, 调度器, G0/M0)</td>
-          <td>Go 内部 <code>__attribute__((constructor))</code></td>
-      </tr>
-      <tr>
-          <td>3</td>
-          <td>api_impl init() 运行：注册 CAPI, 首次 CGo 回调, 派生日志同步协程</td>
-          <td>api_impl/capi_impl.go:61</td>
-      </tr>
-      <tr>
-          <td>4</td>
-          <td>插件 init() 运行：注册过滤器工厂</td>
-          <td>用户插件代码</td>
-      </tr>
-      <tr>
-          <td>5</td>
-          <td>dlopen() 返回</td>
-          <td>dso.cc:26</td>
-      </tr>
-      <tr>
-          <td>6</td>
-          <td>dlsym() 解析 10 个 Go 导出的符号</td>
-          <td>dso.cc:47-70</td>
-      </tr>
-      <tr>
-          <td>7</td>
-          <td>newGoPluginConfig() 调用 Go; Requests.initialize(concurrency) 运行一次</td>
-          <td>config.go:70, shim.go:70</td>
-      </tr>
-      <tr>
-          <td>8</td>
-          <td>第一个请求触发 createRequest() 和用户的 StreamFilterFactory</td>
-          <td>shim.go:128</td>
-      </tr>
-  </tbody>
+	<thead>
+			<tr>
+					<th>步骤</th>
+					<th>操作</th>
+					<th>位置</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>1</td>
+					<td>Envoy 在解析配置时调用 dlopen()</td>
+					<td>dso.cc:26</td>
+			</tr>
+			<tr>
+					<td>2</td>
+					<td>Go 运行时引导 (GC, 调度器, G0/M0)</td>
+					<td>Go 内部 <code>__attribute__((constructor))</code></td>
+			</tr>
+			<tr>
+					<td>3</td>
+					<td>api_impl init() 运行：注册 CAPI, 首次 CGo 回调, 派生日志同步协程</td>
+					<td>api_impl/capi_impl.go:61</td>
+			</tr>
+			<tr>
+					<td>4</td>
+					<td>插件 init() 运行：注册过滤器工厂</td>
+					<td>用户插件代码</td>
+			</tr>
+			<tr>
+					<td>5</td>
+					<td>dlopen() 返回</td>
+					<td>dso.cc:26</td>
+			</tr>
+			<tr>
+					<td>6</td>
+					<td>dlsym() 解析 10 个 Go 导出的符号</td>
+					<td>dso.cc:47-70</td>
+			</tr>
+			<tr>
+					<td>7</td>
+					<td>newGoPluginConfig() 调用 Go; Requests.initialize(concurrency) 运行一次</td>
+					<td>config.go:70, shim.go:70</td>
+			</tr>
+			<tr>
+					<td>8</td>
+					<td>第一个请求触发 createRequest() 和用户的 StreamFilterFactory</td>
+					<td>shim.go:128</td>
+			</tr>
+	</tbody>
 </table>
 <p><strong>线程注意事项</strong></p>
 <ul>
@@ -667,34 +667,34 @@ Go: sema.signal() — 解锁等待中的协程
 Go: [协程唤醒, 返回结果]
 </code></pre><p><strong>回调模式对比：</strong></p>
 <table>
-  <thead>
-      <tr>
-          <th>模式</th>
-          <th>示例</th>
-          <th>线程安全</th>
-          <th>使用场景</th>
-      </tr>
-  </thead>
-  <tbody>
-      <tr>
-          <td><strong>异步投递 (Async post)</strong></td>
-          <td><code>Continue()</code></td>
-          <td>Go：任意线程；C++：调度器投递到工作线程</td>
-          <td>恢复过滤器链</td>
-      </tr>
-      <tr>
-          <td><strong>阻塞 (Blocking)</strong></td>
-          <td><code>GetDynamicMetadata()</code></td>
-          <td>Go：在 sync.Cond 上阻塞；C++：在工作线程运行并回传信号</td>
-          <td>读取同步状态</td>
-      </tr>
-      <tr>
-          <td><strong>立即响应 (Immediate)</strong></td>
-          <td><code>SendLocalReply()</code></td>
-          <td>Go：任意线程；C++：投递到调度器</td>
-          <td>发送响应</td>
-      </tr>
-  </tbody>
+	<thead>
+			<tr>
+					<th>模式</th>
+					<th>示例</th>
+					<th>线程安全</th>
+					<th>使用场景</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td><strong>异步投递 (Async post)</strong></td>
+					<td><code>Continue()</code></td>
+					<td>Go：任意线程；C++：调度器投递到工作线程</td>
+					<td>恢复过滤器链</td>
+			</tr>
+			<tr>
+					<td><strong>阻塞 (Blocking)</strong></td>
+					<td><code>GetDynamicMetadata()</code></td>
+					<td>Go：在 sync.Cond 上阻塞；C++：在工作线程运行并回传信号</td>
+					<td>读取同步状态</td>
+			</tr>
+			<tr>
+					<td><strong>立即响应 (Immediate)</strong></td>
+					<td><code>SendLocalReply()</code></td>
+					<td>Go：任意线程；C++：投递到调度器</td>
+					<td>发送响应</td>
+			</tr>
+	</tbody>
 </table>
 <h3 id="清理-cleanup">清理 (Cleanup)<a href="#清理-cleanup" class="hanchor" ariaLabel="Anchor">#</a> </h3>
 <ol start="14">
@@ -717,46 +717,46 @@ Go: [协程唤醒, 返回结果]
 </span></span></span></code></pre></div><p>在 <code>init()</code> 中使用 <code>RegisterHttpFilterFactoryAndConfigParser()</code> (<code>contrib/golang/filters/http/source/go/pkg/http/filtermanager.go:53</code>) 进行注册。你可以嵌入 <code>PassThroughStreamFilter</code> 以仅覆盖你关心的函数。具体示例可参考 <code>contrib/golang/filters/http/test/test_data/basic/</code>。</p>
 <h2 id="关键文件-key-files">关键文件 (Key Files)<a href="#关键文件-key-files" class="hanchor" ariaLabel="Anchor">#</a> </h2>
 <table>
-  <thead>
-      <tr>
-          <th>区域</th>
-          <th>文件</th>
-      </tr>
-  </thead>
-  <tbody>
-      <tr>
-          <td>C ABI 头文件</td>
-          <td><code>contrib/golang/common/go/api/api.h</code></td>
-      </tr>
-      <tr>
-          <td>DSO 加载</td>
-          <td><code>contrib/golang/common/dso/dso.{h,cc}</code></td>
-      </tr>
-      <tr>
-          <td>过滤器工厂</td>
-          <td><code>contrib/golang/filters/http/source/config.cc</code></td>
-      </tr>
-      <tr>
-          <td>核心过滤器逻辑</td>
-          <td><code>contrib/golang/filters/http/source/golang_filter.{h,cc}</code></td>
-      </tr>
-      <tr>
-          <td>Go-&gt;C++ 回调</td>
-          <td><code>contrib/golang/filters/http/source/cgo.cc</code></td>
-      </tr>
-      <tr>
-          <td>Go CGo 适配层</td>
-          <td><code>contrib/golang/filters/http/source/go/pkg/http/shim.go</code></td>
-      </tr>
-      <tr>
-          <td>Go SDK 接口</td>
-          <td><code>contrib/golang/common/go/api/filter.go</code></td>
-      </tr>
-      <tr>
-          <td>Proto 配置</td>
-          <td><code>api/contrib/envoy/extensions/filters/http/golang/v3alpha/golang.proto</code></td>
-      </tr>
-  </tbody>
+	<thead>
+			<tr>
+					<th>区域</th>
+					<th>文件</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>C ABI 头文件</td>
+					<td><code>contrib/golang/common/go/api/api.h</code></td>
+			</tr>
+			<tr>
+					<td>DSO 加载</td>
+					<td><code>contrib/golang/common/dso/dso.{h,cc}</code></td>
+			</tr>
+			<tr>
+					<td>过滤器工厂</td>
+					<td><code>contrib/golang/filters/http/source/config.cc</code></td>
+			</tr>
+			<tr>
+					<td>核心过滤器逻辑</td>
+					<td><code>contrib/golang/filters/http/source/golang_filter.{h,cc}</code></td>
+			</tr>
+			<tr>
+					<td>Go-&gt;C++ 回调</td>
+					<td><code>contrib/golang/filters/http/source/cgo.cc</code></td>
+			</tr>
+			<tr>
+					<td>Go CGo 适配层</td>
+					<td><code>contrib/golang/filters/http/source/go/pkg/http/shim.go</code></td>
+			</tr>
+			<tr>
+					<td>Go SDK 接口</td>
+					<td><code>contrib/golang/common/go/api/filter.go</code></td>
+			</tr>
+			<tr>
+					<td>Proto 配置</td>
+					<td><code>api/contrib/envoy/extensions/filters/http/golang/v3alpha/golang.proto</code></td>
+			</tr>
+	</tbody>
 </table>
 <h2 id="常见问题-qa">常见问题 (Q&amp;A)<a href="#常见问题-qa" class="hanchor" ariaLabel="Anchor">#</a> </h2>
 <p><strong>问：如果 Go 插件代码中的 <code>main()</code> 永远不被调用，为什么还需要它？</strong></p>
@@ -786,50 +786,50 @@ Go: [协程唤醒, 返回结果]
 <p><strong>对 Envoy 请求路径的影响：</strong></p>
 <p>仅仅为了完成基础的过滤器生命周期，每个请求至少涉及 6-7 次 CGo 跨越：</p>
 <table>
-  <thead>
-      <tr>
-          <th>阶段</th>
-          <th>方向</th>
-          <th>CGo 调用</th>
-      </tr>
-  </thead>
-  <tbody>
-      <tr>
-          <td>请求</td>
-          <td>C++ → Go</td>
-          <td>decodeHeaders</td>
-      </tr>
-      <tr>
-          <td>请求</td>
-          <td>C++ → Go</td>
-          <td>decodeData</td>
-      </tr>
-      <tr>
-          <td>请求</td>
-          <td>C++ → Go</td>
-          <td>decodeTrailers</td>
-      </tr>
-      <tr>
-          <td>响应</td>
-          <td>C++ → Go</td>
-          <td>encodeHeaders</td>
-      </tr>
-      <tr>
-          <td>响应</td>
-          <td>C++ → Go</td>
-          <td>encodeData</td>
-      </tr>
-      <tr>
-          <td>响应</td>
-          <td>C++ → Go</td>
-          <td>encodeTrailers</td>
-      </tr>
-      <tr>
-          <td>清理</td>
-          <td>C++ → Go</td>
-          <td>onDestroy</td>
-      </tr>
-  </tbody>
+	<thead>
+			<tr>
+					<th>阶段</th>
+					<th>方向</th>
+					<th>CGo 调用</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>请求</td>
+					<td>C++ → Go</td>
+					<td>decodeHeaders</td>
+			</tr>
+			<tr>
+					<td>请求</td>
+					<td>C++ → Go</td>
+					<td>decodeData</td>
+			</tr>
+			<tr>
+					<td>请求</td>
+					<td>C++ → Go</td>
+					<td>decodeTrailers</td>
+			</tr>
+			<tr>
+					<td>响应</td>
+					<td>C++ → Go</td>
+					<td>encodeHeaders</td>
+			</tr>
+			<tr>
+					<td>响应</td>
+					<td>C++ → Go</td>
+					<td>encodeData</td>
+			</tr>
+			<tr>
+					<td>响应</td>
+					<td>C++ → Go</td>
+					<td>encodeTrailers</td>
+			</tr>
+			<tr>
+					<td>清理</td>
+					<td>C++ → Go</td>
+					<td>onDestroy</td>
+			</tr>
+	</tbody>
 </table>
 <p>回调到 C++ 的操作（例如 <code>GetDynamicMetadata</code>、<code>Continue</code>）在反方向也会产生类似的开销。</p>
 <p><strong>实际影响：</strong></p>
@@ -847,35 +847,35 @@ Go: [协程唤醒, 返回结果]
 <p><strong>问：不同的 <code>StatusType</code> 值有什么区别，应该在什么时候使用？</strong></p>
 <p>答：四个 <code>StatusType</code> 值 (<code>filter.go:35-45</code>) 控制了 Envoy 处理过滤器链的方式。它们由 <code>DecodeHeaders()</code>、<code>DecodeData()</code>、<code>EncodeHeaders()</code> 等返回。</p>
 <table>
-  <thead>
-      <tr>
-          <th>状态</th>
-          <th>用途</th>
-          <th>何时使用</th>
-      </tr>
-  </thead>
-  <tbody>
-      <tr>
-          <td><code>Continue</code></td>
-          <td>立即恢复</td>
-          <td>同步工作已完成；无需阻塞</td>
-      </tr>
-      <tr>
-          <td><code>StopAndBuffer</code></td>
-          <td>暂停并缓冲主体</td>
-          <td>在做决定前需要完整的请求主体（如鉴权、校验）</td>
-      </tr>
-      <tr>
-          <td><code>Running</code></td>
-          <td>异步处理</td>
-          <td>从协程发起外部 I/O（HTTP 调用、数据库查询）</td>
-      </tr>
-      <tr>
-          <td><code>LocalReply</code></td>
-          <td>发送直接响应</td>
-          <td>鉴权失败、限流、校验不通过</td>
-      </tr>
-  </tbody>
+	<thead>
+			<tr>
+					<th>状态</th>
+					<th>用途</th>
+					<th>何时使用</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td><code>Continue</code></td>
+					<td>立即恢复</td>
+					<td>同步工作已完成；无需阻塞</td>
+			</tr>
+			<tr>
+					<td><code>StopAndBuffer</code></td>
+					<td>暂停并缓冲主体</td>
+					<td>在做决定前需要完整的请求主体（如鉴权、校验）</td>
+			</tr>
+			<tr>
+					<td><code>Running</code></td>
+					<td>异步处理</td>
+					<td>从协程发起外部 I/O（HTTP 调用、数据库查询）</td>
+			</tr>
+			<tr>
+					<td><code>LocalReply</code></td>
+					<td>发送直接响应</td>
+					<td>鉴权失败、限流、校验不通过</td>
+			</tr>
+	</tbody>
 </table>
 <p><strong>Continue</strong></p>
 <p>立即恢复到下一个过滤器。用于简单的请求头检查/修改、日志记录或指标统计等无需外部 I/O 的场景。</p>

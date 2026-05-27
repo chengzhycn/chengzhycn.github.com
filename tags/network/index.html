@@ -286,20 +286,20 @@
 <p>策略路由虽然能够通过多个路由表和策略规则来模拟 VRF 的部分功能（事实上，在 Linux 中，也是基于策略路由来去对 VRF 做的实现），但它的缺点十分突出。这种方式在配置和管理上非常复杂，难以确保网络隔离的有效性，在面对严格的网络审计时，往往无法通过。其复杂性不仅增加了运维的难度，还可能导致网络故障的风险上升，因此不被推荐使用。</p>
 <p>网络命名空间在容器技术兴起后得到了广泛应用，它能够为容器提供全面的网络隔离。但在模拟 VRF 功能时，却显得有些“大材小用”。网络命名空间会对所有网络相关的资源进行完全隔离，包括设备、接口、ARP 表和路由表等。这意味着，即使是一些不需要隔离的服务，也会被隔离在不同的命名空间中。以 LLDP（链路层发现协议）为例，在使用网络命名空间的情况下，若要在不同的网络隔离环境中使用 LLDP，就需要在每个命名空间中单独运行实例，并且由于默认套接字相同，还需要为每个实例创建独特的套接字。这不仅增加了系统的开销，还使得管理变得更加复杂。相比之下，VRF 在隔离三层网络结构的同时，允许全局配置的共享和非三层感知服务的统一运行，大大提高了资源的利用效率。</p>
 <table>
-  <thead>
-      <tr>
-          <th>Policy Routing</th>
-          <th>VRF</th>
-          <th>Net Namespace</th>
-      </tr>
-  </thead>
-  <tbody>
-      <tr>
-          <td>隔离路由表</td>
-          <td>隔离三层网络</td>
-          <td>整个协议栈从二层到 socket 隔离</td>
-      </tr>
-  </tbody>
+	<thead>
+			<tr>
+					<th>Policy Routing</th>
+					<th>VRF</th>
+					<th>Net Namespace</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>隔离路由表</td>
+					<td>隔离三层网络</td>
+					<td>整个协议栈从二层到 socket 隔离</td>
+			</tr>
+	</tbody>
 </table>
 <p><img src="/images/notes/vrf-an-overview/a9f7c55f8f39572d339b138fb1e12429_MD5.png" alt="a9f7c55f8f39572d339b138fb1e12429_MD5"><img src="/images/notes/vrf-an-overview/c9b6614c864c7d35a8ef0a4f12ecdbfa_MD5.png" alt="c9b6614c864c7d35a8ef0a4f12ecdbfa_MD5"><img src="/images/notes/vrf-an-overview/9edc8b051f504bf72140d1238513d687_MD5.png" alt="9edc8b051f504bf72140d1238513d687_MD5"></p>
 <h2 id="vrf-配置">VRF 配置</h2>

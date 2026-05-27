@@ -334,50 +334,50 @@
 <p>算法的选择通常反映了网关的架构定位。基础网关如 APISIX 基础插件追求极致的吞吐量和低延迟，因此倾向于使用固定窗口计数器。而企业级网关或对服务级别协议（SLA）有严格要求的系统，必须牺牲微小的性能以换取更高的精确性和控制力，此时滑动窗口计数器成为必然选择。</p>
 <p>以下表格对比了常见限流算法的性能和适用性：</p>
 <table>
-  <thead>
-      <tr>
-          <th><strong>算法</strong></th>
-          <th><strong>核心机制</strong></th>
-          <th><strong>精度</strong></th>
-          <th><strong>突发处理</strong></th>
-          <th><strong>计算复杂度</strong></th>
-          <th><strong>分布式适用性</strong></th>
-      </tr>
-  </thead>
-  <tbody>
-      <tr>
-          <td>固定窗口 (FWC)</td>
-          <td>计数器，时间窗边界重置</td>
-          <td>低</td>
-          <td>差（双倍突发）</td>
-          <td>$O(1)$</td>
-          <td>一般（边界问题严重）</td>
-      </tr>
-      <tr>
-          <td>漏桶 (Leaky Bucket)</td>
-          <td>队列，匀速出队</td>
-          <td>优秀（流量平滑）</td>
-          <td>优秀（流量整形）</td>
-          <td>$O(1)$</td>
-          <td>低（难以维护全局一致速率）</td>
-      </tr>
-      <tr>
-          <td>滑动日志 (Sliding Log)</td>
-          <td>存储所有时间戳</td>
-          <td>最高</td>
-          <td>优秀（无边界效应）</td>
-          <td>$O(N)$</td>
-          <td>极差（存储与计算开销过高）</td>
-      </tr>
-      <tr>
-          <td>滑动窗口 (SWC)</td>
-          <td>加权平均相邻窗口计数</td>
-          <td>高</td>
-          <td>良好（平滑边界）</td>
-          <td>$O(1)$</td>
-          <td>优秀（低开销，易于分发）</td>
-      </tr>
-  </tbody>
+	<thead>
+			<tr>
+					<th><strong>算法</strong></th>
+					<th><strong>核心机制</strong></th>
+					<th><strong>精度</strong></th>
+					<th><strong>突发处理</strong></th>
+					<th><strong>计算复杂度</strong></th>
+					<th><strong>分布式适用性</strong></th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>固定窗口 (FWC)</td>
+					<td>计数器，时间窗边界重置</td>
+					<td>低</td>
+					<td>差（双倍突发）</td>
+					<td>$O(1)$</td>
+					<td>一般（边界问题严重）</td>
+			</tr>
+			<tr>
+					<td>漏桶 (Leaky Bucket)</td>
+					<td>队列，匀速出队</td>
+					<td>优秀（流量平滑）</td>
+					<td>优秀（流量整形）</td>
+					<td>$O(1)$</td>
+					<td>低（难以维护全局一致速率）</td>
+			</tr>
+			<tr>
+					<td>滑动日志 (Sliding Log)</td>
+					<td>存储所有时间戳</td>
+					<td>最高</td>
+					<td>优秀（无边界效应）</td>
+					<td>$O(N)$</td>
+					<td>极差（存储与计算开销过高）</td>
+			</tr>
+			<tr>
+					<td>滑动窗口 (SWC)</td>
+					<td>加权平均相邻窗口计数</td>
+					<td>高</td>
+					<td>良好（平滑边界）</td>
+					<td>$O(1)$</td>
+					<td>优秀（低开销，易于分发）</td>
+			</tr>
+	</tbody>
 </table>
 <p>滑动窗口算法的有效性不仅依赖于其加权计算机制，还依赖于窗口粒度的合理划分。只有当用于计算的固定窗口粒度足够精细时，加权效果才能充分发挥，保证流量曲线的平滑性，并确保在同步到中央存储时数据点数量保持计算优势。</p>
 <h2 id="3-分布式限流的高性能与高可用架构">3. 分布式限流的高性能与高可用架构<a href="#3-分布式限流的高性能与高可用架构" class="hanchor" ariaLabel="Anchor">#</a> </h2>
@@ -429,46 +429,46 @@
 <p>网关的选择不仅是插件的选择，更是对底层数据基础设施和同步模型的选择。</p>
 <p>以下表格对比了 Kong Advanced 与 APISIX 在限流实现方面的核心能力：</p>
 <table>
-  <thead>
-      <tr>
-          <th><strong>特性</strong></th>
-          <th><strong>Kong Gateway (高级)</strong></th>
-          <th><strong>Apache APISIX (limit-count)</strong></th>
-          <th><strong>关键意义</strong></th>
-      </tr>
-  </thead>
-  <tbody>
-      <tr>
-          <td>核心算法支持</td>
-          <td>滑动窗口, 固定窗口</td>
-          <td>固定窗口</td>
-          <td>Kong Advanced 提供了更优的滑动窗口算法，以消除边界突发。</td>
-      </tr>
-      <tr>
-          <td>分布式存储</td>
-          <td>Redis (Cluster, Sentinel, SSL)</td>
-          <td>Redis</td>
-          <td>Kong 在 HA 和安全（SSL）方面支持更全面。</td>
-      </tr>
-      <tr>
-          <td>性能策略</td>
-          <td>可配置同步率 (<code>sync_rate</code>)</td>
-          <td>In-Memory 计数，低延迟</td>
-          <td>均采用最终一致性优化性能，APISIX 强调本地计算优势。</td>
-      </tr>
-      <tr>
-          <td>故障转移</td>
-          <td>自动回退到 Local 策略</td>
-          <td>需依赖 Redis HA 配置</td>
-          <td>Kong 提供了明确的内置降级保障，提高运维可靠性。</td>
-      </tr>
-      <tr>
-          <td>精细度</td>
-          <td>IP, Consumer, API Key</td>
-          <td>APISIX 变量 (<code>$host</code>, <code>$uri</code>)</td>
-          <td>APISIX 通过变量集成实现了高灵活度匹配。</td>
-      </tr>
-  </tbody>
+	<thead>
+			<tr>
+					<th><strong>特性</strong></th>
+					<th><strong>Kong Gateway (高级)</strong></th>
+					<th><strong>Apache APISIX (limit-count)</strong></th>
+					<th><strong>关键意义</strong></th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>核心算法支持</td>
+					<td>滑动窗口, 固定窗口</td>
+					<td>固定窗口</td>
+					<td>Kong Advanced 提供了更优的滑动窗口算法，以消除边界突发。</td>
+			</tr>
+			<tr>
+					<td>分布式存储</td>
+					<td>Redis (Cluster, Sentinel, SSL)</td>
+					<td>Redis</td>
+					<td>Kong 在 HA 和安全（SSL）方面支持更全面。</td>
+			</tr>
+			<tr>
+					<td>性能策略</td>
+					<td>可配置同步率 (<code>sync_rate</code>)</td>
+					<td>In-Memory 计数，低延迟</td>
+					<td>均采用最终一致性优化性能，APISIX 强调本地计算优势。</td>
+			</tr>
+			<tr>
+					<td>故障转移</td>
+					<td>自动回退到 Local 策略</td>
+					<td>需依赖 Redis HA 配置</td>
+					<td>Kong 提供了明确的内置降级保障，提高运维可靠性。</td>
+			</tr>
+			<tr>
+					<td>精细度</td>
+					<td>IP, Consumer, API Key</td>
+					<td>APISIX 变量 (<code>$host</code>, <code>$uri</code>)</td>
+					<td>APISIX 通过变量集成实现了高灵活度匹配。</td>
+			</tr>
+	</tbody>
 </table>
 <h2 id="5-限流算法的性能开销调优与运维实践">5. 限流算法的性能开销、调优与运维实践<a href="#5-限流算法的性能开销调优与运维实践" class="hanchor" ariaLabel="Anchor">#</a> </h2>
 <p>在设计和运维大规模分布式限流系统时，必须对性能开销进行精确量化和调优。</p>

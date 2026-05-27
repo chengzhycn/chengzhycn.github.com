@@ -325,96 +325,96 @@ LuaJIT 2.1.1756211046 -- Copyright (C) 2005-2025 Mike Pall. https://luajit.org/
 </li>
 </ol>
 <table>
-  <thead>
-      <tr>
-          <th>Branch</th>
-          <th>Maintained</th>
-          <th>Breaking Changes</th>
-          <th>New Features</th>
-          <th>Recommended Use</th>
-      </tr>
-  </thead>
-  <tbody>
-      <tr>
-          <td>v2.0</td>
-          <td>bugfixes</td>
-          <td>no</td>
-          <td>no</td>
-          <td>Compatibility only</td>
-      </tr>
-      <tr>
-          <td>v2.1</td>
-          <td>yes</td>
-          <td>no</td>
-          <td>limited</td>
-          <td><strong>Production</strong></td>
-      </tr>
-      <tr>
-          <td>(TBA)</td>
-          <td>yes</td>
-          <td>yes</td>
-          <td>yes</td>
-          <td>Development</td>
-      </tr>
-  </tbody>
+	<thead>
+			<tr>
+					<th>Branch</th>
+					<th>Maintained</th>
+					<th>Breaking Changes</th>
+					<th>New Features</th>
+					<th>Recommended Use</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>v2.0</td>
+					<td>bugfixes</td>
+					<td>no</td>
+					<td>no</td>
+					<td>Compatibility only</td>
+			</tr>
+			<tr>
+					<td>v2.1</td>
+					<td>yes</td>
+					<td>no</td>
+					<td>limited</td>
+					<td><strong>Production</strong></td>
+			</tr>
+			<tr>
+					<td>(TBA)</td>
+					<td>yes</td>
+					<td>yes</td>
+					<td>yes</td>
+					<td>Development</td>
+			</tr>
+	</tbody>
 </table>
 <h4 id="openresty-luajit">OpenResty LuaJIT<a href="#openresty-luajit" class="hanchor" ariaLabel="Anchor">#</a> </h4>
 <p><a href="https://github.com/openresty/luajit2">https://github.com/openresty/luajit2</a></p>
 <p>OpenResty LuaJIT 是 OpenResty 维护的 LuaJIT 的一个下游分支，主要用于 Nginx Lua Module。相比于上游 LuaJIT，OR 的 LuaJIT 主要进行了一些针对性的性能优化和 APIs 的开发。</p>
 <h3 id="核心差异">核心差异<a href="#核心差异" class="hanchor" ariaLabel="Anchor">#</a> </h3>
 <table>
-  <thead>
-      <tr>
-          <th style="text-align: left">特征</th>
-          <th style="text-align: left">Lua 5.x</th>
-          <th style="text-align: left">LuaJIT 2.0.x</th>
-          <th style="text-align: left">LuaJIT 2.1.x</th>
-      </tr>
-  </thead>
-  <tbody>
-      <tr>
-          <td style="text-align: left"><strong>语言规范</strong></td>
-          <td style="text-align: left">官方最新 Lua 规范 (5.4)</td>
-          <td style="text-align: left"><strong>Lua 5.1</strong> 规范</td>
-          <td style="text-align: left"><strong>目标是支持 Lua 5.2/5.3 部分特性</strong></td>
-      </tr>
-      <tr>
-          <td style="text-align: left"><strong>性能</strong></td>
-          <td style="text-align: left">解释执行 (VM 性能随版本提升)</td>
-          <td style="text-align: left"><strong>JIT 编译，通常比 Lua 快数倍到数十倍</strong></td>
-          <td style="text-align: left">JIT 编译，性能预计与 2.0.x 相当，或略有波动</td>
-      </tr>
-      <tr>
-          <td style="text-align: left"><strong>新特性</strong></td>
-          <td style="text-align: left">整数、位操作、UTF-8 (5.3+) 等</td>
-          <td style="text-align: left">不支持 Lua 5.2+ 的新特性</td>
-          <td style="text-align: left">逐步支持 Lua 5.2/5.3 的新特性</td>
-      </tr>
-      <tr>
-          <td style="text-align: left"><strong>FFI</strong></td>
-          <td style="text-align: left">无内置 FFI</td>
-          <td style="text-align: left"><strong>内置成熟的 FFI (Foreign Function Interface)</strong></td>
-          <td style="text-align: left">内置成熟的 FFI</td>
-      </tr>
-      <tr>
-          <td style="text-align: left"><strong>GC (垃圾回收)</strong></td>
-          <td style="text-align: left">更先进的 GC (5.2+), 5.4 重写</td>
-          <td style="text-align: left">基于 Lua 5.1 的 GC，调优</td>
-          <td style="text-align: left">基于 Lua 5.1 的 GC，调优</td>
-      </tr>
-      <tr>
-          <td style="text-align: left"><strong>生态系统</strong></td>
-          <td style="text-align: left">广泛支持，模块通常兼容最新 Lua 版本</td>
-          <td style="text-align: left">C 模块通常需要绑定到 Lua 5.1 或使用 FFI</td>
-          <td style="text-align: left">旨在更好地兼容 Lua 5.2/5.3 模块</td>
-      </tr>
-      <tr>
-          <td style="text-align: left"><strong>维护者</strong></td>
-          <td style="text-align: left">Lua.org 项目组</td>
-          <td style="text-align: left">Mike Pall (一人维护为主)</td>
-          <td style="text-align: left">Mike Pall (一人维护为主)</td>
-      </tr>
-  </tbody>
+	<thead>
+			<tr>
+					<th style="text-align: left">特征</th>
+					<th style="text-align: left">Lua 5.x</th>
+					<th style="text-align: left">LuaJIT 2.0.x</th>
+					<th style="text-align: left">LuaJIT 2.1.x</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td style="text-align: left"><strong>语言规范</strong></td>
+					<td style="text-align: left">官方最新 Lua 规范 (5.4)</td>
+					<td style="text-align: left"><strong>Lua 5.1</strong> 规范</td>
+					<td style="text-align: left"><strong>目标是支持 Lua 5.2/5.3 部分特性</strong></td>
+			</tr>
+			<tr>
+					<td style="text-align: left"><strong>性能</strong></td>
+					<td style="text-align: left">解释执行 (VM 性能随版本提升)</td>
+					<td style="text-align: left"><strong>JIT 编译，通常比 Lua 快数倍到数十倍</strong></td>
+					<td style="text-align: left">JIT 编译，性能预计与 2.0.x 相当，或略有波动</td>
+			</tr>
+			<tr>
+					<td style="text-align: left"><strong>新特性</strong></td>
+					<td style="text-align: left">整数、位操作、UTF-8 (5.3+) 等</td>
+					<td style="text-align: left">不支持 Lua 5.2+ 的新特性</td>
+					<td style="text-align: left">逐步支持 Lua 5.2/5.3 的新特性</td>
+			</tr>
+			<tr>
+					<td style="text-align: left"><strong>FFI</strong></td>
+					<td style="text-align: left">无内置 FFI</td>
+					<td style="text-align: left"><strong>内置成熟的 FFI (Foreign Function Interface)</strong></td>
+					<td style="text-align: left">内置成熟的 FFI</td>
+			</tr>
+			<tr>
+					<td style="text-align: left"><strong>GC (垃圾回收)</strong></td>
+					<td style="text-align: left">更先进的 GC (5.2+), 5.4 重写</td>
+					<td style="text-align: left">基于 Lua 5.1 的 GC，调优</td>
+					<td style="text-align: left">基于 Lua 5.1 的 GC，调优</td>
+			</tr>
+			<tr>
+					<td style="text-align: left"><strong>生态系统</strong></td>
+					<td style="text-align: left">广泛支持，模块通常兼容最新 Lua 版本</td>
+					<td style="text-align: left">C 模块通常需要绑定到 Lua 5.1 或使用 FFI</td>
+					<td style="text-align: left">旨在更好地兼容 Lua 5.2/5.3 模块</td>
+			</tr>
+			<tr>
+					<td style="text-align: left"><strong>维护者</strong></td>
+					<td style="text-align: left">Lua.org 项目组</td>
+					<td style="text-align: left">Mike Pall (一人维护为主)</td>
+					<td style="text-align: left">Mike Pall (一人维护为主)</td>
+			</tr>
+	</tbody>
 </table>
 <h3 id="benchmark">Benchmark<a href="#benchmark" class="hanchor" ariaLabel="Anchor">#</a> </h3>
 <p><a href="http://software.rochus-keller.ch/are-we-fast-yet_LuaJIT_2017_vs_2023_results.pdf">http://software.rochus-keller.ch/are-we-fast-yet_LuaJIT_2017_vs_2023_results.pdf</a></p>

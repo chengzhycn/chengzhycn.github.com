@@ -399,50 +399,50 @@
 <h4 id="1121-static-provisioning-和-dynamic-provisioning">1.1.2.1. Static Provisioning 和 Dynamic Provisioning<a href="#1121-static-provisioning-和-dynamic-provisioning" class="hanchor" ariaLabel="Anchor">#</a> </h4>
 <p>根据 PV 的生成方式，CSI（Container Storage Interface）中的存储供应（Provisioning）方式主要分为两种：<strong>静态供应 (Static Provisioning)</strong> 和 <strong>动态供应 (Dynamic Provisioning)</strong>。</p>
 <table>
-  <thead>
-      <tr>
-          <th style="text-align: left">特性</th>
-          <th style="text-align: left">静态供应 (Static Provisioning)</th>
-          <th style="text-align: left">动态供应 (Dynamic Provisioning)</th>
-      </tr>
-  </thead>
-  <tbody>
-      <tr>
-          <td style="text-align: left"><strong>存储卷创建者</strong></td>
-          <td style="text-align: left">管理员手动在后端存储系统上创建</td>
-          <td style="text-align: left">Kubernetes (通过 CSI 驱动) 自动创建</td>
-      </tr>
-      <tr>
-          <td style="text-align: left"><strong>PV 创建者</strong></td>
-          <td style="text-align: left">管理员手动创建 PV 对象</td>
-          <td style="text-align: left"><code>csi-provisioner</code> (Sidecar) 自动创建 PV 对象</td>
-      </tr>
-      <tr>
-          <td style="text-align: left"><strong>前提</strong></td>
-          <td style="text-align: left">存储卷和 PV 必须预先存在</td>
-          <td style="text-align: left">需要 <code>StorageClass</code> 定义存储类型和 CSI 驱动</td>
-      </tr>
-      <tr>
-          <td style="text-align: left"><strong>PVC 引用</strong></td>
-          <td style="text-align: left">匹配可用的 PV (通常通过容量、访问模式、标签等)</td>
-          <td style="text-align: left">引用 <code>storageClassName</code></td>
-      </tr>
-      <tr>
-          <td style="text-align: left"><strong>自动化程度</strong></td>
-          <td style="text-align: left">低，需要大量手动操作</td>
-          <td style="text-align: left">高，完全自动化</td>
-      </tr>
-      <tr>
-          <td style="text-align: left"><strong>依赖</strong></td>
-          <td style="text-align: left">不依赖 CSI 驱动的 <code>ControllerService.CreateVolume()</code></td>
-          <td style="text-align: left">严重依赖 CSI 驱动的 <code>ControllerService.CreateVolume()</code></td>
-      </tr>
-      <tr>
-          <td style="text-align: left"><strong>删除行为</strong></td>
-          <td style="text-align: left">通常需要手动删除后端卷 (取决于 PV 的 <code>reclaimPolicy</code>)</td>
-          <td style="text-align: left">根据 <code>StorageClass</code> 的 <code>reclaimPolicy</code> 自动删除后端卷</td>
-      </tr>
-  </tbody>
+	<thead>
+			<tr>
+					<th style="text-align: left">特性</th>
+					<th style="text-align: left">静态供应 (Static Provisioning)</th>
+					<th style="text-align: left">动态供应 (Dynamic Provisioning)</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td style="text-align: left"><strong>存储卷创建者</strong></td>
+					<td style="text-align: left">管理员手动在后端存储系统上创建</td>
+					<td style="text-align: left">Kubernetes (通过 CSI 驱动) 自动创建</td>
+			</tr>
+			<tr>
+					<td style="text-align: left"><strong>PV 创建者</strong></td>
+					<td style="text-align: left">管理员手动创建 PV 对象</td>
+					<td style="text-align: left"><code>csi-provisioner</code> (Sidecar) 自动创建 PV 对象</td>
+			</tr>
+			<tr>
+					<td style="text-align: left"><strong>前提</strong></td>
+					<td style="text-align: left">存储卷和 PV 必须预先存在</td>
+					<td style="text-align: left">需要 <code>StorageClass</code> 定义存储类型和 CSI 驱动</td>
+			</tr>
+			<tr>
+					<td style="text-align: left"><strong>PVC 引用</strong></td>
+					<td style="text-align: left">匹配可用的 PV (通常通过容量、访问模式、标签等)</td>
+					<td style="text-align: left">引用 <code>storageClassName</code></td>
+			</tr>
+			<tr>
+					<td style="text-align: left"><strong>自动化程度</strong></td>
+					<td style="text-align: left">低，需要大量手动操作</td>
+					<td style="text-align: left">高，完全自动化</td>
+			</tr>
+			<tr>
+					<td style="text-align: left"><strong>依赖</strong></td>
+					<td style="text-align: left">不依赖 CSI 驱动的 <code>ControllerService.CreateVolume()</code></td>
+					<td style="text-align: left">严重依赖 CSI 驱动的 <code>ControllerService.CreateVolume()</code></td>
+			</tr>
+			<tr>
+					<td style="text-align: left"><strong>删除行为</strong></td>
+					<td style="text-align: left">通常需要手动删除后端卷 (取决于 PV 的 <code>reclaimPolicy</code>)</td>
+					<td style="text-align: left">根据 <code>StorageClass</code> 的 <code>reclaimPolicy</code> 自动删除后端卷</td>
+			</tr>
+	</tbody>
 </table>
 <h3 id="113-storageclass">1.1.3. storageClass<a href="#113-storageclass" class="hanchor" ariaLabel="Anchor">#</a> </h3>
 <p>StorageClass 用来描述能被提供的存储类型。不同的存储类型可能映射到不同的服务质量级别、备份策略或其它存储策略。</p>

@@ -1,26 +1,31 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
-  <channel>
-    <title>Archive for 2026-01 on chengzhycn&#39;s blog</title>
-    <link>https://www.jinzhi.site/posts/2026-01/</link>
-    <description>Recent content in Archive for 2026-01 on chengzhycn&#39;s blog</description>
-    <generator>Hugo</generator>
-    <language>en-us</language>
-    <lastBuildDate>Tue, 27 Jan 2026 09:18:28 +0800</lastBuildDate>
-    <atom:link href="https://www.jinzhi.site/posts/2026-01/index.xml" rel="self" type="application/rss+xml" />
-    <item>
-      <title>nano-vllm 代码流程</title>
-      <link>https://www.jinzhi.site/posts/2026-01/nano-vllm-%E4%BB%A3%E7%A0%81%E6%B5%81%E7%A8%8B/</link>
-      <pubDate>Tue, 27 Jan 2026 09:18:28 +0800</pubDate>
-      <guid>https://www.jinzhi.site/posts/2026-01/nano-vllm-%E4%BB%A3%E7%A0%81%E6%B5%81%E7%A8%8B/</guid>
-      <description>&lt;h2 id=&#34;整体架构图&#34;&gt;整体架构图&lt;/h2&gt;&#xA;&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;┌─────────────────────────────────────────────────────────────────┐&#xA;│                         用户入口层                               │&#xA;│  example.py → LLM.generate() → add_request() + step() 循环      │&#xA;└─────────────────────────────────────────────────────────────────┘&#xA;                                │&#xA;                                ▼&#xA;┌─────────────────────────────────────────────────────────────────┐&#xA;│                         引擎层 (Engine)                          │&#xA;│  ┌─────────────┐   ┌─────────────┐   ┌──────────────────┐      │&#xA;│  │  Scheduler  │ → │ ModelRunner │ → │  BlockManager    │      │&#xA;│  │  (调度器)    │   │ (模型执行器) │   │  (KV Cache管理)  │      │&#xA;│  └─────────────┘   └─────────────┘   └──────────────────┘      │&#xA;└─────────────────────────────────────────────────────────────────┘&#xA;                                │&#xA;                                ▼&#xA;┌─────────────────────────────────────────────────────────────────┐&#xA;│                         模型层 (Models)                          │&#xA;│  Qwen3ForCausalLM → Qwen3Model → [Qwen3DecoderLayer x N]       │&#xA;└─────────────────────────────────────────────────────────────────┘&#xA;                                │&#xA;                                ▼&#xA;┌─────────────────────────────────────────────────────────────────┐&#xA;│                         算子层 (Layers)                          │&#xA;│  Attention │ Linear │ LayerNorm │ RoPE │ Activation │ Sampler  │&#xA;└─────────────────────────────────────────────────────────────────┘&#xA;&lt;/code&gt;&lt;/pre&gt;&lt;h2 id=&#34;推理服务流程详解&#34;&gt;推理服务流程详解&lt;/h2&gt;&#xA;&lt;h3 id=&#34;阶段-1-初始化阶段&#34;&gt;阶段 1: 初始化阶段&lt;/h3&gt;&#xA;&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-python&#34; data-lang=&#34;python&#34;&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;c1&#34;&gt;# example.py&lt;/span&gt;&#xA;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;n&#34;&gt;llm&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;LLM&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;path&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;,&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;enforce_eager&lt;/span&gt;&lt;span class=&#34;o&#34;&gt;=&lt;/span&gt;&lt;span class=&#34;kc&#34;&gt;True&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;,&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;tensor_parallel_size&lt;/span&gt;&lt;span class=&#34;o&#34;&gt;=&lt;/span&gt;&lt;span class=&#34;mi&#34;&gt;1&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;)&lt;/span&gt;&#xA;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;&lt;strong&gt;调用链：&lt;/strong&gt;&lt;/p&gt;</description>
-    </item>
-    <item>
-      <title>时延的建模与测量</title>
-      <link>https://www.jinzhi.site/posts/2026-01/%E6%97%B6%E5%BB%B6%E7%9A%84%E5%BB%BA%E6%A8%A1%E4%B8%8E%E6%B5%8B%E9%87%8F/</link>
-      <pubDate>Fri, 09 Jan 2026 23:18:28 +0800</pubDate>
-      <guid>https://www.jinzhi.site/posts/2026-01/%E6%97%B6%E5%BB%B6%E7%9A%84%E5%BB%BA%E6%A8%A1%E4%B8%8E%E6%B5%8B%E9%87%8F/</guid>
-      <description>&lt;p&gt;本文是 2025年10月出版的《Latency： Reduce delay in software systems》第二章的读书笔记&lt;/p&gt;&#xA;&lt;h2 id=&#34;时延的定律&#34;&gt;时延的定律&lt;/h2&gt;&#xA;&lt;h3 id=&#34;littles-law&#34;&gt;Little&amp;rsquo;s Law&lt;/h3&gt;&#xA;&lt;p&gt;利特尔法则（Little&amp;rsquo;s Law）是排队论和运筹学中最经典、最直观，但也最具威力的定律之一。&lt;/p&gt;&#xA;&lt;p&gt;Little&amp;rsquo;s Law 的数学表达式如下所示：&#xA;$$L = \lambda \times W $$&lt;/p&gt;&#xA;&lt;ul&gt;&#xA;&lt;li&gt;$L$ (Inventory / Queue Length)：系统中平均拥有的“东西”数量（比如排队的人数、仓库的库存、处理的任务）&lt;/li&gt;&#xA;&lt;li&gt;$\lambda$ (Throughput / Arrival Rate)：单位时间内进入或离开系统的平均数量（吞吐率/到达率）&lt;/li&gt;&#xA;&lt;li&gt;$W$ (Wait Time / Cycle Time)：一个“东西”在系统里停留的平均时间（前置时间/等待时间）&lt;/li&gt;&#xA;&lt;/ul&gt;&#xA;&lt;p&gt;需要注意的是，&lt;strong&gt;Little&amp;rsquo;s Law 描述的是一个稳态系统：在一个稳定的系统中，存货数量 = 到达速率 x 停留时间&lt;/strong&gt;。&lt;/p&gt;&#xA;&lt;p&gt;举个例子，一个咖啡馆内，平均每分钟有 2 个客人进店（$\lambda$），每个客人在店里从进门到拿咖啡走人平均停留 10 分钟（$W$）。那么，任一时刻店中的停留人数 $L = \lambda \times W$  为 20 人，即在这 10 分钟内店中累积的人数，第 11 分钟到达速率等于离开速率，系统达到平衡。&lt;/p&gt;&#xA;&lt;p&gt;在并发系统中，$\lambda$ (吞吐量) 可以理解为每秒处理多少个请求（QPS/TPS），$W$ (响应时间) 可以理解为每个请求平均花多少秒（Latency），$L$ (并发数) 可以理解为在任一给定时刻，已经进入系统但尚未处理完成的请求总数。&lt;/p&gt;&#xA;&lt;p&gt;在计算机系统中，每一个 $L$ 都不是免费的，它必须占用某种物理资源：&lt;/p&gt;</description>
-    </item>
-  </channel>
+	<channel>
+		<title>Archive for 2026-01 on chengzhycn&#39;s blog</title>
+		<link>https://www.jinzhi.site/posts/2026-01/</link>
+		<description>Recent content in Archive for 2026-01 on chengzhycn&#39;s blog</description>
+		<generator>Hugo</generator>
+		<language>en-us</language>
+		
+		
+		
+		
+			<lastBuildDate>Tue, 27 Jan 2026 09:18:28 +0800</lastBuildDate>
+		
+			<atom:link href="https://www.jinzhi.site/posts/2026-01/index.xml" rel="self" type="application/rss+xml" />
+			<item>
+				<title>nano-vllm 代码流程</title>
+				<link>https://www.jinzhi.site/posts/2026-01/nano-vllm-%E4%BB%A3%E7%A0%81%E6%B5%81%E7%A8%8B/</link>
+				<pubDate>Tue, 27 Jan 2026 09:18:28 +0800</pubDate>
+				<guid>https://www.jinzhi.site/posts/2026-01/nano-vllm-%E4%BB%A3%E7%A0%81%E6%B5%81%E7%A8%8B/</guid>
+				<description>&lt;h2 id=&#34;整体架构图&#34;&gt;整体架构图&lt;/h2&gt;&#xA;&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;┌─────────────────────────────────────────────────────────────────┐&#xA;│                         用户入口层                               │&#xA;│  example.py → LLM.generate() → add_request() + step() 循环      │&#xA;└─────────────────────────────────────────────────────────────────┘&#xA;                                │&#xA;                                ▼&#xA;┌─────────────────────────────────────────────────────────────────┐&#xA;│                         引擎层 (Engine)                          │&#xA;│  ┌─────────────┐   ┌─────────────┐   ┌──────────────────┐      │&#xA;│  │  Scheduler  │ → │ ModelRunner │ → │  BlockManager    │      │&#xA;│  │  (调度器)    │   │ (模型执行器) │   │  (KV Cache管理)  │      │&#xA;│  └─────────────┘   └─────────────┘   └──────────────────┘      │&#xA;└─────────────────────────────────────────────────────────────────┘&#xA;                                │&#xA;                                ▼&#xA;┌─────────────────────────────────────────────────────────────────┐&#xA;│                         模型层 (Models)                          │&#xA;│  Qwen3ForCausalLM → Qwen3Model → [Qwen3DecoderLayer x N]       │&#xA;└─────────────────────────────────────────────────────────────────┘&#xA;                                │&#xA;                                ▼&#xA;┌─────────────────────────────────────────────────────────────────┐&#xA;│                         算子层 (Layers)                          │&#xA;│  Attention │ Linear │ LayerNorm │ RoPE │ Activation │ Sampler  │&#xA;└─────────────────────────────────────────────────────────────────┘&#xA;&lt;/code&gt;&lt;/pre&gt;&lt;h2 id=&#34;推理服务流程详解&#34;&gt;推理服务流程详解&lt;/h2&gt;&#xA;&lt;h3 id=&#34;阶段-1-初始化阶段&#34;&gt;阶段 1: 初始化阶段&lt;/h3&gt;&#xA;&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-python&#34; data-lang=&#34;python&#34;&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;c1&#34;&gt;# example.py&lt;/span&gt;&#xA;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;&lt;span class=&#34;n&#34;&gt;llm&lt;/span&gt; &lt;span class=&#34;o&#34;&gt;=&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;LLM&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;(&lt;/span&gt;&lt;span class=&#34;n&#34;&gt;path&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;,&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;enforce_eager&lt;/span&gt;&lt;span class=&#34;o&#34;&gt;=&lt;/span&gt;&lt;span class=&#34;kc&#34;&gt;True&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;,&lt;/span&gt; &lt;span class=&#34;n&#34;&gt;tensor_parallel_size&lt;/span&gt;&lt;span class=&#34;o&#34;&gt;=&lt;/span&gt;&lt;span class=&#34;mi&#34;&gt;1&lt;/span&gt;&lt;span class=&#34;p&#34;&gt;)&lt;/span&gt;&#xA;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;&lt;strong&gt;调用链：&lt;/strong&gt;&lt;/p&gt;</description>
+			</item>
+			<item>
+				<title>时延的建模与测量</title>
+				<link>https://www.jinzhi.site/posts/2026-01/%E6%97%B6%E5%BB%B6%E7%9A%84%E5%BB%BA%E6%A8%A1%E4%B8%8E%E6%B5%8B%E9%87%8F/</link>
+				<pubDate>Fri, 09 Jan 2026 23:18:28 +0800</pubDate>
+				<guid>https://www.jinzhi.site/posts/2026-01/%E6%97%B6%E5%BB%B6%E7%9A%84%E5%BB%BA%E6%A8%A1%E4%B8%8E%E6%B5%8B%E9%87%8F/</guid>
+				<description>&lt;p&gt;本文是 2025年10月出版的《Latency： Reduce delay in software systems》第二章的读书笔记&lt;/p&gt;&#xA;&lt;h2 id=&#34;时延的定律&#34;&gt;时延的定律&lt;/h2&gt;&#xA;&lt;h3 id=&#34;littles-law&#34;&gt;Little&amp;rsquo;s Law&lt;/h3&gt;&#xA;&lt;p&gt;利特尔法则（Little&amp;rsquo;s Law）是排队论和运筹学中最经典、最直观，但也最具威力的定律之一。&lt;/p&gt;&#xA;&lt;p&gt;Little&amp;rsquo;s Law 的数学表达式如下所示：&#xA;$$L = \lambda \times W $$&lt;/p&gt;&#xA;&lt;ul&gt;&#xA;&lt;li&gt;$L$ (Inventory / Queue Length)：系统中平均拥有的“东西”数量（比如排队的人数、仓库的库存、处理的任务）&lt;/li&gt;&#xA;&lt;li&gt;$\lambda$ (Throughput / Arrival Rate)：单位时间内进入或离开系统的平均数量（吞吐率/到达率）&lt;/li&gt;&#xA;&lt;li&gt;$W$ (Wait Time / Cycle Time)：一个“东西”在系统里停留的平均时间（前置时间/等待时间）&lt;/li&gt;&#xA;&lt;/ul&gt;&#xA;&lt;p&gt;需要注意的是，&lt;strong&gt;Little&amp;rsquo;s Law 描述的是一个稳态系统：在一个稳定的系统中，存货数量 = 到达速率 x 停留时间&lt;/strong&gt;。&lt;/p&gt;&#xA;&lt;p&gt;举个例子，一个咖啡馆内，平均每分钟有 2 个客人进店（$\lambda$），每个客人在店里从进门到拿咖啡走人平均停留 10 分钟（$W$）。那么，任一时刻店中的停留人数 $L = \lambda \times W$  为 20 人，即在这 10 分钟内店中累积的人数，第 11 分钟到达速率等于离开速率，系统达到平衡。&lt;/p&gt;&#xA;&lt;p&gt;在并发系统中，$\lambda$ (吞吐量) 可以理解为每秒处理多少个请求（QPS/TPS），$W$ (响应时间) 可以理解为每个请求平均花多少秒（Latency），$L$ (并发数) 可以理解为在任一给定时刻，已经进入系统但尚未处理完成的请求总数。&lt;/p&gt;&#xA;&lt;p&gt;在计算机系统中，每一个 $L$ 都不是免费的，它必须占用某种物理资源：&lt;/p&gt;</description>
+			</item>
+	</channel>
 </rss>

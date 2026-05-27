@@ -281,24 +281,24 @@ R0 - R5是临时寄存器，eBPF程序在函数调用时如需使用需要将它
 <h2 id="指令编码">指令编码<a href="#指令编码" class="hanchor" ariaLabel="Anchor">#</a> </h2>
 <p>eBPF使用64bit指令，编码如下：</p>
 <table>
-  <thead>
-      <tr>
-          <th><strong>32位（最高有效位）</strong></th>
-          <th><strong>16位</strong></th>
-          <th><strong>4位</strong></th>
-          <th><strong>4位</strong></th>
-          <th><strong>8位（最低有效位）</strong></th>
-      </tr>
-  </thead>
-  <tbody>
-      <tr>
-          <td>immediate</td>
-          <td>offset</td>
-          <td>source register</td>
-          <td>dest register</td>
-          <td>opcode</td>
-      </tr>
-  </tbody>
+	<thead>
+			<tr>
+					<th><strong>32位（最高有效位）</strong></th>
+					<th><strong>16位</strong></th>
+					<th><strong>4位</strong></th>
+					<th><strong>4位</strong></th>
+					<th><strong>8位（最低有效位）</strong></th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>immediate</td>
+					<td>offset</td>
+					<td>source register</td>
+					<td>dest register</td>
+					<td>opcode</td>
+			</tr>
+	</tbody>
 </table>
 <ul>
 <li>imm: 有符号整型立即数</li>
@@ -326,220 +326,220 @@ imm64 = (next_imm &lt;&lt; 32) | imm
 </code></pre><h2 id="指令类型">指令类型<a href="#指令类型" class="hanchor" ariaLabel="Anchor">#</a> </h2>
 <p>opcode中最低3位有效位表示指令的类型，如下表所示：</p>
 <table>
-  <thead>
-      <tr>
-          <th><strong>类型</strong></th>
-          <th><strong>值</strong></th>
-          <th><strong>含义</strong></th>
-      </tr>
-  </thead>
-  <tbody>
-      <tr>
-          <td>BPF_LD</td>
-          <td>0x00</td>
-          <td>非标准load操作</td>
-      </tr>
-      <tr>
-          <td>BPF_LDX</td>
-          <td>0x01</td>
-          <td>加载到寄存器的操作</td>
-      </tr>
-      <tr>
-          <td>BPF_ST</td>
-          <td>0x02</td>
-          <td>存储立即数的值到内存中</td>
-      </tr>
-      <tr>
-          <td>BPF_STX</td>
-          <td>0x03</td>
-          <td>存储寄存器中的值到内存中</td>
-      </tr>
-      <tr>
-          <td>BPF_ALU</td>
-          <td>0x04</td>
-          <td>32位算术操作</td>
-      </tr>
-      <tr>
-          <td>BPF_JMP</td>
-          <td>0x05</td>
-          <td>64位跳转操作</td>
-      </tr>
-      <tr>
-          <td>BPF_JMP32</td>
-          <td>0x06</td>
-          <td>32位跳转操作</td>
-      </tr>
-      <tr>
-          <td>BPF_ALU64</td>
-          <td>0x07</td>
-          <td>64位算术操作</td>
-      </tr>
-  </tbody>
+	<thead>
+			<tr>
+					<th><strong>类型</strong></th>
+					<th><strong>值</strong></th>
+					<th><strong>含义</strong></th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>BPF_LD</td>
+					<td>0x00</td>
+					<td>非标准load操作</td>
+			</tr>
+			<tr>
+					<td>BPF_LDX</td>
+					<td>0x01</td>
+					<td>加载到寄存器的操作</td>
+			</tr>
+			<tr>
+					<td>BPF_ST</td>
+					<td>0x02</td>
+					<td>存储立即数的值到内存中</td>
+			</tr>
+			<tr>
+					<td>BPF_STX</td>
+					<td>0x03</td>
+					<td>存储寄存器中的值到内存中</td>
+			</tr>
+			<tr>
+					<td>BPF_ALU</td>
+					<td>0x04</td>
+					<td>32位算术操作</td>
+			</tr>
+			<tr>
+					<td>BPF_JMP</td>
+					<td>0x05</td>
+					<td>64位跳转操作</td>
+			</tr>
+			<tr>
+					<td>BPF_JMP32</td>
+					<td>0x06</td>
+					<td>32位跳转操作</td>
+			</tr>
+			<tr>
+					<td>BPF_ALU64</td>
+					<td>0x07</td>
+					<td>64位算术操作</td>
+			</tr>
+	</tbody>
 </table>
 <h2 id="算术和跳转指令">算术和跳转指令<a href="#算术和跳转指令" class="hanchor" ariaLabel="Anchor">#</a> </h2>
 <p>对于算术和跳转指令（BPF_ALU, BPF_ALU64, BPF_JMP, BPF_JMP32)，8位的opcode字段可以分成3个部分：</p>
 <table>
-  <thead>
-      <tr>
-          <th><strong>4位（最高有效位）</strong></th>
-          <th><strong>1位</strong></th>
-          <th><strong>3位（最低有效位）</strong></th>
-      </tr>
-  </thead>
-  <tbody>
-      <tr>
-          <td>操作码</td>
-          <td>源操作数</td>
-          <td>指令类型</td>
-      </tr>
-      <tr>
-          <td>第4位的源操作数编码如下：</td>
-          <td></td>
-          <td></td>
-      </tr>
-  </tbody>
+	<thead>
+			<tr>
+					<th><strong>4位（最高有效位）</strong></th>
+					<th><strong>1位</strong></th>
+					<th><strong>3位（最低有效位）</strong></th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>操作码</td>
+					<td>源操作数</td>
+					<td>指令类型</td>
+			</tr>
+			<tr>
+					<td>第4位的源操作数编码如下：</td>
+					<td></td>
+					<td></td>
+			</tr>
+	</tbody>
 </table>
 <table>
-  <thead>
-      <tr>
-          <th><strong>源</strong></th>
-          <th><strong>值</strong></th>
-          <th><strong>含义</strong></th>
-      </tr>
-  </thead>
-  <tbody>
-      <tr>
-          <td>BPF_K</td>
-          <td>0x00</td>
-          <td>使用32位立即数作为源操作数</td>
-      </tr>
-      <tr>
-          <td>BPF_X</td>
-          <td>0x08</td>
-          <td>使用src_reg寄存器作为源操作数</td>
-      </tr>
-      <tr>
-          <td>前4个最高有效位存储了操作码。</td>
-          <td></td>
-          <td></td>
-      </tr>
-  </tbody>
+	<thead>
+			<tr>
+					<th><strong>源</strong></th>
+					<th><strong>值</strong></th>
+					<th><strong>含义</strong></th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>BPF_K</td>
+					<td>0x00</td>
+					<td>使用32位立即数作为源操作数</td>
+			</tr>
+			<tr>
+					<td>BPF_X</td>
+					<td>0x08</td>
+					<td>使用src_reg寄存器作为源操作数</td>
+			</tr>
+			<tr>
+					<td>前4个最高有效位存储了操作码。</td>
+					<td></td>
+					<td></td>
+			</tr>
+	</tbody>
 </table>
 <h3 id="算术指令">算术指令<a href="#算术指令" class="hanchor" ariaLabel="Anchor">#</a> </h3>
 <p>对于相同的操作，BPF_ALU使用32位宽的操作数，而BPF_ALU64使用64位宽的操作数。操作码编码的操作如下：</p>
 <table>
-  <thead>
-      <tr>
-          <th><strong>操作码</strong></th>
-          <th><strong>值</strong></th>
-          <th><strong>offset</strong></th>
-          <th><strong>含义</strong></th>
-      </tr>
-  </thead>
-  <tbody>
-      <tr>
-          <td>BPF_ADD</td>
-          <td>0x00</td>
-          <td>0</td>
-          <td>dst += src</td>
-      </tr>
-      <tr>
-          <td>BPF_SUB</td>
-          <td>0x10</td>
-          <td>0</td>
-          <td>dst -= src</td>
-      </tr>
-      <tr>
-          <td>BPF_MUL</td>
-          <td>0x20</td>
-          <td>0</td>
-          <td>dst *= src</td>
-      </tr>
-      <tr>
-          <td>BPF_DIV</td>
-          <td>0x30</td>
-          <td>0</td>
-          <td>dst = (src != 0) ? (dst / src) : 0</td>
-      </tr>
-      <tr>
-          <td>BPF_SDIV</td>
-          <td>0x30</td>
-          <td>1</td>
-          <td>dst = (src != 0) ? (dst s/ src) : 0</td>
-      </tr>
-      <tr>
-          <td>BPF_OR</td>
-          <td>0x40</td>
-          <td>0</td>
-          <td>dst |= src</td>
-      </tr>
-      <tr>
-          <td>BPF_AND</td>
-          <td>0x50</td>
-          <td>0</td>
-          <td>dst &amp;= src</td>
-      </tr>
-      <tr>
-          <td>BPF_LSH</td>
-          <td>0x60</td>
-          <td>0</td>
-          <td>dst &laquo;= (src &amp; mask)</td>
-      </tr>
-      <tr>
-          <td>BPF_RSH</td>
-          <td>0x70</td>
-          <td>0</td>
-          <td>dst &raquo;= (src &amp; mask)</td>
-      </tr>
-      <tr>
-          <td>BPF_NEG</td>
-          <td>0x80</td>
-          <td>0</td>
-          <td>dst = -dst</td>
-      </tr>
-      <tr>
-          <td>BPF_MOD</td>
-          <td>0x90</td>
-          <td>0</td>
-          <td>dst = (src != 0) ? (dst % src) : dst</td>
-      </tr>
-      <tr>
-          <td>BPF_SMOD</td>
-          <td>0x90</td>
-          <td>1</td>
-          <td>dst = (src != 0) ? (dst s% src) : dst</td>
-      </tr>
-      <tr>
-          <td>BPF_XOR</td>
-          <td>0xa0</td>
-          <td>0</td>
-          <td>dst ^= src</td>
-      </tr>
-      <tr>
-          <td>BPF_MOV</td>
-          <td>0xb0</td>
-          <td>0</td>
-          <td>dst = src</td>
-      </tr>
-      <tr>
-          <td>BPF_MOXSX</td>
-          <td>0xb0</td>
-          <td>8/16/32</td>
-          <td>dst = (s8,s16,s32)src</td>
-      </tr>
-      <tr>
-          <td>BPF_ARSH</td>
-          <td>0xc0</td>
-          <td>0</td>
-          <td>sign extending dst &raquo;= (src &amp; mask)</td>
-      </tr>
-      <tr>
-          <td>BPF_END</td>
-          <td>0xd0</td>
-          <td>0</td>
-          <td>字节序转换</td>
-      </tr>
-  </tbody>
+	<thead>
+			<tr>
+					<th><strong>操作码</strong></th>
+					<th><strong>值</strong></th>
+					<th><strong>offset</strong></th>
+					<th><strong>含义</strong></th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>BPF_ADD</td>
+					<td>0x00</td>
+					<td>0</td>
+					<td>dst += src</td>
+			</tr>
+			<tr>
+					<td>BPF_SUB</td>
+					<td>0x10</td>
+					<td>0</td>
+					<td>dst -= src</td>
+			</tr>
+			<tr>
+					<td>BPF_MUL</td>
+					<td>0x20</td>
+					<td>0</td>
+					<td>dst *= src</td>
+			</tr>
+			<tr>
+					<td>BPF_DIV</td>
+					<td>0x30</td>
+					<td>0</td>
+					<td>dst = (src != 0) ? (dst / src) : 0</td>
+			</tr>
+			<tr>
+					<td>BPF_SDIV</td>
+					<td>0x30</td>
+					<td>1</td>
+					<td>dst = (src != 0) ? (dst s/ src) : 0</td>
+			</tr>
+			<tr>
+					<td>BPF_OR</td>
+					<td>0x40</td>
+					<td>0</td>
+					<td>dst |= src</td>
+			</tr>
+			<tr>
+					<td>BPF_AND</td>
+					<td>0x50</td>
+					<td>0</td>
+					<td>dst &amp;= src</td>
+			</tr>
+			<tr>
+					<td>BPF_LSH</td>
+					<td>0x60</td>
+					<td>0</td>
+					<td>dst &laquo;= (src &amp; mask)</td>
+			</tr>
+			<tr>
+					<td>BPF_RSH</td>
+					<td>0x70</td>
+					<td>0</td>
+					<td>dst &raquo;= (src &amp; mask)</td>
+			</tr>
+			<tr>
+					<td>BPF_NEG</td>
+					<td>0x80</td>
+					<td>0</td>
+					<td>dst = -dst</td>
+			</tr>
+			<tr>
+					<td>BPF_MOD</td>
+					<td>0x90</td>
+					<td>0</td>
+					<td>dst = (src != 0) ? (dst % src) : dst</td>
+			</tr>
+			<tr>
+					<td>BPF_SMOD</td>
+					<td>0x90</td>
+					<td>1</td>
+					<td>dst = (src != 0) ? (dst s% src) : dst</td>
+			</tr>
+			<tr>
+					<td>BPF_XOR</td>
+					<td>0xa0</td>
+					<td>0</td>
+					<td>dst ^= src</td>
+			</tr>
+			<tr>
+					<td>BPF_MOV</td>
+					<td>0xb0</td>
+					<td>0</td>
+					<td>dst = src</td>
+			</tr>
+			<tr>
+					<td>BPF_MOXSX</td>
+					<td>0xb0</td>
+					<td>8/16/32</td>
+					<td>dst = (s8,s16,s32)src</td>
+			</tr>
+			<tr>
+					<td>BPF_ARSH</td>
+					<td>0xc0</td>
+					<td>0</td>
+					<td>sign extending dst &raquo;= (src &amp; mask)</td>
+			</tr>
+			<tr>
+					<td>BPF_END</td>
+					<td>0xd0</td>
+					<td>0</td>
+					<td>字节序转换</td>
+			</tr>
+	</tbody>
 </table>
 <p>在算术运算过程中允许下溢和上溢，意味着64位或32位的值会进行循环。如果BPF程序执行会导致除以零，目标寄存器将被设置为零。如果执行会导致模除零，对于BPF_ALU64指令，目标寄存器的值保持不变，而对于BPF_ALU指令，目标寄存器的高32位将被清零。</p>
 <p>对于无符号操作（BPF_DIV和BPF_MOD），对于BPF_ALU指令，<code>imm</code>被解释为32位无符号值。对于BPF_ALU64指令，<code>imm</code>首先被符号扩展为64位，然后被解释为64位无符号值。</p>
@@ -564,40 +564,40 @@ src_reg = src_reg ^ imm32
 <p>字节序转换指令使用BPF_ALU和BPF_ALU64指令类加上BPF_END，仅对目标寄存器进行操作，不需要源寄存器和imm中的值。</p>
 <p>对于BPF_ALU指令类，操作码中的1位源操作数字段用于选择操作转换的字节顺序（从哪种字节顺序转换到哪种字节顺序）。对于BPF_ALU64指令，操作码中的1位源操作数字段保留，必须设置为0。如下所示：</p>
 <table>
-  <thead>
-      <tr>
-          <th><strong>指令类型</strong></th>
-          <th><strong>源操作数</strong></th>
-          <th><strong>值</strong></th>
-          <th><strong>含义</strong></th>
-      </tr>
-  </thead>
-  <tbody>
-      <tr>
-          <td>BPF_ALU</td>
-          <td>BPF_TO_LE</td>
-          <td>0x00</td>
-          <td>在主机字节序和小端字节序间转换</td>
-      </tr>
-      <tr>
-          <td>BPF_ALU</td>
-          <td>BPF_TO_BE</td>
-          <td>0x08</td>
-          <td>在主机字节序和大端字节序间转换</td>
-      </tr>
-      <tr>
-          <td>BPF_ALU64</td>
-          <td>Reserved</td>
-          <td>0x00</td>
-          <td>反向字节序转换</td>
-      </tr>
-      <tr>
-          <td>imm字段编码了交换操作的位宽，支持16, 32, 64。</td>
-          <td></td>
-          <td></td>
-          <td></td>
-      </tr>
-  </tbody>
+	<thead>
+			<tr>
+					<th><strong>指令类型</strong></th>
+					<th><strong>源操作数</strong></th>
+					<th><strong>值</strong></th>
+					<th><strong>含义</strong></th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>BPF_ALU</td>
+					<td>BPF_TO_LE</td>
+					<td>0x00</td>
+					<td>在主机字节序和小端字节序间转换</td>
+			</tr>
+			<tr>
+					<td>BPF_ALU</td>
+					<td>BPF_TO_BE</td>
+					<td>0x08</td>
+					<td>在主机字节序和大端字节序间转换</td>
+			</tr>
+			<tr>
+					<td>BPF_ALU64</td>
+					<td>Reserved</td>
+					<td>0x00</td>
+					<td>反向字节序转换</td>
+			</tr>
+			<tr>
+					<td>imm字段编码了交换操作的位宽，支持16, 32, 64。</td>
+					<td></td>
+					<td></td>
+					<td></td>
+			</tr>
+	</tbody>
 </table>
 <pre tabindex="0"><code>// BPF_ALU | BPF_TO_LE | BPF_END, host-endian format to little-endian format
 dst = htole16(dst) // imm = 16
@@ -616,143 +616,143 @@ dst = bswap64(dst) // imm = 64
 </code></pre><h3 id="跳转指令">跳转指令<a href="#跳转指令" class="hanchor" ariaLabel="Anchor">#</a> </h3>
 <p>同样，BPF_JMP32使用32位宽的操作数，BPF_JMP使用64位宽的操作数。操作码编码如下：</p>
 <table>
-  <thead>
-      <tr>
-          <th><strong>操作码</strong></th>
-          <th><strong>值</strong></th>
-          <th><strong>源操作数</strong></th>
-          <th><strong>含义</strong></th>
-          <th><strong>注释</strong></th>
-      </tr>
-  </thead>
-  <tbody>
-      <tr>
-          <td>BPF_JA</td>
-          <td>0x00</td>
-          <td>0x0</td>
-          <td>PC += off</td>
-          <td>BPF_JMP 指令类</td>
-      </tr>
-      <tr>
-          <td>BPF_JA</td>
-          <td>0x00</td>
-          <td>0x0</td>
-          <td>PC += imm</td>
-          <td>BPF_JMP32 指令类</td>
-      </tr>
-      <tr>
-          <td>BPF_JEQ</td>
-          <td>0x10</td>
-          <td>any</td>
-          <td>PC += off if dst == src</td>
-          <td></td>
-      </tr>
-      <tr>
-          <td>BPF_JGT</td>
-          <td>0x20</td>
-          <td>any</td>
-          <td>PC += off if dst &gt; src</td>
-          <td>unsigned</td>
-      </tr>
-      <tr>
-          <td>BPF_JGE</td>
-          <td>0x30</td>
-          <td>any</td>
-          <td>PC += off if dst &gt;= src</td>
-          <td>unsigned</td>
-      </tr>
-      <tr>
-          <td>BPF_JSET</td>
-          <td>0x40</td>
-          <td>any</td>
-          <td>PC += off if dst &amp; src</td>
-          <td></td>
-      </tr>
-      <tr>
-          <td>BPF_JNE</td>
-          <td>0x50</td>
-          <td>any</td>
-          <td>PC += off if dst != src</td>
-          <td></td>
-      </tr>
-      <tr>
-          <td>BPF_JSGT</td>
-          <td>0x60</td>
-          <td>any</td>
-          <td>PC += off if dst &gt; src</td>
-          <td>signed</td>
-      </tr>
-      <tr>
-          <td>BPF_JSGE</td>
-          <td>0x70</td>
-          <td>any</td>
-          <td>PC += off if dst &gt;= src</td>
-          <td>signed</td>
-      </tr>
-      <tr>
-          <td>BPF_CALL</td>
-          <td>0x80</td>
-          <td>0x0</td>
-          <td>通过地址调用辅助函数</td>
-          <td>Helper functions</td>
-      </tr>
-      <tr>
-          <td>BPF_CALL</td>
-          <td>0x80</td>
-          <td>0x1</td>
-          <td>调用 PC += imm</td>
-          <td>Program-local functions</td>
-      </tr>
-      <tr>
-          <td>BPF_CALL</td>
-          <td>0x80</td>
-          <td>0x2</td>
-          <td>通过BTF ID调用辅助函数</td>
-          <td>Helper functions</td>
-      </tr>
-      <tr>
-          <td>BPF_EXIT</td>
-          <td>0x90</td>
-          <td>0x0</td>
-          <td>函数/程序返回</td>
-          <td>BPF_JMP only</td>
-      </tr>
-      <tr>
-          <td>BPF_JLT</td>
-          <td>0xa0</td>
-          <td>any</td>
-          <td>PC += off if dst &lt; src</td>
-          <td>unsigned</td>
-      </tr>
-      <tr>
-          <td>BPF_JLE</td>
-          <td>0xb0</td>
-          <td>any</td>
-          <td>PC += off if dst &lt;= src</td>
-          <td>unsigned</td>
-      </tr>
-      <tr>
-          <td>BPF_JSLT</td>
-          <td>0xc0</td>
-          <td>any</td>
-          <td>PC += off if dst &lt; src</td>
-          <td>signed</td>
-      </tr>
-      <tr>
-          <td>BPF_JSLE</td>
-          <td>0xd0</td>
-          <td>any</td>
-          <td>PC += off if dst &lt;= src</td>
-          <td>signed</td>
-      </tr>
-      <tr>
-          <td>eBPF程序需要在做BPF_EXIT操作之前将返回值存储到R0。</td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-      </tr>
-  </tbody>
+	<thead>
+			<tr>
+					<th><strong>操作码</strong></th>
+					<th><strong>值</strong></th>
+					<th><strong>源操作数</strong></th>
+					<th><strong>含义</strong></th>
+					<th><strong>注释</strong></th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>BPF_JA</td>
+					<td>0x00</td>
+					<td>0x0</td>
+					<td>PC += off</td>
+					<td>BPF_JMP 指令类</td>
+			</tr>
+			<tr>
+					<td>BPF_JA</td>
+					<td>0x00</td>
+					<td>0x0</td>
+					<td>PC += imm</td>
+					<td>BPF_JMP32 指令类</td>
+			</tr>
+			<tr>
+					<td>BPF_JEQ</td>
+					<td>0x10</td>
+					<td>any</td>
+					<td>PC += off if dst == src</td>
+					<td></td>
+			</tr>
+			<tr>
+					<td>BPF_JGT</td>
+					<td>0x20</td>
+					<td>any</td>
+					<td>PC += off if dst &gt; src</td>
+					<td>unsigned</td>
+			</tr>
+			<tr>
+					<td>BPF_JGE</td>
+					<td>0x30</td>
+					<td>any</td>
+					<td>PC += off if dst &gt;= src</td>
+					<td>unsigned</td>
+			</tr>
+			<tr>
+					<td>BPF_JSET</td>
+					<td>0x40</td>
+					<td>any</td>
+					<td>PC += off if dst &amp; src</td>
+					<td></td>
+			</tr>
+			<tr>
+					<td>BPF_JNE</td>
+					<td>0x50</td>
+					<td>any</td>
+					<td>PC += off if dst != src</td>
+					<td></td>
+			</tr>
+			<tr>
+					<td>BPF_JSGT</td>
+					<td>0x60</td>
+					<td>any</td>
+					<td>PC += off if dst &gt; src</td>
+					<td>signed</td>
+			</tr>
+			<tr>
+					<td>BPF_JSGE</td>
+					<td>0x70</td>
+					<td>any</td>
+					<td>PC += off if dst &gt;= src</td>
+					<td>signed</td>
+			</tr>
+			<tr>
+					<td>BPF_CALL</td>
+					<td>0x80</td>
+					<td>0x0</td>
+					<td>通过地址调用辅助函数</td>
+					<td>Helper functions</td>
+			</tr>
+			<tr>
+					<td>BPF_CALL</td>
+					<td>0x80</td>
+					<td>0x1</td>
+					<td>调用 PC += imm</td>
+					<td>Program-local functions</td>
+			</tr>
+			<tr>
+					<td>BPF_CALL</td>
+					<td>0x80</td>
+					<td>0x2</td>
+					<td>通过BTF ID调用辅助函数</td>
+					<td>Helper functions</td>
+			</tr>
+			<tr>
+					<td>BPF_EXIT</td>
+					<td>0x90</td>
+					<td>0x0</td>
+					<td>函数/程序返回</td>
+					<td>BPF_JMP only</td>
+			</tr>
+			<tr>
+					<td>BPF_JLT</td>
+					<td>0xa0</td>
+					<td>any</td>
+					<td>PC += off if dst &lt; src</td>
+					<td>unsigned</td>
+			</tr>
+			<tr>
+					<td>BPF_JLE</td>
+					<td>0xb0</td>
+					<td>any</td>
+					<td>PC += off if dst &lt;= src</td>
+					<td>unsigned</td>
+			</tr>
+			<tr>
+					<td>BPF_JSLT</td>
+					<td>0xc0</td>
+					<td>any</td>
+					<td>PC += off if dst &lt; src</td>
+					<td>signed</td>
+			</tr>
+			<tr>
+					<td>BPF_JSLE</td>
+					<td>0xd0</td>
+					<td>any</td>
+					<td>PC += off if dst &lt;= src</td>
+					<td>signed</td>
+			</tr>
+			<tr>
+					<td>eBPF程序需要在做BPF_EXIT操作之前将返回值存储到R0。</td>
+					<td></td>
+					<td></td>
+					<td></td>
+					<td></td>
+			</tr>
+	</tbody>
 </table>
 <p>举例：</p>
 <pre tabindex="0"><code>// BPF_JSGE | BPF_X | BPF_JMP32 (0x7e)
@@ -767,102 +767,102 @@ gotol +imm // &#39;imm&#39; means the branch offset comes from insn &#39;imm&#39
 <h1 id="加载和存储操作">加载和存储操作<a href="#加载和存储操作" class="hanchor" ariaLabel="Anchor">#</a> </h1>
 <p>对于加载和存储操作（BPF_LD, BPF_LDX, BPF_ST, BPF_STX），8位的opcode字段被分成3个部分：</p>
 <table>
-  <thead>
-      <tr>
-          <th><strong>3位（最高有效位）</strong></th>
-          <th><strong>2位</strong></th>
-          <th><strong>3位（最低有效位）</strong></th>
-      </tr>
-  </thead>
-  <tbody>
-      <tr>
-          <td>模式（mode）</td>
-          <td>大小（size）</td>
-          <td>指令类型</td>
-      </tr>
-      <tr>
-          <td>size取值如下：</td>
-          <td></td>
-          <td></td>
-      </tr>
-  </tbody>
+	<thead>
+			<tr>
+					<th><strong>3位（最高有效位）</strong></th>
+					<th><strong>2位</strong></th>
+					<th><strong>3位（最低有效位）</strong></th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>模式（mode）</td>
+					<td>大小（size）</td>
+					<td>指令类型</td>
+			</tr>
+			<tr>
+					<td>size取值如下：</td>
+					<td></td>
+					<td></td>
+			</tr>
+	</tbody>
 </table>
 <table>
-  <thead>
-      <tr>
-          <th><strong>size</strong></th>
-          <th><strong>值</strong></th>
-          <th><strong>含义</strong></th>
-      </tr>
-  </thead>
-  <tbody>
-      <tr>
-          <td>BPF_W</td>
-          <td>0x00</td>
-          <td>word（4字节）</td>
-      </tr>
-      <tr>
-          <td>BPF_H</td>
-          <td>0x08</td>
-          <td>half word（2字节）</td>
-      </tr>
-      <tr>
-          <td>BPF_B</td>
-          <td>0x10</td>
-          <td>1字节</td>
-      </tr>
-      <tr>
-          <td>BPF_DW</td>
-          <td>0x18</td>
-          <td>double word（8字节）</td>
-      </tr>
-      <tr>
-          <td>mode取值如下：</td>
-          <td></td>
-          <td></td>
-      </tr>
-  </tbody>
+	<thead>
+			<tr>
+					<th><strong>size</strong></th>
+					<th><strong>值</strong></th>
+					<th><strong>含义</strong></th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>BPF_W</td>
+					<td>0x00</td>
+					<td>word（4字节）</td>
+			</tr>
+			<tr>
+					<td>BPF_H</td>
+					<td>0x08</td>
+					<td>half word（2字节）</td>
+			</tr>
+			<tr>
+					<td>BPF_B</td>
+					<td>0x10</td>
+					<td>1字节</td>
+			</tr>
+			<tr>
+					<td>BPF_DW</td>
+					<td>0x18</td>
+					<td>double word（8字节）</td>
+			</tr>
+			<tr>
+					<td>mode取值如下：</td>
+					<td></td>
+					<td></td>
+			</tr>
+	</tbody>
 </table>
 <table>
-  <thead>
-      <tr>
-          <th><strong>mode</strong></th>
-          <th><strong>值</strong></th>
-          <th><strong>含义</strong></th>
-      </tr>
-  </thead>
-  <tbody>
-      <tr>
-          <td>BPF_IMM</td>
-          <td>0x00</td>
-          <td>64位立即数指令</td>
-      </tr>
-      <tr>
-          <td>BPF_ABS</td>
-          <td>0x20</td>
-          <td>从cBPF继承的数据包访问指令（absolute），已废弃</td>
-      </tr>
-      <tr>
-          <td>BPF_IND</td>
-          <td>0x40</td>
-          <td>从cBPF继承的数据包访问指令（indirect），已废弃</td>
-      </tr>
-      <tr>
-          <td>BPF_MEM</td>
-          <td>0x60</td>
-          <td>常规的加载和存储指令</td>
-      </tr>
-      <tr>
-          <td>BPF_MEMSX</td>
-          <td>0x80</td>
-          <td>带符号扩展的加载指令</td>
-      </tr>
-      <tr>
-          <td>BPF_ATOMIC</td>
-          <td>0xc0</td>
-          <td>原子指令</td>
-      </tr>
-  </tbody>
+	<thead>
+			<tr>
+					<th><strong>mode</strong></th>
+					<th><strong>值</strong></th>
+					<th><strong>含义</strong></th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>BPF_IMM</td>
+					<td>0x00</td>
+					<td>64位立即数指令</td>
+			</tr>
+			<tr>
+					<td>BPF_ABS</td>
+					<td>0x20</td>
+					<td>从cBPF继承的数据包访问指令（absolute），已废弃</td>
+			</tr>
+			<tr>
+					<td>BPF_IND</td>
+					<td>0x40</td>
+					<td>从cBPF继承的数据包访问指令（indirect），已废弃</td>
+			</tr>
+			<tr>
+					<td>BPF_MEM</td>
+					<td>0x60</td>
+					<td>常规的加载和存储指令</td>
+			</tr>
+			<tr>
+					<td>BPF_MEMSX</td>
+					<td>0x80</td>
+					<td>带符号扩展的加载指令</td>
+			</tr>
+			<tr>
+					<td>BPF_ATOMIC</td>
+					<td>0xc0</td>
+					<td>原子指令</td>
+			</tr>
+	</tbody>
 </table>
 <h3 id="常规加载和存储指令">常规加载和存储指令<a href="#常规加载和存储指令" class="hanchor" ariaLabel="Anchor">#</a> </h3>
 <p>BPF_MEM用于编码在寄存器和内存之间传输数据的常规加载和存储指令。如：</p>
@@ -889,55 +889,55 @@ dst = *(signed size *) (src + offset)
 </ul>
 <p>立即数（immediate）字段在原子指令中做了额外的编码， 用于表示实际的操作类型：</p>
 <table>
-  <thead>
-      <tr>
-          <th><strong>imm</strong></th>
-          <th><strong>值</strong></th>
-          <th><strong>含义</strong></th>
-      </tr>
-  </thead>
-  <tbody>
-      <tr>
-          <td>BPF_ADD</td>
-          <td>0x00</td>
-          <td>atomic add</td>
-      </tr>
-      <tr>
-          <td>BPF_OR</td>
-          <td>0x40</td>
-          <td>atomic or</td>
-      </tr>
-      <tr>
-          <td>BPF_AND</td>
-          <td>0x50</td>
-          <td>atomic and</td>
-      </tr>
-      <tr>
-          <td>BPF_XOR</td>
-          <td>0xa0</td>
-          <td>atomic xor</td>
-      </tr>
-      <tr>
-          <td>BPF_FETCH</td>
-          <td>0x01</td>
-          <td>修饰符：返回原值</td>
-      </tr>
-      <tr>
-          <td>BPF_XCHG</td>
-          <td>0xe0 | BPF_FETCH</td>
-          <td>atomic exchange</td>
-      </tr>
-      <tr>
-          <td>BPF_CMPXCHG</td>
-          <td>0xf0 | BPF_FETCH</td>
-          <td>atomic compare and exchange</td>
-      </tr>
-      <tr>
-          <td>前面4个为简单原子操作，BPF_FETCH是修饰符，后面2个为复杂原子操作。BPF_FETCH对于简单原子操作来说是可选的，对复杂原子操作是始终置位的。如果BPF_FETCH被置位，操作也会用内存被修改之前的值替换源寄存器中的值。</td>
-          <td></td>
-          <td></td>
-      </tr>
-  </tbody>
+	<thead>
+			<tr>
+					<th><strong>imm</strong></th>
+					<th><strong>值</strong></th>
+					<th><strong>含义</strong></th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>BPF_ADD</td>
+					<td>0x00</td>
+					<td>atomic add</td>
+			</tr>
+			<tr>
+					<td>BPF_OR</td>
+					<td>0x40</td>
+					<td>atomic or</td>
+			</tr>
+			<tr>
+					<td>BPF_AND</td>
+					<td>0x50</td>
+					<td>atomic and</td>
+			</tr>
+			<tr>
+					<td>BPF_XOR</td>
+					<td>0xa0</td>
+					<td>atomic xor</td>
+			</tr>
+			<tr>
+					<td>BPF_FETCH</td>
+					<td>0x01</td>
+					<td>修饰符：返回原值</td>
+			</tr>
+			<tr>
+					<td>BPF_XCHG</td>
+					<td>0xe0 | BPF_FETCH</td>
+					<td>atomic exchange</td>
+			</tr>
+			<tr>
+					<td>BPF_CMPXCHG</td>
+					<td>0xf0 | BPF_FETCH</td>
+					<td>atomic compare and exchange</td>
+			</tr>
+			<tr>
+					<td>前面4个为简单原子操作，BPF_FETCH是修饰符，后面2个为复杂原子操作。BPF_FETCH对于简单原子操作来说是可选的，对复杂原子操作是始终置位的。如果BPF_FETCH被置位，操作也会用内存被修改之前的值替换源寄存器中的值。</td>
+					<td></td>
+					<td></td>
+			</tr>
+	</tbody>
 </table>
 <p>举例：</p>
 <pre tabindex="0"><code>// .imm = BPF_ADD, .code = BPF_ATOMIC|BPF_W|BPF_STX
@@ -956,58 +956,58 @@ lock xadd *(u64 *)(dst_reg + off16) += src_reg
 <p>64位立即数指令使用宽指令编码，使用BPF_IMM模式修饰符，并且使用基本指令中的源寄存器字段存储操作码的子类型。</p>
 <p>下面是BPF_LD | BPF_DW | BPF_IMM(0x18)指令的子类型：</p>
 <table>
-  <thead>
-      <tr>
-          <th>源寄存器值</th>
-          <th>伪代码</th>
-          <th>立即数类型</th>
-          <th>目的寄存器值类型</th>
-      </tr>
-  </thead>
-  <tbody>
-      <tr>
-          <td>0x0</td>
-          <td>dst = imm64</td>
-          <td>integer</td>
-          <td>integer</td>
-      </tr>
-      <tr>
-          <td>0x1</td>
-          <td>dst = map_by_fd(imm)</td>
-          <td>map fd</td>
-          <td>map</td>
-      </tr>
-      <tr>
-          <td>0x2</td>
-          <td>dst = map_val(map_by_fd(imm)) + next_imm</td>
-          <td>map fd</td>
-          <td>data pointer</td>
-      </tr>
-      <tr>
-          <td>0x3</td>
-          <td>dst = var_addr(imm)</td>
-          <td>variable id</td>
-          <td>data pointer</td>
-      </tr>
-      <tr>
-          <td>0x4</td>
-          <td>dst = code_addr(imm)</td>
-          <td>integer</td>
-          <td>code pointer</td>
-      </tr>
-      <tr>
-          <td>0x5</td>
-          <td>dst = map_by_idx(imm)</td>
-          <td>map index</td>
-          <td>map</td>
-      </tr>
-      <tr>
-          <td>0x6</td>
-          <td>dst = map_val(map_by_idx(imm)) + next_imm</td>
-          <td>map index</td>
-          <td>data pointer</td>
-      </tr>
-  </tbody>
+	<thead>
+			<tr>
+					<th>源寄存器值</th>
+					<th>伪代码</th>
+					<th>立即数类型</th>
+					<th>目的寄存器值类型</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>0x0</td>
+					<td>dst = imm64</td>
+					<td>integer</td>
+					<td>integer</td>
+			</tr>
+			<tr>
+					<td>0x1</td>
+					<td>dst = map_by_fd(imm)</td>
+					<td>map fd</td>
+					<td>map</td>
+			</tr>
+			<tr>
+					<td>0x2</td>
+					<td>dst = map_val(map_by_fd(imm)) + next_imm</td>
+					<td>map fd</td>
+					<td>data pointer</td>
+			</tr>
+			<tr>
+					<td>0x3</td>
+					<td>dst = var_addr(imm)</td>
+					<td>variable id</td>
+					<td>data pointer</td>
+			</tr>
+			<tr>
+					<td>0x4</td>
+					<td>dst = code_addr(imm)</td>
+					<td>integer</td>
+					<td>code pointer</td>
+			</tr>
+			<tr>
+					<td>0x5</td>
+					<td>dst = map_by_idx(imm)</td>
+					<td>map index</td>
+					<td>map</td>
+			</tr>
+			<tr>
+					<td>0x6</td>
+					<td>dst = map_val(map_by_idx(imm)) + next_imm</td>
+					<td>map index</td>
+					<td>data pointer</td>
+			</tr>
+	</tbody>
 </table>
 <ul>
 <li>map_by_fd(imm): 将一个32位的文件描述符转换成一个map的地址</li>

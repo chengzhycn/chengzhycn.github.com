@@ -1,19 +1,24 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
-  <channel>
-    <title>AI on chengzhycn&#39;s blog</title>
-    <link>https://www.jinzhi.site/tags/ai/</link>
-    <description>Recent content in AI on chengzhycn&#39;s blog</description>
-    <generator>Hugo</generator>
-    <language>en-us</language>
-    <lastBuildDate>Wed, 05 Nov 2025 21:18:28 +0800</lastBuildDate>
-    <atom:link href="https://www.jinzhi.site/tags/ai/index.xml" rel="self" type="application/rss+xml" />
-    <item>
-      <title>常见的大模型 OpenAPI 规范</title>
-      <link>https://www.jinzhi.site/posts/2025-11/%E5%B8%B8%E8%A7%81%E7%9A%84%E5%A4%A7%E6%A8%A1%E5%9E%8B-openapi-%E8%A7%84%E8%8C%83/</link>
-      <pubDate>Wed, 05 Nov 2025 21:18:28 +0800</pubDate>
-      <guid>https://www.jinzhi.site/posts/2025-11/%E5%B8%B8%E8%A7%81%E7%9A%84%E5%A4%A7%E6%A8%A1%E5%9E%8B-openapi-%E8%A7%84%E8%8C%83/</guid>
-      <description>&lt;p&gt;AI Gateway 的对接开发中，一个重要的内容就是对接不同厂商推理服务的接口协议。目前，推理服务的接口协议主要分为以下几种类型：&lt;/p&gt;&#xA;&lt;ul&gt;&#xA;&lt;li&gt;文本对话接口，如 OpenAI 的 chat completions 和 response API 等&lt;/li&gt;&#xA;&lt;li&gt;向量接口，向量接口用于将输入的文本或者图片、视频（多模态）等转换成向量表示，适用于搜索（文搜图、图搜图、图文混合搜索）、聚类、推荐等场景。&lt;/li&gt;&#xA;&lt;/ul&gt;&#xA;&lt;h2 id=&#34;文本对话&#34;&gt;文本对话&lt;/h2&gt;&#xA;&lt;p&gt;文本对话 API 需要提供如下能力支持：&lt;/p&gt;&#xA;&lt;ol&gt;&#xA;&lt;li&gt;模型选择&lt;/li&gt;&#xA;&lt;li&gt;用户、系统、模型输入内容角色区分&lt;/li&gt;&#xA;&lt;li&gt;模型参数调整&lt;/li&gt;&#xA;&lt;li&gt;工具调用&lt;/li&gt;&#xA;&lt;li&gt;MCP 支持&lt;/li&gt;&#xA;&lt;li&gt;用量统计&lt;/li&gt;&#xA;&lt;/ol&gt;&#xA;&lt;p&gt;目前使用最广泛的文本对话接口自然是 OpenAI 的 chat completions API。几乎所有的 LLM 服务提供商都支持 chat completions compatible 调用。&lt;/p&gt;&#xA;&lt;p&gt;&lt;a href=&#34;https://platform.openai.com/docs/api-reference/introduction&#34;&gt;https://platform.openai.com/docs/api-reference/introduction&lt;/a&gt;&lt;/p&gt;&#xA;&lt;h3 id=&#34;chat-completions&#34;&gt;chat completions&lt;/h3&gt;&#xA;&lt;p&gt;基本调用：&lt;/p&gt;&#xA;&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;curl https://api.openai.com/v1/chat/completions \&#xA;  -H &amp;#34;Content-Type: application/json&amp;#34; \&#xA;  -H &amp;#34;Authorization: Bearer $OPENAI_API_KEY&amp;#34; \&#xA;  -d &amp;#39;{&#xA;    &amp;#34;model&amp;#34;: &amp;#34;gpt-5&amp;#34;,&#xA;    &amp;#34;messages&amp;#34;: [&#xA;      {&#xA;        &amp;#34;role&amp;#34;: &amp;#34;developer&amp;#34;,&#xA;        &amp;#34;content&amp;#34;: &amp;#34;You are a helpful assistant.&amp;#34;&#xA;      },&#xA;      {&#xA;        &amp;#34;role&amp;#34;: &amp;#34;user&amp;#34;,&#xA;        &amp;#34;content&amp;#34;: &amp;#34;Hello!&amp;#34;&#xA;      }&#xA;    ]&#xA;  }&amp;#39;&#xA;&lt;/code&gt;&lt;/pre&gt;&lt;ul&gt;&#xA;&lt;li&gt;model: 请求调用的模型&lt;/li&gt;&#xA;&lt;li&gt;messages：构成对话的消息体。根据消息的来源角色，message 可以分为 developer/system（开发者，系统提供的 prompt），user（用户自身的输入）和 assistant（模型的响应，用于多轮对话时模型的上下文传递）。&#xA;&lt;ul&gt;&#xA;&lt;li&gt;content 分为两种类型，纯文本即为 string，非纯文本 content 为列表类型，内容根据 type（text，image_url，input_audio 等）有不同的字段&lt;/li&gt;&#xA;&lt;/ul&gt;&#xA;&lt;/li&gt;&#xA;&lt;li&gt;stream：采用正常 HTTP 响应还是 sse 响应&lt;/li&gt;&#xA;&lt;li&gt;stream_options: 在 sse 响应时，有些模型默认不会输出 usage 信息，需要显式将 stream_options.include_usage 设置成 true&lt;/li&gt;&#xA;&lt;li&gt;temperature：模型温度，取值范围 0 - 2，值越高，输出的 tokens 随机性越大&lt;/li&gt;&#xA;&lt;li&gt;top_p：和 tempreature 一样对模型输出进行调整的参数，模型会考虑概率质量最高的top_p个tokens的结果。所以0.1意味着只考虑概率质量最高的10%的tokens。&lt;/li&gt;&#xA;&lt;li&gt;reasoning_effort：模型的推理深度，比如对于 OpenAI 模型来说有 minimal，low，medium，high 等多种选择。&lt;/li&gt;&#xA;&lt;li&gt;max_completion_tokens：最大输出 tokens 数，包括 output tokens 和 reasoning tokens。替代原来的 max_tokens 字段。&lt;/li&gt;&#xA;&lt;li&gt;tools：告知大模型本地可调用的工具列表。工具里面定义了工具的名称、描述和 json schema 表示的参数描述。替代原来的 functions 字段。&lt;/li&gt;&#xA;&lt;li&gt;tool_choice：告知模型对于工具的调用选择。none 表示不要调用任何工具直接生成 messages，auto 表示由模型自己决定是否调用 allowed_tools。required 表示模型必须调用至少一个工具。&lt;/li&gt;&#xA;&lt;/ul&gt;&#xA;&lt;p&gt;除此之外，各家可以在 OpenAI 标准的 API 上扩展自己的字段，比如 cherry studio 会使用 thinking 字段来开启/关闭模型思考：&lt;/p&gt;</description>
-    </item>
-  </channel>
+	<channel>
+		<title>AI on chengzhycn&#39;s blog</title>
+		<link>https://www.jinzhi.site/tags/ai/</link>
+		<description>Recent content in AI on chengzhycn&#39;s blog</description>
+		<generator>Hugo</generator>
+		<language>en-us</language>
+		
+		
+		
+		
+			<lastBuildDate>Wed, 05 Nov 2025 21:18:28 +0800</lastBuildDate>
+		
+			<atom:link href="https://www.jinzhi.site/tags/ai/index.xml" rel="self" type="application/rss+xml" />
+			<item>
+				<title>常见的大模型 OpenAPI 规范</title>
+				<link>https://www.jinzhi.site/posts/2025-11/%E5%B8%B8%E8%A7%81%E7%9A%84%E5%A4%A7%E6%A8%A1%E5%9E%8B-openapi-%E8%A7%84%E8%8C%83/</link>
+				<pubDate>Wed, 05 Nov 2025 21:18:28 +0800</pubDate>
+				<guid>https://www.jinzhi.site/posts/2025-11/%E5%B8%B8%E8%A7%81%E7%9A%84%E5%A4%A7%E6%A8%A1%E5%9E%8B-openapi-%E8%A7%84%E8%8C%83/</guid>
+				<description>&lt;p&gt;AI Gateway 的对接开发中，一个重要的内容就是对接不同厂商推理服务的接口协议。目前，推理服务的接口协议主要分为以下几种类型：&lt;/p&gt;&#xA;&lt;ul&gt;&#xA;&lt;li&gt;文本对话接口，如 OpenAI 的 chat completions 和 response API 等&lt;/li&gt;&#xA;&lt;li&gt;向量接口，向量接口用于将输入的文本或者图片、视频（多模态）等转换成向量表示，适用于搜索（文搜图、图搜图、图文混合搜索）、聚类、推荐等场景。&lt;/li&gt;&#xA;&lt;/ul&gt;&#xA;&lt;h2 id=&#34;文本对话&#34;&gt;文本对话&lt;/h2&gt;&#xA;&lt;p&gt;文本对话 API 需要提供如下能力支持：&lt;/p&gt;&#xA;&lt;ol&gt;&#xA;&lt;li&gt;模型选择&lt;/li&gt;&#xA;&lt;li&gt;用户、系统、模型输入内容角色区分&lt;/li&gt;&#xA;&lt;li&gt;模型参数调整&lt;/li&gt;&#xA;&lt;li&gt;工具调用&lt;/li&gt;&#xA;&lt;li&gt;MCP 支持&lt;/li&gt;&#xA;&lt;li&gt;用量统计&lt;/li&gt;&#xA;&lt;/ol&gt;&#xA;&lt;p&gt;目前使用最广泛的文本对话接口自然是 OpenAI 的 chat completions API。几乎所有的 LLM 服务提供商都支持 chat completions compatible 调用。&lt;/p&gt;&#xA;&lt;p&gt;&lt;a href=&#34;https://platform.openai.com/docs/api-reference/introduction&#34;&gt;https://platform.openai.com/docs/api-reference/introduction&lt;/a&gt;&lt;/p&gt;&#xA;&lt;h3 id=&#34;chat-completions&#34;&gt;chat completions&lt;/h3&gt;&#xA;&lt;p&gt;基本调用：&lt;/p&gt;&#xA;&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;curl https://api.openai.com/v1/chat/completions \&#xA;  -H &amp;#34;Content-Type: application/json&amp;#34; \&#xA;  -H &amp;#34;Authorization: Bearer $OPENAI_API_KEY&amp;#34; \&#xA;  -d &amp;#39;{&#xA;    &amp;#34;model&amp;#34;: &amp;#34;gpt-5&amp;#34;,&#xA;    &amp;#34;messages&amp;#34;: [&#xA;      {&#xA;        &amp;#34;role&amp;#34;: &amp;#34;developer&amp;#34;,&#xA;        &amp;#34;content&amp;#34;: &amp;#34;You are a helpful assistant.&amp;#34;&#xA;      },&#xA;      {&#xA;        &amp;#34;role&amp;#34;: &amp;#34;user&amp;#34;,&#xA;        &amp;#34;content&amp;#34;: &amp;#34;Hello!&amp;#34;&#xA;      }&#xA;    ]&#xA;  }&amp;#39;&#xA;&lt;/code&gt;&lt;/pre&gt;&lt;ul&gt;&#xA;&lt;li&gt;model: 请求调用的模型&lt;/li&gt;&#xA;&lt;li&gt;messages：构成对话的消息体。根据消息的来源角色，message 可以分为 developer/system（开发者，系统提供的 prompt），user（用户自身的输入）和 assistant（模型的响应，用于多轮对话时模型的上下文传递）。&#xA;&lt;ul&gt;&#xA;&lt;li&gt;content 分为两种类型，纯文本即为 string，非纯文本 content 为列表类型，内容根据 type（text，image_url，input_audio 等）有不同的字段&lt;/li&gt;&#xA;&lt;/ul&gt;&#xA;&lt;/li&gt;&#xA;&lt;li&gt;stream：采用正常 HTTP 响应还是 sse 响应&lt;/li&gt;&#xA;&lt;li&gt;stream_options: 在 sse 响应时，有些模型默认不会输出 usage 信息，需要显式将 stream_options.include_usage 设置成 true&lt;/li&gt;&#xA;&lt;li&gt;temperature：模型温度，取值范围 0 - 2，值越高，输出的 tokens 随机性越大&lt;/li&gt;&#xA;&lt;li&gt;top_p：和 tempreature 一样对模型输出进行调整的参数，模型会考虑概率质量最高的top_p个tokens的结果。所以0.1意味着只考虑概率质量最高的10%的tokens。&lt;/li&gt;&#xA;&lt;li&gt;reasoning_effort：模型的推理深度，比如对于 OpenAI 模型来说有 minimal，low，medium，high 等多种选择。&lt;/li&gt;&#xA;&lt;li&gt;max_completion_tokens：最大输出 tokens 数，包括 output tokens 和 reasoning tokens。替代原来的 max_tokens 字段。&lt;/li&gt;&#xA;&lt;li&gt;tools：告知大模型本地可调用的工具列表。工具里面定义了工具的名称、描述和 json schema 表示的参数描述。替代原来的 functions 字段。&lt;/li&gt;&#xA;&lt;li&gt;tool_choice：告知模型对于工具的调用选择。none 表示不要调用任何工具直接生成 messages，auto 表示由模型自己决定是否调用 allowed_tools。required 表示模型必须调用至少一个工具。&lt;/li&gt;&#xA;&lt;/ul&gt;&#xA;&lt;p&gt;除此之外，各家可以在 OpenAI 标准的 API 上扩展自己的字段，比如 cherry studio 会使用 thinking 字段来开启/关闭模型思考：&lt;/p&gt;</description>
+			</item>
+	</channel>
 </rss>
