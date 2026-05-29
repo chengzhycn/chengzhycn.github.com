@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-	<meta name="generator" content="Hugo 0.162.0">
+	<meta name="generator" content="Hugo 0.162.1">
   
     <title>chengzhycn&#39;s blog</title>
   
@@ -213,6 +213,103 @@
     
     
 
+    
+      <article class="post on-list">
+        <h2 class="post-title">
+          <a href="https://www.jinzhi.site/posts/2022-07/make%E5%91%BD%E4%BB%A4%E5%92%8C%E7%BC%96%E8%AF%91/">make命令和编译</a>
+        </h2>
+
+        <div class="post-meta"><time class="post-date">2022-07-26</time></div>
+
+        
+          <span class="post-tags">
+            
+            #<a href="https://www.jinzhi.site/tags/makefile/">makefile</a>&nbsp;
+            
+            #<a href="https://www.jinzhi.site/tags/compile/">compile</a>&nbsp;
+            
+          </span>
+        
+
+        
+
+
+        <div class="post-content">
+          
+            <h2 id="makefile">Makefile</h2>
+<h3 id="标准格式">标准格式</h3>
+<pre tabindex="0"><code>target：dependencies1 dependencies2 ...
+   recipe
+
+.PHONY: clean
+clean:
+   -rm ...
+</code></pre><h4 id="注意事项">注意事项</h4>
+<ul>
+<li>运行make时如果没有指定target，那么make会构建Makefile中的第一个target</li>
+<li>通常情况下，目标名即生成的文件名。如果一条规则的目标文件存在并且该文件比它所有的依赖都要新，那么make会跳过recipe；如果目标文件不存在，那么目标文件的 <strong>timestamp</strong> 为开始的时间；否则timestamp为相应文件的修改时间。</li>
+<li>每次运行 <code>make clean</code>，”clean“中的recipe都会被执行，因为clean文件永远都不会被创建。（可以使用 <strong>.PHONY</strong> 创建伪目标使Makefile可读性更高）</li>
+<li>recipes必须用tab缩进</li>
+<li>可以通过并行的方式运行recipes：<code>make -j 4</code>（指定并行的任务数）</li>
+<li>如果没有指定规则，Make会自动化创建规则。例如，本地有一个C文件”program.c“，当运行 <code>make program</code>时，Make会自动编译生成 program</li>
+</ul>
+<h3 id="变量">变量</h3>
+<ul>
+<li><code>$@</code> 目标文件</li>
+<li><code>$^</code> 所有的依赖文件</li>
+<li><code>$&lt;</code> 第一个依赖</li>
+</ul>
+<h2 id="头文件">头文件</h2>
+<h3 id="环境变量">环境变量</h3>
+<ul>
+<li><code>C_INCLUDE_PATH</code> C语言头文件路径</li>
+<li><code>CPLUS_INCLUDE_PATH</code> C++ 头文件路径</li>
+</ul>
+<h3 id="搜索路径">搜索路径</h3>
+<h4 id="include">#include&lt;&gt;</h4>
+<ol>
+<li>先搜索 <code>-I</code> 指定的目录</li>
+<li>然后搜索gcc的环境变量 <code>CPLUS_INCLUDE_PATH</code></li>
+<li>最后搜索gcc的内定目录
+<ol>
+<li><code>/usr/include</code></li>
+<li><code>/usr/local/include</code></li>
+<li><code>/usr/lib/gcc/x86_64-redhat-linux/4.1.1/include</code></li>
+</ol>
+</li>
+</ol>
+<h4 id="include-">#include &quot;&quot;</h4>
+<ul>
+<li>搜索当前目录，#include&lt;&gt;方式不会搜索当前目录</li>
+</ul>
+<h2 id="动态库">动态库</h2>
+<h3 id="环境变量-1">环境变量</h3>
+<ul>
+<li><code>LD_LIBRARY_PATH</code>  动态链接库搜索路径</li>
+<li><code>PKG_CONFIG_PATH</code> .pc文件（package config）文件搜索路径</li>
+</ul>
+<h3 id="搜索路径-1">搜索路径</h3>
+<ol>
+<li>首先在环境变量 <code>LD_LIBRARY_PATH</code> 所记录的路径中查找</li>
+<li>在程序链接时指定的 rpath 中查找，可以  <code>readelf binfile | grep RPATH</code></li>
+<li>然后从缓存文件/etc/ld.so.cache中查找。这个缓存文件由/sbin/ldconfig命令读取配置文件/etc/ld.so.conf 之后生成（也可以在 ld.so.conf.d 目录下增加 <em>.conf 文件，里面写入库路径，在 ld.so.conf 中 include ld.so.conf.d/</em>.conf ）</li>
+<li>如果上述步骤都找不到，则到默认的系统路径中查找，先是/usr/lib然后是/lib</li>
+</ol>
+<ul>
+<li><a href="https://www.cnblogs.com/masterpanda/p/5700446.html">https://www.cnblogs.com/masterpanda/p/5700446.html</a></li>
+</ul>
+<h3 id="编译参数">编译参数</h3>
+<h4 id="-shared">-shared</h4>
+<p>指定生成动态连接库</p>
+          
+        </div>
+
+        
+          <div>
+            <a class="read-more button inline" href="/posts/2022-07/make%E5%91%BD%E4%BB%A4%E5%92%8C%E7%BC%96%E8%AF%91/">[Read more]</a>
+          </div>
+        
+      </article>
     
       <article class="post on-list">
         <h2 class="post-title">
@@ -529,92 +626,6 @@
         
       </article>
     
-      <article class="post on-list">
-        <h2 class="post-title">
-          <a href="https://www.jinzhi.site/posts/2022-05/elf-%E6%96%87%E4%BB%B6%E6%A0%BC%E5%BC%8F%E6%B5%85%E6%9E%90/">ELF 文件格式浅析</a>
-        </h2>
-
-        <div class="post-meta"><time class="post-date">2022-05-27</time></div>
-
-        
-          <span class="post-tags">
-            
-            #<a href="https://www.jinzhi.site/tags/operatingsystem/">OperatingSystem</a>&nbsp;
-            
-            #<a href="https://www.jinzhi.site/tags/elf/">ELF</a>&nbsp;
-            
-          </span>
-        
-
-        
-
-
-        <div class="post-content">
-          
-            <p>本文是作为 Rust 的练手项目 rself(<a href="https://github.com/chengzhycn/rself">https://github.com/chengzhycn/rself</a>) 的背景知识记录。rself 使用 Rust 重新造了一个 readelf 的轮子。</p>
-<p>ELF全称为<strong>Executable and Linkable Format</strong>，是Linux上可执行文件的通用文件格式。主要有三种类型的ELF文件：</p>
-<ul>
-<li><strong>Relocatable file</strong>: 存储用于和其它对象文件链接的代码和数据，创建一个可执行文件或者共享对象文件</li>
-<li><strong>Executable file</strong>: 存储的是用于执行的程序。它指定了exec如何创建一个程序的进程镜像</li>
-<li><strong>Shared object file</strong>: 存储了在两种语义下用于链接的代码和数据。第一种是让链接器将共享对象文件和其它的可重定位文件/共享对象文件一起创建一个新的对象文件；第二种是动态链接器将它和可执行文件以及其它的共享对象一起创建一个进程镜像。</li>
-</ul>
-<h2 id="elf构成">ELF构成</h2>
-<p>ELF主要由如下几个部分组成：</p>
-<ul>
-<li><strong>ELF Header</strong>: 位于文件的起始，描述了整个文件的组织结构</li>
-<li><strong>Sections/Segments</strong>: 存储了指令、数据、符号表、可重定位信息等。sections 是这段数据在链接时的表现；segments 是数据在执行时的表现。</li>
-<li><strong>Program Header Table</strong>: 用于告诉系统如何创建一个进程镜像。对于可执行程序，Program Header Table是必须的，但是对于可重定位文件就不需要了。</li>
-<li><strong>Section Header Table</strong>: 存储描述文件中sections的信息。每个section都在这个表中有一个条目，存储了如section name, section size等信息。用于链接的文件必须得有Section Header Table，其它的对象文件可有可无。</li>
-</ul>
-<p><img src="/images/notes/elf-%E6%96%87%E4%BB%B6%E6%A0%BC%E5%BC%8F%E6%B5%85%E6%9E%90/d02c13c1fa4bd228f698cf355ec47377_MD5.png" alt="d02c13c1fa4bd228f698cf355ec47377_MD5"></p>
-<p>上面的图中虽然描述文件各个部分的位置，但实际上只有ELF Header的位置是固定的，其它的部分在文件中的位置都在ELF Header中指定。</p>
-<h2 id="elf-header">ELF Header</h2>
-<pre tabindex="0"><code>#define EI_NIDENT 16
-
-typedef struct {
-        unsigned char   e_ident[EI_NIDENT];
-        Elf32_Half      e_type;
-        Elf32_Half      e_machine;
-        Elf32_Word      e_version;
-        Elf32_Addr      e_entry;
-        Elf32_Off       e_phoff;
-        Elf32_Off       e_shoff;
-        Elf32_Word      e_flags;
-        Elf32_Half      e_ehsize;
-        Elf32_Half      e_phentsize;
-        Elf32_Half      e_phnum;
-        Elf32_Half      e_shentsize;
-        Elf32_Half      e_shnum;
-        Elf32_Half      e_shstrndx;
-} Elf32_Ehdr;
-
-typedef struct {
-        unsigned char   e_ident[EI_NIDENT];
-        Elf64_Half      e_type;
-        Elf64_Half      e_machine;
-        Elf64_Word      e_version;
-        Elf64_Addr      e_entry;
-        Elf64_Off       e_phoff;
-        Elf64_Off       e_shoff;
-        Elf64_Word      e_flags;
-        Elf64_Half      e_ehsize;
-        Elf64_Half      e_phentsize;
-        Elf64_Half      e_phnum;
-        Elf64_Half      e_shentsize;
-        Elf64_Half      e_shnum;
-        Elf64_Half      e_shstrndx;
-} Elf64_Ehdr;
-</code></pre><p>ELF header通常由一个Elfxx_Ehdr结构体表示。它存储了当前二进制文件的一些元数据：</p>
-          
-        </div>
-
-        
-          <div>
-            <a class="read-more button inline" href="/posts/2022-05/elf-%E6%96%87%E4%BB%B6%E6%A0%BC%E5%BC%8F%E6%B5%85%E6%9E%90/">[Read more]</a>
-          </div>
-        
-      </article>
-    
 
     <div class="pagination">
   <div class="pagination__buttons">
@@ -874,10 +885,42 @@ typedef struct {
       
       
     
+      
+      
+      
+    
 
     
     
 
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2026-05/" class="archive-link">
+          <span class="archive-date">2026-05</span>
+          <span class="archive-month-name">May</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
     
       
       
@@ -1532,6 +1575,14 @@ typedef struct {
       
         
       
+        
+      
+    
+      
+        
+      
+        
+      
     
       
         
@@ -1780,6 +1831,15 @@ typedef struct {
     
     
     
+    
+      
+      
+    
+      
+      
+    
+      
+      
     
       
       
@@ -2017,11 +2077,20 @@ typedef struct {
     
       
       
+    
+    
+    
     
     
     
+      
+      
     
+      
+      
     
+      
+      
     
       
       
@@ -2127,10 +2196,16 @@ typedef struct {
     
       
       
+    
+    
     
     
     
+      
+    
+      
     
+      
     
       
     
@@ -2463,6 +2538,25 @@ typedef struct {
         
         
         
+        <a href="https://www.jinzhi.site/tags/financial-analysis/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          financial-analysis
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
         <a href="https://www.jinzhi.site/tags/go/" 
            class="tag-item" 
            style="font-size: 0.9em;"
@@ -2506,6 +2600,25 @@ typedef struct {
            style="font-size: 0.9em;"
            title="1 article">
           Inference
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/investing/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          investing
           <span class="tag-count">(1)</span>
         </a>
       
@@ -2849,6 +2962,25 @@ typedef struct {
            title="2 articles">
           SoftwareEngineering
           <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/stocks/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          stocks
+          <span class="tag-count">(1)</span>
         </a>
       
     

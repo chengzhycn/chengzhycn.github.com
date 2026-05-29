@@ -1,0 +1,3209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  
+    <title>股票常见指标与公司财务分析 :: chengzhycn&#39;s blog</title>
+  
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="股票常见指标与公司财务分析 这篇笔记用于理解股票软件里常见指标的含义，并把它们组织成一个分析公司财务数据的框架。指标只能帮助形成判断，不构成投资建议。
+1. 行情与交易指标 指标 含义 分析时怎么看 现价 当前或最近成交价格 只反映市场当下报价，不能单独说明公司贵不贵。 今开 当日开盘价 和昨收、现价一起看，判断当天情绪强弱。 昨收 上一个交易日收盘价 是计算当日涨跌幅的基准。 最高 / 最低 当日最高价、最低价 用来观察盘中波动区间。 涨跌额 / 涨跌幅 相对昨收上涨或下跌的金额、比例 涨跌幅体现短期价格变化，不能直接等同于基本面变化。 成交量 成交的股票数量 放量上涨可能表示买盘增强；放量下跌可能表示抛压加大。需结合位置和消息看。 成交额 成交金额 比成交量更适合比较不同股价股票的交易活跃度。 换手率 成交量 / 流通股本 反映流通筹码被交易的频繁程度。高换手通常代表分歧大或关注度高。 振幅 当日最高价与最低价相对昨收的波动幅度 振幅越大，短期不确定性越高。 量比 当前成交速度与过去平均成交速度的比值 量比大于 1 表示成交比平时活跃；极高时要警惕情绪交易。 52 周最高 / 最低 最近一年股价高点和低点 用于观察价格所处历史区间，但不代表估值合理。 2. 估值指标 指标 含义 公式或口径 分析时怎么看 总市值 公司所有股份的市场价值 股价 × 总股本 衡量市场给公司的整体定价。 流通市值 可交易股份对应的市场价值 股价 × 流通股本 更贴近二级市场实际可交易规模。 市盈率 TTM 当前市值 / 最近 12 个月净利润 TTM = trailing twelve months 适合盈利稳定公司；亏损公司市盈率通常无意义。 市盈率 LYR 当前市值 / 上一财年净利润 LYR = last year report 受上一财年一次性因素影响较大。 预测市盈率 当前市值 / 预测未来净利润 通常基于分析师一致预期 适合成长股，但依赖预测质量。 市销率 TTM 当前市值 / 最近 12 个月收入 Price to Sales 常用于尚未稳定盈利的成长公司。越高表示市场对未来增长预期越强。 市净率 当前市值 / 净资产 Price to Book 常用于银行、保险、周期制造等重资产行业；轻资产软件公司参考价值较弱。 估值指标的核心问题 估值指标本质上是在问：现在的价格，买的是多少利润、多少收入、多少资产，以及这些利润和收入未来能不能继续增长。
+" />
+<meta name="keywords" content="" />
+
+  <meta name="robots" content="noodp" />
+
+<link rel="canonical" href="https://www.jinzhi.site/posts/2026-05/%E8%82%A1%E7%A5%A8%E5%B8%B8%E8%A7%81%E6%8C%87%E6%A0%87%E4%B8%8E%E5%85%AC%E5%8F%B8%E8%B4%A2%E5%8A%A1%E5%88%86%E6%9E%90/" />
+
+
+
+
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/buttons.min.86f6b4c106b6c6eb690ae5203d36b442c1f66f718ff4e8164fa86cf6c61ad641.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/code.min.c4581949edab7810737609fc5568852bcd908945f14561e366dcd2300a370545.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/fonts.min.5bb7ed13e1d00d8ff39ea84af26737007eb5051b157b86fc24487c94f3dc8bbe.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/footer.min.eb8dfc2c6a7eafa36cd3ba92d63e69e849e2200e0002a228d137f236b09ecd75.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/gist.min.a751e8b0abe1ba8bc53ced52a38b19d8950fe78ca29454ea8c2595cf26aad5c0.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/header.min.75c7eb0e2872d95ff48109c6647d0223a38db52e2561dd87966eb5fc7c6bdac6.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/main.min.7984a754b43b7469d389c539410e90dff2870263de16b008dfc7e8170fcd0f5b.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/menu.min.3c17467ebeb3d38663dce68f71f519901124fa5cbb4519b2fb0667a21e9aca39.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/pagination.min.bbb986dbce00a5ce5aca0504b7925fc1c581992a4bf57f163e5d69cc1db7d836.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/post.min.e6dddd258e64c83e05cec0cd49c05216742d42fc8ecbfbe6b67083412b609bd3.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/syntax.min.a2cc694a9b481f15d41722bffc2cc54eea4c4f74fd9072b0b33253604c22606e.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/terminal.min.e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.css">
+
+  
+  <link rel="stylesheet" href="https://www.jinzhi.site/css/terms.min.b81791663c3790e738e571cdbf802312390d30e4b1d8dc9d814a5b5454d0ac11.css">
+
+
+
+
+
+
+
+<link rel="shortcut icon" href="https://www.jinzhi.site/favicon.png">
+<link rel="apple-touch-icon" href="https://www.jinzhi.site/apple-touch-icon.png">
+
+
+<meta name="twitter:card" content="summary" />
+
+  
+    <meta name="twitter:site" content="" />
+  
+    <meta name="twitter:creator" content="" />
+
+
+
+<meta property="og:locale" content="en" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="股票常见指标与公司财务分析">
+<meta property="og:description" content="股票常见指标与公司财务分析 这篇笔记用于理解股票软件里常见指标的含义，并把它们组织成一个分析公司财务数据的框架。指标只能帮助形成判断，不构成投资建议。
+1. 行情与交易指标 指标 含义 分析时怎么看 现价 当前或最近成交价格 只反映市场当下报价，不能单独说明公司贵不贵。 今开 当日开盘价 和昨收、现价一起看，判断当天情绪强弱。 昨收 上一个交易日收盘价 是计算当日涨跌幅的基准。 最高 / 最低 当日最高价、最低价 用来观察盘中波动区间。 涨跌额 / 涨跌幅 相对昨收上涨或下跌的金额、比例 涨跌幅体现短期价格变化，不能直接等同于基本面变化。 成交量 成交的股票数量 放量上涨可能表示买盘增强；放量下跌可能表示抛压加大。需结合位置和消息看。 成交额 成交金额 比成交量更适合比较不同股价股票的交易活跃度。 换手率 成交量 / 流通股本 反映流通筹码被交易的频繁程度。高换手通常代表分歧大或关注度高。 振幅 当日最高价与最低价相对昨收的波动幅度 振幅越大，短期不确定性越高。 量比 当前成交速度与过去平均成交速度的比值 量比大于 1 表示成交比平时活跃；极高时要警惕情绪交易。 52 周最高 / 最低 最近一年股价高点和低点 用于观察价格所处历史区间，但不代表估值合理。 2. 估值指标 指标 含义 公式或口径 分析时怎么看 总市值 公司所有股份的市场价值 股价 × 总股本 衡量市场给公司的整体定价。 流通市值 可交易股份对应的市场价值 股价 × 流通股本 更贴近二级市场实际可交易规模。 市盈率 TTM 当前市值 / 最近 12 个月净利润 TTM = trailing twelve months 适合盈利稳定公司；亏损公司市盈率通常无意义。 市盈率 LYR 当前市值 / 上一财年净利润 LYR = last year report 受上一财年一次性因素影响较大。 预测市盈率 当前市值 / 预测未来净利润 通常基于分析师一致预期 适合成长股，但依赖预测质量。 市销率 TTM 当前市值 / 最近 12 个月收入 Price to Sales 常用于尚未稳定盈利的成长公司。越高表示市场对未来增长预期越强。 市净率 当前市值 / 净资产 Price to Book 常用于银行、保险、周期制造等重资产行业；轻资产软件公司参考价值较弱。 估值指标的核心问题 估值指标本质上是在问：现在的价格，买的是多少利润、多少收入、多少资产，以及这些利润和收入未来能不能继续增长。
+" />
+<meta property="og:url" content="https://www.jinzhi.site/posts/2026-05/%E8%82%A1%E7%A5%A8%E5%B8%B8%E8%A7%81%E6%8C%87%E6%A0%87%E4%B8%8E%E5%85%AC%E5%8F%B8%E8%B4%A2%E5%8A%A1%E5%88%86%E6%9E%90/" />
+<meta property="og:site_name" content="chengzhycn&#39;s blog" />
+
+  <meta property="og:image" content="https://www.jinzhi.site/og-image.png">
+
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="627">
+
+  <meta property="article:section" content="Personal" />
+
+
+  <meta property="article:published_time" content="2026-05-29 07:48:49 &#43;0800 &#43;0800" />
+
+
+
+
+
+
+
+
+
+<html>
+<head>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-screen-web/style.css" />
+  <style>
+    body {
+      font-family: "LXGW WenKai Screen";
+      font-weight: normal;
+    }
+  </style>
+</head>
+<body>
+
+</body>
+</html>
+
+
+</head>
+<body>
+
+
+<div class="page-wrapper">
+  <div class="container center">
+
+  <header class="header">
+  <div class="header__inner">
+    <div class="header__logo">
+      <a href="/">
+  <div class="logo">
+    chengzhycn&#39;s blog
+  </div>
+</a>
+
+    </div>
+    
+      <ul class="menu menu--mobile">
+  <li class="menu__trigger">Menu&nbsp;▾</li>
+  <li>
+    <ul class="menu__dropdown">
+      
+        
+          <li><a href="/">Home</a></li>
+        
+      
+        
+          <li><a href="/about">About</a></li>
+        
+      
+        
+          <li><a href="/categories/">Categories</a></li>
+        
+      
+        
+          <li><a href="/tags/">Tags</a></li>
+        
+      
+        
+          <li><a href="/archives/">Archives</a></li>
+        
+      
+      
+    </ul>
+  </li>
+</ul>
+
+    
+    
+  </div>
+  
+    <nav class="navigation-menu">
+  <ul class="navigation-menu__inner menu--desktop">
+    
+      
+        
+          <li><a href="/" >Home</a></li>
+        
+      
+        
+          <li><a href="/about" >About</a></li>
+        
+      
+        
+          <li><a href="/categories/" >Categories</a></li>
+        
+      
+        
+          <li><a href="/tags/" >Tags</a></li>
+        
+      
+        
+          <li><a href="/archives/" >Archives</a></li>
+        
+      
+      
+    
+  </ul>
+</nav>
+
+  
+</header>
+
+
+  <div class="content">
+    
+<article class="post">
+  <h1 class="post-title">
+    <a href="https://www.jinzhi.site/posts/2026-05/%E8%82%A1%E7%A5%A8%E5%B8%B8%E8%A7%81%E6%8C%87%E6%A0%87%E4%B8%8E%E5%85%AC%E5%8F%B8%E8%B4%A2%E5%8A%A1%E5%88%86%E6%9E%90/">股票常见指标与公司财务分析</a>
+  </h1>
+  <div class="post-meta"><time class="post-date">2026-05-29</time><span class="post-reading-time">3 min read (440 words)</span></div>
+
+  
+    <span class="post-tags">
+      
+      #<a href="https://www.jinzhi.site/tags/investing/">investing</a>&nbsp;
+      
+      #<a href="https://www.jinzhi.site/tags/stocks/">stocks</a>&nbsp;
+      
+      #<a href="https://www.jinzhi.site/tags/financial-analysis/">financial-analysis</a>&nbsp;
+      
+    </span>
+  
+  
+
+
+  
+    <div class="table-of-contents">
+      <h2>
+        Table of Contents
+      </h2>
+      <nav id="TableOfContents">
+  <ul>
+    <li><a href="#1-行情与交易指标">1. 行情与交易指标</a></li>
+    <li><a href="#2-估值指标">2. 估值指标</a>
+      <ul>
+        <li><a href="#估值指标的核心问题">估值指标的核心问题</a></li>
+      </ul>
+    </li>
+    <li><a href="#3-盈利能力指标">3. 盈利能力指标</a>
+      <ul>
+        <li><a href="#roa-与-roe-的区别">ROA 与 ROE 的区别</a></li>
+        <li><a href="#直接成本毛利与净利">直接成本、毛利与净利</a></li>
+        <li><a href="#gaap-与-non-gaap">GAAP 与 non-GAAP</a></li>
+      </ul>
+    </li>
+    <li><a href="#4-股本与分红指标">4. 股本与分红指标</a></li>
+    <li><a href="#5-技术指标sar">5. 技术指标：SAR</a></li>
+    <li><a href="#6-如何用这些指标分析一家公司">6. 如何用这些指标分析一家公司</a>
+      <ul>
+        <li><a href="#第一步先判断公司类型">第一步：先判断公司类型</a></li>
+        <li><a href="#第二步看增长">第二步：看增长</a></li>
+        <li><a href="#第三步看盈利质量">第三步：看盈利质量</a></li>
+        <li><a href="#第四步看资本效率">第四步：看资本效率</a></li>
+        <li><a href="#第五步看估值是否匹配基本面">第五步：看估值是否匹配基本面</a></li>
+        <li><a href="#第六步看市场交易状态">第六步：看市场交易状态</a></li>
+      </ul>
+    </li>
+    <li><a href="#7-一个实用检查清单">7. 一个实用检查清单</a></li>
+    <li><a href="#8-常见误区">8. 常见误区</a></li>
+    <li><a href="#9-总结">9. 总结</a></li>
+  </ul>
+</nav>
+    </div>
+  
+
+  <div class="post-content"><div>
+        <h1 id="股票常见指标与公司财务分析">股票常见指标与公司财务分析<a href="#股票常见指标与公司财务分析" class="hanchor" ariaLabel="Anchor">#</a> </h1>
+<blockquote>
+<p>这篇笔记用于理解股票软件里常见指标的含义，并把它们组织成一个分析公司财务数据的框架。指标只能帮助形成判断，不构成投资建议。</p>
+</blockquote>
+<h2 id="1-行情与交易指标">1. 行情与交易指标<a href="#1-行情与交易指标" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<table>
+	<thead>
+			<tr>
+					<th>指标</th>
+					<th>含义</th>
+					<th>分析时怎么看</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>现价</td>
+					<td>当前或最近成交价格</td>
+					<td>只反映市场当下报价，不能单独说明公司贵不贵。</td>
+			</tr>
+			<tr>
+					<td>今开</td>
+					<td>当日开盘价</td>
+					<td>和昨收、现价一起看，判断当天情绪强弱。</td>
+			</tr>
+			<tr>
+					<td>昨收</td>
+					<td>上一个交易日收盘价</td>
+					<td>是计算当日涨跌幅的基准。</td>
+			</tr>
+			<tr>
+					<td>最高 / 最低</td>
+					<td>当日最高价、最低价</td>
+					<td>用来观察盘中波动区间。</td>
+			</tr>
+			<tr>
+					<td>涨跌额 / 涨跌幅</td>
+					<td>相对昨收上涨或下跌的金额、比例</td>
+					<td>涨跌幅体现短期价格变化，不能直接等同于基本面变化。</td>
+			</tr>
+			<tr>
+					<td>成交量</td>
+					<td>成交的股票数量</td>
+					<td>放量上涨可能表示买盘增强；放量下跌可能表示抛压加大。需结合位置和消息看。</td>
+			</tr>
+			<tr>
+					<td>成交额</td>
+					<td>成交金额</td>
+					<td>比成交量更适合比较不同股价股票的交易活跃度。</td>
+			</tr>
+			<tr>
+					<td>换手率</td>
+					<td>成交量 / 流通股本</td>
+					<td>反映流通筹码被交易的频繁程度。高换手通常代表分歧大或关注度高。</td>
+			</tr>
+			<tr>
+					<td>振幅</td>
+					<td>当日最高价与最低价相对昨收的波动幅度</td>
+					<td>振幅越大，短期不确定性越高。</td>
+			</tr>
+			<tr>
+					<td>量比</td>
+					<td>当前成交速度与过去平均成交速度的比值</td>
+					<td>量比大于 1 表示成交比平时活跃；极高时要警惕情绪交易。</td>
+			</tr>
+			<tr>
+					<td>52 周最高 / 最低</td>
+					<td>最近一年股价高点和低点</td>
+					<td>用于观察价格所处历史区间，但不代表估值合理。</td>
+			</tr>
+	</tbody>
+</table>
+<h2 id="2-估值指标">2. 估值指标<a href="#2-估值指标" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<table>
+	<thead>
+			<tr>
+					<th>指标</th>
+					<th>含义</th>
+					<th>公式或口径</th>
+					<th>分析时怎么看</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>总市值</td>
+					<td>公司所有股份的市场价值</td>
+					<td>股价 × 总股本</td>
+					<td>衡量市场给公司的整体定价。</td>
+			</tr>
+			<tr>
+					<td>流通市值</td>
+					<td>可交易股份对应的市场价值</td>
+					<td>股价 × 流通股本</td>
+					<td>更贴近二级市场实际可交易规模。</td>
+			</tr>
+			<tr>
+					<td>市盈率 TTM</td>
+					<td>当前市值 / 最近 12 个月净利润</td>
+					<td>TTM = trailing twelve months</td>
+					<td>适合盈利稳定公司；亏损公司市盈率通常无意义。</td>
+			</tr>
+			<tr>
+					<td>市盈率 LYR</td>
+					<td>当前市值 / 上一财年净利润</td>
+					<td>LYR = last year report</td>
+					<td>受上一财年一次性因素影响较大。</td>
+			</tr>
+			<tr>
+					<td>预测市盈率</td>
+					<td>当前市值 / 预测未来净利润</td>
+					<td>通常基于分析师一致预期</td>
+					<td>适合成长股，但依赖预测质量。</td>
+			</tr>
+			<tr>
+					<td>市销率 TTM</td>
+					<td>当前市值 / 最近 12 个月收入</td>
+					<td>Price to Sales</td>
+					<td>常用于尚未稳定盈利的成长公司。越高表示市场对未来增长预期越强。</td>
+			</tr>
+			<tr>
+					<td>市净率</td>
+					<td>当前市值 / 净资产</td>
+					<td>Price to Book</td>
+					<td>常用于银行、保险、周期制造等重资产行业；轻资产软件公司参考价值较弱。</td>
+			</tr>
+	</tbody>
+</table>
+<h3 id="估值指标的核心问题">估值指标的核心问题<a href="#估值指标的核心问题" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>估值指标本质上是在问：现在的价格，买的是多少利润、多少收入、多少资产，以及这些利润和收入未来能不能继续增长。</p>
+<p>分析时不要只看“高”或“低”，而要问：</p>
+<ol>
+<li>公司处于什么行业？软件、银行、消费、制造业的合理估值区间完全不同。</li>
+<li>公司增长速度如何？高增长公司通常能承受更高市销率或市盈率。</li>
+<li>盈利质量如何？一次性收益推高净利润时，市盈率会虚低。</li>
+<li>未来预期是否过高？估值很高时，只要增长放缓，股价就可能大幅回撤。</li>
+</ol>
+<h2 id="3-盈利能力指标">3. 盈利能力指标<a href="#3-盈利能力指标" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<table>
+	<thead>
+			<tr>
+					<th>指标</th>
+					<th>含义</th>
+					<th>公式或口径</th>
+					<th>分析时怎么看</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>每股收益 TTM</td>
+					<td>最近 12 个月净利润分摊到每股</td>
+					<td>净利润 / 加权平均股数</td>
+					<td>EPS 越高不一定越好，要看增长和质量。</td>
+			</tr>
+			<tr>
+					<td>每股收益 LYR</td>
+					<td>上一财年每股收益</td>
+					<td>上一财年净利润 / 股数</td>
+					<td>用于观察年度盈利水平。</td>
+			</tr>
+			<tr>
+					<td>预测每股收益</td>
+					<td>市场预期的未来 EPS</td>
+					<td>通常来自分析师预测</td>
+					<td>和预测市盈率一起看，判断市场是否过度乐观。</td>
+			</tr>
+			<tr>
+					<td>ROA</td>
+					<td>总资产收益率</td>
+					<td>净利润 / 总资产</td>
+					<td>衡量资产使用效率。资产重的公司尤其重要。</td>
+			</tr>
+			<tr>
+					<td>ROE</td>
+					<td>净资产收益率</td>
+					<td>净利润 / 股东权益</td>
+					<td>衡量股东资本回报率。长期高 ROE 往往代表较强商业模式。</td>
+			</tr>
+	</tbody>
+</table>
+<h3 id="roa-与-roe-的区别">ROA 与 ROE 的区别<a href="#roa-与-roe-的区别" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>ROA 看的是“公司全部资产赚了多少钱”，ROE 看的是“股东投入的净资产赚了多少钱”。</p>
+<p>如果 ROE 很高但 ROA 一般，可能是公司用了较高杠杆。此时要进一步看负债率、利息费用和现金流，确认高 ROE 是否来自真实经营能力，而不是高杠杆放大。</p>
+<h3 id="直接成本毛利与净利">直接成本、毛利与净利<a href="#直接成本毛利与净利" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>直接成本是为了交付收入必须发生、且能直接归因到产品或服务上的成本。它也常被放在财报里的营业成本、收入成本或销售成本中。</p>
+<p>不同公司直接成本的内容不同：</p>
+<table>
+	<thead>
+			<tr>
+					<th>公司类型</th>
+					<th>常见直接成本</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>制造业</td>
+					<td>原材料、生产人工、制造费用</td>
+			</tr>
+			<tr>
+					<td>自营电商</td>
+					<td>商品采购成本、仓储和履约中的部分直接成本</td>
+			</tr>
+			<tr>
+					<td>云计算</td>
+					<td>服务器折旧、数据中心电力、带宽、运维成本</td>
+			</tr>
+			<tr>
+					<td>大模型 API</td>
+					<td>推理算力、GPU 或云服务器成本、存储、带宽</td>
+			</tr>
+			<tr>
+					<td>AI 视频 / 语音生成</td>
+					<td>每次生成任务消耗的算力和模型推理资源</td>
+			</tr>
+			<tr>
+					<td>企业软件项目</td>
+					<td>项目交付人员、部署、定制开发和运维成本</td>
+			</tr>
+	</tbody>
+</table>
+<p>毛利是收入扣除直接成本后剩下的钱：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">收入 - 直接成本 = 毛利
+</span></span><span class="line"><span class="cl">毛利 / 收入 = 毛利率
+</span></span></code></pre></div><p>净利是公司最后真正剩下的钱。它需要在毛利基础上继续扣掉研发费用、销售费用、管理费用、利息、税费，也可能受到投资收益、公允价值变动、减值等项目影响。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">收入
+</span></span><span class="line"><span class="cl">- 直接成本
+</span></span><span class="line"><span class="cl">= 毛利
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">毛利
+</span></span><span class="line"><span class="cl">- 研发费用
+</span></span><span class="line"><span class="cl">- 销售费用
+</span></span><span class="line"><span class="cl">- 管理费用
+</span></span><span class="line"><span class="cl">- 利息
+</span></span><span class="line"><span class="cl">- 税费
+</span></span><span class="line"><span class="cl">+/- 投资收益或亏损
+</span></span><span class="line"><span class="cl">= 净利
+</span></span></code></pre></div><p>一家公司可以有正毛利，但仍然净亏损。例如大模型公司可能每 100 元收入产生 25 元毛利，但研发、销售和管理费用远高于 25 元，所以净利润仍为负。</p>
+<p>分析时可以这样看：</p>
+<ul>
+<li>毛利率低：说明产品或服务交付成本重，商业模式还不够轻。</li>
+<li>毛利率提升：说明规模效应、定价能力或技术效率在改善。</li>
+<li>毛利为正但净利为负：说明产品有初步商业化能力，但还撑不起整体运营。</li>
+<li>毛利率很高但净利很低：要看研发、销售、管理费用是否过高。</li>
+</ul>
+<h3 id="gaap-与-non-gaap">GAAP 与 non-GAAP<a href="#gaap-与-non-gaap" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>GAAP 是通用会计准则下的正式财务结果。non-GAAP 是公司在 GAAP 基础上剔除某些项目后，自己调整出来的经营结果。</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">GAAP = 按会计准则正式计算的利润
+</span></span><span class="line"><span class="cl">non-GAAP = 公司认为更能反映主营经营表现的调整后利润
+</span></span></code></pre></div><p>公司常见的 non-GAAP 剔除项包括：</p>
+<table>
+	<thead>
+			<tr>
+					<th>常见剔除项</th>
+					<th>分析时怎么看</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>股权激励费用</td>
+					<td>不直接消耗现金，但会稀释股东权益，不能完全忽略。</td>
+			</tr>
+			<tr>
+					<td>投资公允价值波动</td>
+					<td>和主营业务关系不大，可能让 GAAP 利润大幅波动。</td>
+			</tr>
+			<tr>
+					<td>商誉或无形资产减值</td>
+					<td>可能是一次性非现金项目，但也反映过去并购或资产质量问题。</td>
+			</tr>
+			<tr>
+					<td>重组费用</td>
+					<td>公司通常认为不是常态经营成本，但如果频繁发生就不能当作一次性。</td>
+			</tr>
+			<tr>
+					<td>上市费用</td>
+					<td>通常属于一次性费用。</td>
+			</tr>
+			<tr>
+					<td>并购相关摊销</td>
+					<td>和历史并购有关，不一定代表当前经营现金支出。</td>
+			</tr>
+	</tbody>
+</table>
+<p>GAAP 和 non-GAAP 各有用途：</p>
+<ul>
+<li>看公司最终是否真正赚钱：优先看 GAAP。</li>
+<li>看主营业务趋势是否改善：可以参考 non-GAAP。</li>
+<li>看公司有没有美化业绩：比较 GAAP 与 non-GAAP 的差异。</li>
+<li>如果公司长期只强调 non-GAAP 盈利，而 GAAP 长期亏损，要提高警惕。</li>
+</ul>
+<h2 id="4-股本与分红指标">4. 股本与分红指标<a href="#4-股本与分红指标" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<table>
+	<thead>
+			<tr>
+					<th>指标</th>
+					<th>含义</th>
+					<th>分析时怎么看</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>总股本</td>
+					<td>公司全部已发行股份数量</td>
+					<td>用于计算总市值、每股收益等。</td>
+			</tr>
+			<tr>
+					<td>流通股本</td>
+					<td>可在市场交易的股份数量</td>
+					<td>流通股本较小的股票，价格可能更容易被资金推动。</td>
+			</tr>
+			<tr>
+					<td>股息</td>
+					<td>公司向股东派发的每股现金分红</td>
+					<td>成熟公司更常见，成长公司可能不分红。</td>
+			</tr>
+			<tr>
+					<td>股息收益率</td>
+					<td>每股股息 / 当前股价</td>
+					<td>类似“按当前价格买入能获得的现金分红回报率”。要看分红是否可持续。</td>
+			</tr>
+	</tbody>
+</table>
+<p>分红不是越高越好。异常高的股息收益率可能来自股价大跌，也可能意味着市场担心未来分红下降。判断分红质量时，要看自由现金流、盈利稳定性和派息率。</p>
+<h2 id="5-技术指标sar">5. 技术指标：SAR<a href="#5-技术指标sar" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>截图里的 <code>SAR</code> 是一种趋势跟踪技术指标，常用于判断价格趋势和止损位置。它通常在 K 线图上以一串点显示：</p>
+<ul>
+<li>点在价格下方：偏多头趋势。</li>
+<li>点在价格上方：偏空头趋势。</li>
+<li>价格穿越 SAR 点位：可能提示趋势切换。</li>
+</ul>
+<p>SAR 属于价格行为指标，不能回答“公司值不值得长期持有”。它更适合辅助交易节奏，而基本面分析仍要回到收入、利润、现金流、资产负债表和估值。</p>
+<h2 id="6-如何用这些指标分析一家公司">6. 如何用这些指标分析一家公司<a href="#6-如何用这些指标分析一家公司" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<h3 id="第一步先判断公司类型">第一步：先判断公司类型<a href="#第一步先判断公司类型" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>先把公司归类：</p>
+<ul>
+<li>成熟盈利型：重点看市盈率、ROE、现金流、分红。</li>
+<li>高成长亏损型：重点看收入增速、市销率、毛利率、经营亏损收窄速度、现金储备。</li>
+<li>周期型：重点看行业景气度、产能、资产负债表、市净率。</li>
+<li>金融型：重点看市净率、ROE、资产质量、资本充足率。</li>
+</ul>
+<p>例如截图中的 Cloudflare 如果仍处于会计利润亏损状态，市盈率显示“亏损”是正常的。这时市销率、收入增长、毛利率、经营现金流和未来盈利拐点会比市盈率更有参考价值。</p>
+<h3 id="第二步看增长">第二步：看增长<a href="#第二步看增长" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>重点看：</p>
+<ul>
+<li>营收是否持续增长。</li>
+<li>增速是否放缓。</li>
+<li>增长来自主营业务还是一次性因素。</li>
+<li>客户数量、客单价、留存率等经营指标是否支持收入增长。</li>
+</ul>
+<p>高估值公司最怕增长降速。即使公司仍然增长，只要增长低于市场预期，股价也可能下跌。</p>
+<h3 id="第三步看盈利质量">第三步：看盈利质量<a href="#第三步看盈利质量" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>重点看：</p>
+<ul>
+<li>毛利率是否稳定或提升。</li>
+<li>经营利润率是否改善。</li>
+<li>净利润是否依赖一次性收益。</li>
+<li>经营现金流是否跟得上利润。</li>
+</ul>
+<p>如果利润增长但经营现金流长期很差，要警惕应收账款、收入确认或资本开支压力。</p>
+<h3 id="第四步看资本效率">第四步：看资本效率<a href="#第四步看资本效率" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>使用 ROA 和 ROE：</p>
+<ul>
+<li>ROE 长期高且稳定：说明股东资本回报好。</li>
+<li>ROA 高：说明资产效率好。</li>
+<li>ROE 高但负债也高：需要拆解是不是杠杆推高。</li>
+<li>ROA、ROE 都为负：说明公司尚未创造会计利润，要重点看亏损是否收窄。</li>
+</ul>
+<h3 id="第五步看估值是否匹配基本面">第五步：看估值是否匹配基本面<a href="#第五步看估值是否匹配基本面" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>把估值和增长放在一起看：</p>
+<ul>
+<li>高增长 + 高估值：市场在买未来，需要验证增长能否持续。</li>
+<li>低增长 + 高估值：风险较高，除非公司质量极强或利润率明显改善。</li>
+<li>高增长 + 低估值：可能是机会，也可能市场看到了风险。</li>
+<li>低增长 + 低估值：可能是价值股，也可能是价值陷阱。</li>
+</ul>
+<p>常见简化判断：</p>
+<ul>
+<li>盈利稳定公司：比较市盈率、利润增速、ROE 和现金流。</li>
+<li>尚未盈利成长股：比较市销率、收入增速、毛利率、亏损收窄速度和现金流。</li>
+<li>重资产公司：比较市净率、ROA、负债率和行业周期位置。</li>
+</ul>
+<h3 id="第六步看市场交易状态">第六步：看市场交易状态<a href="#第六步看市场交易状态" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>交易指标回答的是“市场现在怎么交易它”：</p>
+<ul>
+<li>放量上涨：可能是资金认可，也可能是短期情绪过热。</li>
+<li>放量下跌：可能是基本面担忧，也可能是短期获利回吐。</li>
+<li>接近 52 周高点：说明市场预期较强，但回撤风险也更高。</li>
+<li>接近 52 周低点：可能便宜，也可能基本面恶化。</li>
+<li>高换手率 + 高振幅：说明分歧大，短期波动风险高。</li>
+</ul>
+<h2 id="7-一个实用检查清单">7. 一个实用检查清单<a href="#7-一个实用检查清单" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>分析公司时可以按下面顺序走：</p>
+<ol>
+<li>公司靠什么赚钱？主营业务是否容易理解？</li>
+<li>收入过去 3 到 5 年是否增长？增速是否稳定？</li>
+<li>毛利率、经营利润率、净利率是否改善？</li>
+<li>公司是否盈利？如果亏损，亏损是否在收窄？</li>
+<li>经营现金流是否健康？</li>
+<li>ROA、ROE 是否体现出良好的资本效率？</li>
+<li>负债水平是否可控？</li>
+<li>当前估值是按利润、收入还是资产定价？</li>
+<li>当前估值是否已经透支了未来增长？</li>
+<li>股价近期是否因为情绪、消息或财报预期出现剧烈波动？</li>
+</ol>
+<h2 id="8-常见误区">8. 常见误区<a href="#8-常见误区" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<ul>
+<li>只看股价涨跌，不看公司收入和利润。</li>
+<li>只看市盈率，忽略亏损公司或周期公司市盈率可能失真。</li>
+<li>只看市销率低，忽略公司毛利率和盈利路径。</li>
+<li>只看 ROE 高，忽略高负债带来的杠杆风险。</li>
+<li>把 52 周低点当成便宜，忽略基本面可能变差。</li>
+<li>把分红率高当成安全，忽略分红可能不可持续。</li>
+<li>用技术指标替代基本面分析。</li>
+</ul>
+<h2 id="9-总结">9. 总结<a href="#9-总结" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>股票页面上的指标可以分成三类：</p>
+<ol>
+<li>交易指标：回答市场短期怎么交易它。</li>
+<li>财务指标：回答公司赚钱能力和资本效率如何。</li>
+<li>估值指标：回答当前价格是否匹配公司的利润、收入、资产和增长。</li>
+</ol>
+<p>真正有用的分析不是背指标，而是把指标连起来看：公司质量如何、增长是否持续、盈利是否真实、估值是否合理、市场预期是否过高。</p>
+
+      </div></div>
+
+  
+    
+
+  
+
+  
+    
+
+  
+</article>
+
+  </div>
+
+  
+    <footer class="footer">
+  <div class="footer__inner">
+    
+      <div class="copyright">
+        <span>© 2026 Powered by <a href="https://gohugo.io">Hugo</a></span>
+    
+      <span>:: <a href="https://github.com/panr/hugo-theme-terminal" target="_blank">Theme</a> made by <a href="https://github.com/panr" target="_blank">panr</a></span>
+      </div>
+  </div>
+</footer>
+
+
+
+
+
+
+<script type="text/javascript" src="/bundle.min.js"></script>
+
+
+
+
+
+  
+  </div>
+
+  <aside class="floating-sidebar">
+    
+<div class="sidebar time-archive">
+  <h3>Time Archives</h3>
+  <div class="archive-list">
+    
+    
+
+    
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+
+    
+    
+
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2026-05/" class="archive-link">
+          <span class="archive-date">2026-05</span>
+          <span class="archive-month-name">May</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2026-04/" class="archive-link">
+          <span class="archive-date">2026-04</span>
+          <span class="archive-month-name">Apr</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2026-01/" class="archive-link">
+          <span class="archive-date">2026-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(2)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-11/" class="archive-link">
+          <span class="archive-date">2025-11</span>
+          <span class="archive-month-name">Nov</span>
+          <span class="archive-count">(3)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-10/" class="archive-link">
+          <span class="archive-date">2025-10</span>
+          <span class="archive-month-name">Oct</span>
+          <span class="archive-count">(4)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-09/" class="archive-link">
+          <span class="archive-date">2025-09</span>
+          <span class="archive-month-name">Sep</span>
+          <span class="archive-count">(3)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-08/" class="archive-link">
+          <span class="archive-date">2025-08</span>
+          <span class="archive-month-name">Aug</span>
+          <span class="archive-count">(9)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-06/" class="archive-link">
+          <span class="archive-date">2025-06</span>
+          <span class="archive-month-name">Jun</span>
+          <span class="archive-count">(2)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-04/" class="archive-link">
+          <span class="archive-date">2025-04</span>
+          <span class="archive-month-name">Apr</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-03/" class="archive-link">
+          <span class="archive-date">2025-03</span>
+          <span class="archive-month-name">Mar</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2024-01/" class="archive-link">
+          <span class="archive-date">2024-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(2)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-10/" class="archive-link">
+          <span class="archive-date">2022-10</span>
+          <span class="archive-month-name">Oct</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-07/" class="archive-link">
+          <span class="archive-date">2022-07</span>
+          <span class="archive-month-name">Jul</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-06/" class="archive-link">
+          <span class="archive-date">2022-06</span>
+          <span class="archive-month-name">Jun</span>
+          <span class="archive-count">(4)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-05/" class="archive-link">
+          <span class="archive-date">2022-05</span>
+          <span class="archive-month-name">May</span>
+          <span class="archive-count">(4)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-03/" class="archive-link">
+          <span class="archive-date">2022-03</span>
+          <span class="archive-month-name">Mar</span>
+          <span class="archive-count">(4)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-01/" class="archive-link">
+          <span class="archive-date">2022-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-11/" class="archive-link">
+          <span class="archive-date">2021-11</span>
+          <span class="archive-month-name">Nov</span>
+          <span class="archive-count">(2)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-09/" class="archive-link">
+          <span class="archive-date">2021-09</span>
+          <span class="archive-month-name">Sep</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-06/" class="archive-link">
+          <span class="archive-date">2021-06</span>
+          <span class="archive-month-name">Jun</span>
+          <span class="archive-count">(3)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-01/" class="archive-link">
+          <span class="archive-date">2021-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+  </div>
+</div>
+
+<style>
+.sidebar.time-archive {
+  background: rgba(26, 23, 15, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--accent, #FFA86B);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+  max-width: var(--sidebar-component-width, 240px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.sidebar.time-archive h3 {
+  margin: 0 0 1rem 0;
+  color: var(--accent, #FFA86B);
+  font-size: 1.2rem;
+  border-bottom: 1px solid var(--accent-alpha-70, rgba(255, 168, 107, 0.7));
+  padding-bottom: 0.5rem;
+}
+
+
+.archive-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.archive-item {
+  display: block;
+}
+
+.archive-link {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  text-decoration: none;
+  color: var(--color, inherit);
+  padding: 0.5rem;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+}
+
+.archive-link:hover {
+  background-color: var(--accent-alpha-20, rgba(255, 168, 107, 0.2));
+  color: var(--accent, #FFA86B);
+}
+
+.archive-date {
+  font-family: var(--code-font-family, 'Fira Code', monospace);
+  font-weight: bold;
+  min-width: 60px;
+}
+
+.archive-month-name {
+  flex: 1;
+  margin-left: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.archive-count {
+  color: var(--accent, #FFA86B);
+  font-weight: bold;
+  font-size: 0.9rem;
+}
+
+ 
+</style>
+
+    
+<div class="sidebar tags-cloud">
+  <h3>Tags Cloud</h3>
+  <div class="tags-container">
+    
+    
+    
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+    
+    
+    
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+    
+    
+    
+    
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+    
+    
+    
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+    
+    
+    
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/agent/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Agent
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/ai/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          AI
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/apisix/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="3 articles">
+          apisix
+          <span class="tag-count">(3)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/biography/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          biography
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/cloudnative/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          CloudNative
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/compile/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          compile
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/concurrency/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="7 articles">
+          Concurrency
+          <span class="tag-count">(7)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/csi/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          csi
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/debug/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          debug
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/dns/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          dns
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/ebpf/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          ebpf
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/elf/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          ELF
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/envoy/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Envoy
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/financial-analysis/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          financial-analysis
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/go/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          Go
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/http/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          HTTP
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/inference/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Inference
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/investing/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          investing
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/kaist-cs431/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="7 articles">
+          KAIST-CS431
+          <span class="tag-count">(7)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/kernel/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Kernel
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/kubecon/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          KubeCon
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/kubernetes/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          kubernetes
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/l7gateway/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="4 articles">
+          L7Gateway
+          <span class="tag-count">(4)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/linux/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="3 articles">
+          Linux
+          <span class="tag-count">(3)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/llm/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          LLM
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/lua/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="3 articles">
+          Lua
+          <span class="tag-count">(3)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/makefile/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          makefile
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/mindfulness/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          mindfulness
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/network/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="3 articles">
+          Network
+          <span class="tag-count">(3)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/nonfiction/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="6 articles">
+          nonfiction
+          <span class="tag-count">(6)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/operatingsystem/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          OperatingSystem
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/philosophy/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          philosophy
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/rust/" 
+           class="tag-item" 
+           style="font-size: 1.5em;"
+           title="10 articles">
+          Rust
+          <span class="tag-count">(10)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/schedule/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Schedule
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/science/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          science
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/softwareengineering/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          SoftwareEngineering
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/stocks/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          stocks
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/wasm/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          wasm
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+  </div>
+</div>
+
+<style>
+.sidebar.tags-cloud {
+  background: rgba(26, 23, 15, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--accent, #FFA86B);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+  max-width: var(--sidebar-component-width, 240px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.sidebar.tags-cloud h3 {
+  margin: 0 0 1rem 0;
+  color: var(--accent, #FFA86B);
+  font-size: 1.2rem;
+  border-bottom: 1px solid var(--accent-alpha-70, rgba(255, 168, 107, 0.7));
+  padding-bottom: 0.5rem;
+}
+
+.tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  line-height: 1.6;
+}
+
+.tag-item {
+  display: inline-flex;
+  align-items: baseline;
+  text-decoration: none;
+  color: var(--color, inherit);
+  padding: 0.3rem 0.6rem;
+  border-radius: 16px;
+  background: rgba(255, 168, 107, 0.1);
+  border: 1px solid transparent;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.tag-item:hover {
+  background: rgba(255, 168, 107, 0.25);
+  border-color: var(--accent-alpha-50, rgba(255, 168, 107, 0.5));
+  color: var(--accent, #FFA86B);
+  transform: translateY(-1px);
+}
+
+.tag-count {
+  font-size: 0.75em;
+  margin-left: 0.3rem;
+  opacity: 0.7;
+  font-weight: normal;
+}
+
+.tag-item:hover .tag-count {
+  opacity: 1;
+}
+
+ 
+
+ 
+.tag-item {
+  font-weight: 400;
+}
+
+ 
+.tag-item[style*="1.5"], 
+.tag-item[style*="1.4"],
+.tag-item[style*="1.3"] {
+  font-weight: 600;
+}
+
+ 
+.tag-item[style*="1.2"],
+.tag-item[style*="1.1"] {
+  font-weight: 500;
+}
+
+ 
+.tag-item[style*="1.5"]:hover,
+.tag-item[style*="1.4"]:hover,
+.tag-item[style*="1.3"]:hover {
+  box-shadow: 0 3px 10px rgba(255, 168, 107, 0.4);
+  transform: translateY(-2px);
+}
+
+</style>
+
+  </aside>
+</div>
+
+<style>
+ 
+.page-wrapper {
+  position: relative;
+  width: 100%;
+  max-width: none;
+  --sidebar-top-offset: 150px;  
+  --sidebar-component-width: 240px;  
+}
+
+   
+.floating-sidebar {
+  position: absolute;
+   
+  top: var(--sidebar-top-offset, 175px);
+   
+  right: max(20px, calc((100vw - 864px) / 2 - 330px));
+  width: 300px;
+  z-index: 100;
+  opacity: 0.96;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+ 
+.floating-sidebar:hover {
+  opacity: 1;
+  transform: translateX(-5px);
+}
+
+ 
+.floating-sidebar {
+  display: none;
+}
+
+ 
+@media (min-width: 1524px) {
+  .floating-sidebar {
+    display: block;
+    position: absolute;
+    right: max(20px, calc((100vw - 864px) / 2 - 330px));
+  }
+}
+
+ 
+@media (max-width: 1523px) {
+  .floating-sidebar {
+    display: none !important;
+  }
+}
+
+</style>
+
+</body>
+</html>

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-	<meta name="generator" content="Hugo 0.162.0">
+	<meta name="generator" content="Hugo 0.162.1">
   
     <title>chengzhycn&#39;s blog</title>
   
@@ -213,6 +213,47 @@
     
     
 
+    
+      <article class="post on-list">
+        <h2 class="post-title">
+          <a href="https://www.jinzhi.site/posts/2025-10/apisix-balancer-%E6%94%AF%E6%8C%81-domain/">APISIX balancer 支持 domain</a>
+        </h2>
+
+        <div class="post-meta"><time class="post-date">2025-10-12</time></div>
+
+        
+          <span class="post-tags">
+            
+            #<a href="https://www.jinzhi.site/tags/apisix/">apisix</a>&nbsp;
+            
+            #<a href="https://www.jinzhi.site/tags/l7gateway/">L7Gateway</a>&nbsp;
+            
+          </span>
+        
+
+        
+
+
+        <div class="post-content">
+          
+            <p>最近在做网关开发时遇到了一个场景：<strong>业务在做多实例部署时需要通过 Ingress 将服务注册给 APISIX，由于每个实例属于一个单独的 namespace，导致在 APISIX 和 Ingress 上出现流量覆盖的问题：</strong></p>
+<ol>
+<li>Ingress 通过 Host 和 URI 匹配入向流量，同一个服务的 Host 和 URI 是完全一致的（Host 用 ip:port 表示），因此注册多个 Ingress 流量只会引流到一个实例上。</li>
+<li>APISIX 侧在 balance 阶段对于相同 ip:port 的 upstream node 会做去重，导致跨集群多实例时流量分配并不符合预期。</li>
+</ol>
+<p>举个例子，有 A，B 两个集群，A 集群部署了 2 个实例，B 集群部署了一个实例。预期这 3 个实例应该平均分配流量（假设采用 rr），A 集群和 B 集群流量比例应该是 2:1，但实际上 A 集群和 B 集群在 APISIX 分配时流量是 1:1，而在 A 集群内一个实例占据了全部流量。</p>
+<p>从业务上来说这个可以通过重新规划 namespace 和实例的关系来解决。同一个集群同一个服务的所有实例分布在同一个 namespace 中。这样注册的 Ingress 和 APISIX upstream node 就只会有一个。</p>
+<p>抛开这个点，我们来看看从网关的角度如何解决这两个问题。</p>
+<p>第一个问题比较好解决，每个注册的实例采用独立的 Domain，Ingress 通过 Host Header 来区分流量。在 APISIX 采用域名注册，域名解析到 Ingress 地址。如果域名没法解析（我们遇到的场景），也可以将 Domain 信息放到 node 的 metadata 内，写一个插件将其注入到 node.domain 内来完成。</p>
+          
+        </div>
+
+        
+          <div>
+            <a class="read-more button inline" href="/posts/2025-10/apisix-balancer-%E6%94%AF%E6%8C%81-domain/">[Read more]</a>
+          </div>
+        
+      </article>
     
       <article class="post on-list">
         <h2 class="post-title">
@@ -517,75 +558,6 @@
         
       </article>
     
-      <article class="post on-list">
-        <h2 class="post-title">
-          <a href="https://www.jinzhi.site/posts/2025-08/kaist-cs431-safe-memory-reclamation/">KAIST-CS431: Safe Memory Reclamation</a>
-        </h2>
-
-        <div class="post-meta"><time class="post-date">2025-08-28</time></div>
-
-        
-          <span class="post-tags">
-            
-            #<a href="https://www.jinzhi.site/tags/rust/">Rust</a>&nbsp;
-            
-            #<a href="https://www.jinzhi.site/tags/concurrency/">Concurrency</a>&nbsp;
-            
-            #<a href="https://www.jinzhi.site/tags/kaist-cs431/">KAIST-CS431</a>&nbsp;
-            
-          </span>
-        
-
-        
-
-
-        <div class="post-content">
-          
-            <p>无锁数据结构和传统的数据结构在内存管理有一点区别是：当数据不用了，需要释放内存时，传统数据结构直接调用<code>free()</code>就可以了，但是无锁数据结构不行。举个例子，如下图所示，T1正在读取b1的时候，T2释放了b1，T1中的指针就变成了野指针，造成不安全的内存访问。</p>
-<p><img src="/images/notes/kaist-cs431-safe-memory-reclamation/image-20220410114205442.png" alt="image-20220410114205442"></p>
-<p>因此，在无锁数据结构中，内存的释放操作一般要延后执行，即保证没有线程能够访问到该片内存后，再执行内存回收。这种方式被称作Safe Memory Reclamation（SMR）。</p>
-<p>从上述例子中，我们可以从两个方面去理解一个SMR算法：</p>
-<ol>
-<li><strong>如何保护正在使用的数据不被释放？</strong></li>
-<li><strong>什么时候能安全地释放已经被标记为需要释放的内存？</strong></li>
-</ol>
-<p>下面介绍两种常用的SMR算法：</p>
-<ol>
-<li>Hazard Pointers（Protected Pointers）</li>
-<li>Epoch-Based Reclamation（基于代际的内存释放）</li>
-</ol>
-<p><img src="/images/notes/kaist-cs431-safe-memory-reclamation/image-20220411074041712.png" alt="image-20220411074041712"></p>
-<h2 id="hazard-pointers">Hazard Pointers</h2>
-<p>Hazard Pointers的基本思想是<strong>线程访问数据块时会将指针记录下来，其它线程尝试释放内存时会感知到数据块引用的存在，从而延迟释放内存，直到所有线程对该数据块的访问结束。</strong></p>
-<p><img src="/images/notes/kaist-cs431-safe-memory-reclamation/image-20220411083606925.png" alt="image-20220411083606925"></p>
-<p>如上图所示，使用hazard pointers有如下几个步骤：</p>
-<ol>
-<li>在线程访问共享数据时，先调用<code>reserve()</code>方法，将指针记录在一个list内；</li>
-<li>T2线程尝试释放释放b1时，调用<code>retire()</code>，因为检测到还有线程访问b1，延迟释放内存；</li>
-<li>因为内存没有真正释放，T1能在b1 retire后继续访问b1。访问结束后，T1调用<code>unreserve()</code>将指针从list中移除；</li>
-<li>T3调用<code>gc()</code>（可以周期性运行，也可以事件触发），遍历所有retired的数据块，如果list内没有指向数据块的指针，即可以真正回收内存。</li>
-</ol>
-<p>Hazard Pointers有些致命的缺点：</p>
-<ol>
-<li>不够快。因为<code>reserve()</code>保护的指针需要立即被<code>gc()</code>感知到，所以，两个函数都需要引入开销非常大的store-load fence。在遍历整个数据结构时，每个数据块都会调用<code>reserve()</code>，导致遍历效率降低；</li>
-<li>并不是所有的数据结构都适用Hazard Pointers。在前文的Lock-free Linked List中，我们也提过Harris-Michael‘s traversing是为了专门支持Hazard Pointers的。Harris&rsquo;s traversing会retire一个连续的数据块，这样，即便T1线程保护了其中一个数据块，<code>gc()</code>仍然可以回收其它的数据块内存，T1线程访问next指针时，仍然会出现问题。</li>
-</ol>
-<h2 id="epoch-based-reclamation">Epoch-Based Reclamation</h2>
-<p>Hazard Pointers只保护无锁数据结构中真正被访问的那部分数据，这也导致了上文中Hazard Pointers的两个缺陷。与Hazard Pointers不同的是，<strong>EBR保护的是数据结构中所有可能潜在的访问</strong>。这样也就不需要频繁地在线程间同步。</p>
-<p><img src="/images/notes/kaist-cs431-safe-memory-reclamation/image-20220413090336739.png" alt="image-20220413090336739"></p>
-<p>每个线程在访问数据结构前都会开启一个代际（epoch）。T1在代际e中retire了b1和b2。那么什么时候能安全地reclaim b1和b2的内存呢？</p>
-<p>如上图，我们在这个EBR算法中规定了一个<strong>代际一致性规则：并发的代际之间最多只能相差1。<strong>也就是说，只要T1还没有调用<code>set_quiescent()</code>结束掉e代，那么其它线程通过<code>set_active()</code>开启的代际号只能是e+1。而所有的e+1代的线程是有可能引用到b1和b2的。当e代结束，T2开启e+2代时，因为e+2代和e代不存在</strong>同时发生</strong>的可能性（通过代际一致性规则保证），所以在e+2代是不可能访问到e代retire的b1和b2的。到了e+3代，表示所有可能访问到b1和b2的e+1代都已经结束，此时即可安全地回收b1和b2内存。</p>
-<p>不同的代际一致性规则，可以安全回收的代际是不一样的。</p>
-          
-        </div>
-
-        
-          <div>
-            <a class="read-more button inline" href="/posts/2025-08/kaist-cs431-safe-memory-reclamation/">[Read more]</a>
-          </div>
-        
-      </article>
-    
 
     <div class="pagination">
   <div class="pagination__buttons">
@@ -845,10 +817,42 @@
       
       
     
+      
+      
+      
+    
 
     
     
 
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2026-05/" class="archive-link">
+          <span class="archive-date">2026-05</span>
+          <span class="archive-month-name">May</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
     
       
       
@@ -1503,6 +1507,14 @@
       
         
       
+        
+      
+    
+      
+        
+      
+        
+      
     
       
         
@@ -1751,6 +1763,15 @@
     
     
     
+    
+      
+      
+    
+      
+      
+    
+      
+      
     
       
       
@@ -1988,11 +2009,20 @@
     
       
       
+    
+    
+    
     
     
     
+      
+      
     
+      
+      
     
+      
+      
     
       
       
@@ -2098,10 +2128,16 @@
     
       
       
+    
+    
     
     
     
+      
+    
+      
     
+      
     
       
     
@@ -2434,6 +2470,25 @@
         
         
         
+        <a href="https://www.jinzhi.site/tags/financial-analysis/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          financial-analysis
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
         <a href="https://www.jinzhi.site/tags/go/" 
            class="tag-item" 
            style="font-size: 0.9em;"
@@ -2477,6 +2532,25 @@
            style="font-size: 0.9em;"
            title="1 article">
           Inference
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/investing/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          investing
           <span class="tag-count">(1)</span>
         </a>
       
@@ -2820,6 +2894,25 @@
            title="2 articles">
           SoftwareEngineering
           <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://www.jinzhi.site/tags/stocks/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          stocks
+          <span class="tag-count">(1)</span>
         </a>
       
     

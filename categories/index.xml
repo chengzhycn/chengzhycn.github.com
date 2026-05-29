@@ -10,9 +10,16 @@
 		
 		
 		
-			<lastBuildDate>Tue, 28 Apr 2026 15:18:28 +0800</lastBuildDate>
+			<lastBuildDate>Fri, 29 May 2026 07:48:49 +0800</lastBuildDate>
 		
 			<atom:link href="https://www.jinzhi.site/categories/index.xml" rel="self" type="application/rss+xml" />
+			<item>
+				<title>Personal</title>
+				<link>https://www.jinzhi.site/categories/personal/</link>
+				<pubDate>Fri, 29 May 2026 07:48:49 +0800</pubDate>
+				<guid>https://www.jinzhi.site/categories/personal/</guid>
+				<description></description>
+			</item>
 			<item>
 				<title>Learning</title>
 				<link>https://www.jinzhi.site/categories/learning/</link>
@@ -39,13 +46,6 @@
 				<link>https://www.jinzhi.site/categories/courses/</link>
 				<pubDate>Thu, 28 Aug 2025 13:09:43 +0800</pubDate>
 				<guid>https://www.jinzhi.site/categories/courses/</guid>
-				<description></description>
-			</item>
-			<item>
-				<title>Personal</title>
-				<link>https://www.jinzhi.site/categories/personal/</link>
-				<pubDate>Sat, 27 Nov 2021 08:30:28 +0800</pubDate>
-				<guid>https://www.jinzhi.site/categories/personal/</guid>
 				<description></description>
 			</item>
 			<item>
