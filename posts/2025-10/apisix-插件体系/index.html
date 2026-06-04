@@ -15,50 +15,50 @@ Nginx 请求处理阶段 Nginx 将一个 HTTP 请求的处理过程精心划分�
 
   <meta name="robots" content="noodp" />
 
-<link rel="canonical" href="https://www.jinzhi.site/posts/2025-10/apisix-%E6%8F%92%E4%BB%B6%E4%BD%93%E7%B3%BB/" />
+<link rel="canonical" href="https://blog.jinzhi.site/posts/2025-10/apisix-%E6%8F%92%E4%BB%B6%E4%BD%93%E7%B3%BB/" />
 
 
 
 
 
   
-  <link rel="stylesheet" href="https://www.jinzhi.site/css/buttons.min.86f6b4c106b6c6eb690ae5203d36b442c1f66f718ff4e8164fa86cf6c61ad641.css">
+  <link rel="stylesheet" href="https://blog.jinzhi.site/css/buttons.min.86f6b4c106b6c6eb690ae5203d36b442c1f66f718ff4e8164fa86cf6c61ad641.css">
 
   
-  <link rel="stylesheet" href="https://www.jinzhi.site/css/code.min.c4581949edab7810737609fc5568852bcd908945f14561e366dcd2300a370545.css">
+  <link rel="stylesheet" href="https://blog.jinzhi.site/css/code.min.c4581949edab7810737609fc5568852bcd908945f14561e366dcd2300a370545.css">
 
   
-  <link rel="stylesheet" href="https://www.jinzhi.site/css/fonts.min.5bb7ed13e1d00d8ff39ea84af26737007eb5051b157b86fc24487c94f3dc8bbe.css">
+  <link rel="stylesheet" href="https://blog.jinzhi.site/css/fonts.min.5bb7ed13e1d00d8ff39ea84af26737007eb5051b157b86fc24487c94f3dc8bbe.css">
 
   
-  <link rel="stylesheet" href="https://www.jinzhi.site/css/footer.min.eb8dfc2c6a7eafa36cd3ba92d63e69e849e2200e0002a228d137f236b09ecd75.css">
+  <link rel="stylesheet" href="https://blog.jinzhi.site/css/footer.min.eb8dfc2c6a7eafa36cd3ba92d63e69e849e2200e0002a228d137f236b09ecd75.css">
 
   
-  <link rel="stylesheet" href="https://www.jinzhi.site/css/gist.min.a751e8b0abe1ba8bc53ced52a38b19d8950fe78ca29454ea8c2595cf26aad5c0.css">
+  <link rel="stylesheet" href="https://blog.jinzhi.site/css/gist.min.a751e8b0abe1ba8bc53ced52a38b19d8950fe78ca29454ea8c2595cf26aad5c0.css">
 
   
-  <link rel="stylesheet" href="https://www.jinzhi.site/css/header.min.75c7eb0e2872d95ff48109c6647d0223a38db52e2561dd87966eb5fc7c6bdac6.css">
+  <link rel="stylesheet" href="https://blog.jinzhi.site/css/header.min.75c7eb0e2872d95ff48109c6647d0223a38db52e2561dd87966eb5fc7c6bdac6.css">
 
   
-  <link rel="stylesheet" href="https://www.jinzhi.site/css/main.min.7984a754b43b7469d389c539410e90dff2870263de16b008dfc7e8170fcd0f5b.css">
+  <link rel="stylesheet" href="https://blog.jinzhi.site/css/main.min.7984a754b43b7469d389c539410e90dff2870263de16b008dfc7e8170fcd0f5b.css">
 
   
-  <link rel="stylesheet" href="https://www.jinzhi.site/css/menu.min.3c17467ebeb3d38663dce68f71f519901124fa5cbb4519b2fb0667a21e9aca39.css">
+  <link rel="stylesheet" href="https://blog.jinzhi.site/css/menu.min.3c17467ebeb3d38663dce68f71f519901124fa5cbb4519b2fb0667a21e9aca39.css">
 
   
-  <link rel="stylesheet" href="https://www.jinzhi.site/css/pagination.min.bbb986dbce00a5ce5aca0504b7925fc1c581992a4bf57f163e5d69cc1db7d836.css">
+  <link rel="stylesheet" href="https://blog.jinzhi.site/css/pagination.min.bbb986dbce00a5ce5aca0504b7925fc1c581992a4bf57f163e5d69cc1db7d836.css">
 
   
-  <link rel="stylesheet" href="https://www.jinzhi.site/css/post.min.e6dddd258e64c83e05cec0cd49c05216742d42fc8ecbfbe6b67083412b609bd3.css">
+  <link rel="stylesheet" href="https://blog.jinzhi.site/css/post.min.e6dddd258e64c83e05cec0cd49c05216742d42fc8ecbfbe6b67083412b609bd3.css">
 
   
-  <link rel="stylesheet" href="https://www.jinzhi.site/css/syntax.min.a2cc694a9b481f15d41722bffc2cc54eea4c4f74fd9072b0b33253604c22606e.css">
+  <link rel="stylesheet" href="https://blog.jinzhi.site/css/syntax.min.a2cc694a9b481f15d41722bffc2cc54eea4c4f74fd9072b0b33253604c22606e.css">
 
   
-  <link rel="stylesheet" href="https://www.jinzhi.site/css/terminal.min.e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.css">
+  <link rel="stylesheet" href="https://blog.jinzhi.site/css/terminal.min.e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.css">
 
   
-  <link rel="stylesheet" href="https://www.jinzhi.site/css/terms.min.b81791663c3790e738e571cdbf802312390d30e4b1d8dc9d814a5b5454d0ac11.css">
+  <link rel="stylesheet" href="https://blog.jinzhi.site/css/terms.min.b81791663c3790e738e571cdbf802312390d30e4b1d8dc9d814a5b5454d0ac11.css">
 
 
 
@@ -66,8 +66,8 @@ Nginx 请求处理阶段 Nginx 将一个 HTTP 请求的处理过程精心划分�
 
 
 
-<link rel="shortcut icon" href="https://www.jinzhi.site/favicon.png">
-<link rel="apple-touch-icon" href="https://www.jinzhi.site/apple-touch-icon.png">
+<link rel="shortcut icon" href="https://blog.jinzhi.site/favicon.png">
+<link rel="apple-touch-icon" href="https://blog.jinzhi.site/apple-touch-icon.png">
 
 
 <meta name="twitter:card" content="summary" />
@@ -87,10 +87,10 @@ Nginx 请求处理阶段 Nginx 将一个 HTTP 请求的处理过程精心划分�
 一个请求在 Nginx 中主要会经过以下 11 个处理阶段：
 1. NGX_HTTP_POST_READ_PHASE (请求读取后阶段) 任务: 接收到完整的请求头（Request Header）之后，第一个被执行的阶段。 常用模块: ngx_http_realip_module。 作用举例: 在这个阶段，realip 模块会根据 X-Forwarded-For 或 X-Real-IP 等请求头，将客户端的真实 IP 地址替换掉代理服务器的 IP 地址。这对后续的访问控制和日志记录至关重要。 2. NGX_HTTP_SERVER_REWRITE_PHASE (Server 级别地址重写阶段) 任务: 在 server 配置块中执行 URL 重写。 常用模块/指令: rewrite 指令（当它定义在 server 块中时）。 作用举例: 在请求进入具体的 location 匹配之前，对 URL 进行全局的、初步的改写。例如，将所有 http 请求强制重定向到 https。 server { listen 80; server_name example.com; # 这个 rewrite 就工作在 SERVER_REWRITE 阶段 rewrite ^/(.*)$ https://example.com/$1 permanent; } 3. NGX_HTTP_FIND_CONFIG_PHASE (配置查找阶段) 任务: 根据上个阶段处理完的 URI，查找并匹配对应的 location 配置块。 核心功能: 这是 Nginx 路由的核心。Nginx 会用请求的 URI 与 location 指令定义的规则进行匹配，找到最合适的 location。这个阶段没有模块可以注册 handler，是 Nginx 核心自己完成的。 4. NGX_HTTP_REWRITE_PHASE (Location 级别地址重写阶段) 任务: 在上一步匹配到的 location 块内部，执行 URL 重写。 常用模块/指令: rewrite 指令（当它定义在 location 块中时）、set 指令。 作用举例: 对特定 location 的请求进行更精细的 URL 改写。这个阶段的 rewrite 可能会导致 Nginx 重新回到 FIND_CONFIG 阶段去匹配新的 location，可能会有循环，最多执行 10 次以防止死循环。 location /app/ { # 这个 rewrite 工作在 REWRITE 阶段 rewrite ^/app/(.*)$ /v2/app/$1 break; } 5. NGX_HTTP_POST_REWRITE_PHASE (地址重写后阶段) 任务: 防止 rewrite 阶段的重写指令导致死循环。如果 URI 在上一个阶段被重写，这个阶段会把重写后的 URI 交给 Nginx，让其重新开始 FIND_CONFIG 阶段，查找新的 location。这是一个内部阶段，用户通常不直接感知。 6. NGX_HTTP_PREACCESS_PHASE (访问权限控制前置阶段) 任务: 在正式的访问权限检查之前，做一些准备工作。 常用模块: ngx_http_limit_conn_module (连接数限制), ngx_http_limit_req_module (请求速率限制)。 作用举例: 在检查用户名密码之前，先检查客户端的请求速率是否过快，如果过快，直接拒绝，不必再执行后面的阶段。 7. NGX_HTTP_ACCESS_PHASE (访问权限控制阶段) 任务: 对请求进行权限验证。 常用模块/指令: ngx_http_access_module (allow, deny), ngx_http_auth_basic_module (HTTP 基本认证)。 作用举例: 检查客户端 IP 是否在允许列表中，或者验证用户提供的用户名和密码是否正确。如果这个阶段有任何模块拒绝了请求，处理就会立即中断并返回错误（如 403 Forbidden）。 8. NGX_HTTP_POST_ACCESS_PHASE (访问权限控制后置阶段) 任务: 主要用于配合 ACCESS 阶段的 satisfy 指令。 作用举例: 当 satisfy any; 被使用时，如果 ACCESS 阶段有模块允许了访问（例如 IP 匹配成功），POST_ACCESS 阶段的处理就可以被跳过。如果 ACCESS 阶段没有明确允许，这个阶段的处理（例如 HTTP 基本认证）就会被执行。 9. NGX_HTTP_TRY_FILES_PHASE (Try_files 阶段) 任务: try_files 指令专属的特殊阶段。 常用模块/指令: try_files。 作用举例: 按顺序检查文件或目录是否存在，如果找到，则内部重定向到该文件，如果都找不到，则执行最后一个参数（通常是内部重定向到一个 location 或返回一个状态码）。 location / { # 这个指令工作在 TRY_FILES 阶段 try_files $uri $uri/ /index.html; } 10. NGX_HTTP_CONTENT_PHASE (内容生成阶段) 任务: 核心阶段，负责生成最终的响应内容并发送给客户端。 重要特性: 每个 location 只有一个模块能成为“内容处理模块”（Content Handler）。 常用模块: ngx_http_static_module: 处理静态文件。 ngx_http_proxy_module: 将请求反向代理到后端服务器 (proxy_pass)。 ngx_http_fastcgi_module: 将请求转发给 FastCGI 应用（如 PHP-FPM）。 ngx_http_index_module: 处理目录索引文件。 return: 直接返回指定的状态码或内容。 执行逻辑: Nginx 会调用在 location 中找到的内容处理模块。例如，如果配置了 proxy_pass，那么 proxy_module 就会接管请求。如果没有特定的内容处理模块，默认会由 static_module 尝试提供静态文件服务。 11. NGX_HTTP_LOG_PHASE (日志记录阶段) 任务: 请求处理完成后，记录访问日志。 常用模块/指令: ngx_http_log_module (access_log)。 作用举-例: 无论请求成功还是失败，这个阶段都会被执行（除非有严重错误），用于将请求的相关信息（如客户端IP、请求时间、状态码等）写入到日志文件中。 过滤器模块 (Filter Modules) 当 CONTENT 阶段生成了响应内容后，在发送给客户端之前，响应数据还会经过一系列的 过滤器（Filter） 链处理。过滤器负责对响应头和响应体进行修改或加工。
 " />
-<meta property="og:url" content="https://www.jinzhi.site/posts/2025-10/apisix-%E6%8F%92%E4%BB%B6%E4%BD%93%E7%B3%BB/" />
+<meta property="og:url" content="https://blog.jinzhi.site/posts/2025-10/apisix-%E6%8F%92%E4%BB%B6%E4%BD%93%E7%B3%BB/" />
 <meta property="og:site_name" content="chengzhycn&#39;s blog" />
 
-  <meta property="og:image" content="https://www.jinzhi.site/og-image.png">
+  <meta property="og:image" content="https://blog.jinzhi.site/og-image.png">
 
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="627">
@@ -213,16 +213,16 @@ Nginx 请求处理阶段 Nginx 将一个 HTTP 请求的处理过程精心划分�
     
 <article class="post">
   <h1 class="post-title">
-    <a href="https://www.jinzhi.site/posts/2025-10/apisix-%E6%8F%92%E4%BB%B6%E4%BD%93%E7%B3%BB/">APISIX 插件体系</a>
+    <a href="https://blog.jinzhi.site/posts/2025-10/apisix-%E6%8F%92%E4%BB%B6%E4%BD%93%E7%B3%BB/">APISIX 插件体系</a>
   </h1>
   <div class="post-meta"><time class="post-date">2025-10-30</time><span class="post-reading-time">6 min read (1202 words)</span></div>
 
   
     <span class="post-tags">
       
-      #<a href="https://www.jinzhi.site/tags/apisix/">apisix</a>&nbsp;
+      #<a href="https://blog.jinzhi.site/tags/apisix/">apisix</a>&nbsp;
       
-      #<a href="https://www.jinzhi.site/tags/l7gateway/">L7Gateway</a>&nbsp;
+      #<a href="https://blog.jinzhi.site/tags/l7gateway/">L7Gateway</a>&nbsp;
       
     </span>
   
@@ -723,7 +723,7 @@ Nginx 请求处理阶段 Nginx 将一个 HTTP 请求的处理过程精心划分�
     
     
     
-      <a href="https://www.jinzhi.site/posts/2025-10/websocket-origin-header-%E6%A0%A1%E9%AA%8C%E5%A4%B1%E8%B4%A5/" class="button inline next">
+      <a href="https://blog.jinzhi.site/posts/2025-10/websocket-origin-header-%E6%A0%A1%E9%AA%8C%E5%A4%B1%E8%B4%A5/" class="button inline next">
          [<span class="button__text">WebSocket Origin Header 校验失败</span>] &gt;
       </a>
     
@@ -2383,7 +2383,7 @@ Nginx 请求处理阶段 Nginx 将一个 HTTP 请求的处理过程精心划分�
         
         
         
-        <a href="https://www.jinzhi.site/tags/agent/" 
+        <a href="https://blog.jinzhi.site/tags/agent/" 
            class="tag-item" 
            style="font-size: 0.9em;"
            title="1 article">
@@ -2402,7 +2402,7 @@ Nginx 请求处理阶段 Nginx 将一个 HTTP 请求的处理过程精心划分�
         
         
         
-        <a href="https://www.jinzhi.site/tags/ai/" 
+        <a href="https://blog.jinzhi.site/tags/ai/" 
            class="tag-item" 
            style="font-size: 0.9em;"
            title="1 article">
@@ -2421,7 +2421,7 @@ Nginx 请求处理阶段 Nginx 将一个 HTTP 请求的处理过程精心划分�
         
         
         
-        <a href="https://www.jinzhi.site/tags/apisix/" 
+        <a href="https://blog.jinzhi.site/tags/apisix/" 
            class="tag-item" 
            style="font-size: 0.9em;"
            title="3 articles">
@@ -2440,7 +2440,7 @@ Nginx 请求处理阶段 Nginx 将一个 HTTP 请求的处理过程精心划分�
         
         
         
-        <a href="https://www.jinzhi.site/tags/biography/" 
+        <a href="https://blog.jinzhi.site/tags/biography/" 
            class="tag-item" 
            style="font-size: 0.9em;"
            title="1 article">
@@ -2459,7 +2459,7 @@ Nginx 请求处理阶段 Nginx 将一个 HTTP 请求的处理过程精心划分�
         
         
         
-        <a href="https://www.jinzhi.site/tags/cloudnative/" 
+        <a href="https://blog.jinzhi.site/tags/cloudnative/" 
            class="tag-item" 
            style="font-size: 0.9em;"
            title="1 article">
@@ -2478,7 +2478,7 @@ Nginx 请求处理阶段 Nginx 将一个 HTTP 请求的处理过程精心划分�
         
         
         
-        <a href="https://www.jinzhi.site/tags/compile/" 
+        <a href="https://blog.jinzhi.site/tags/compile/" 
            class="tag-item" 
            style="font-size: 0.9em;"
            title="1 article">
@@ -2497,7 +2497,7 @@ Nginx 请求处理阶段 Nginx 将一个 HTTP 请求的处理过程精心划分�
         
         
         
-        <a href="https://www.jinzhi.site/tags/concurrency/" 
+        <a href="https://blog.jinzhi.site/tags/concurrency/" 
            class="tag-item" 
            style="font-size: 0.9em;"
            title="7 articles">
@@ -2516,7 +2516,7 @@ Nginx 请求处理阶段 Nginx 将一个 HTTP 请求的处理过程精心划分�
         
         
         
-        <a href="https://www.jinzhi.site/tags/csi/" 
+        <a href="https://blog.jinzhi.site/tags/csi/" 
            class="tag-item" 
            style="font-size: 0.9em;"
            title="1 article">
@@ -2535,7 +2535,7 @@ Nginx 请求处理阶段 Nginx 将一个 HTTP 请求的处理过程精心划分�
         
         
         
-        <a href="https://www.jinzhi.site/tags/debug/" 
+        <a href="https://blog.jinzhi.site/tags/debug/" 
            class="tag-item" 
            style="font-size: 0.9em;"
            title="1 article">
@@ -2554,7 +2554,7 @@ Nginx 请求处理阶段 Nginx 将一个 HTTP 请求的处理过程精心划分�
         
         
         
-        <a href="https://www.jinzhi.site/tags/dns/" 
+        <a href="https://blog.jinzhi.site/tags/dns/" 
            class="tag-item" 
            style="font-size: 0.9em;"
            title="1 article">
@@ -2573,7 +2573,7 @@ Nginx 请求处理阶段 Nginx 将一个 HTTP 请求的处理过程精心划分�
         
         
         
-        <a href="https://www.jinzhi.site/tags/ebpf/" 
+        <a href="https://blog.jinzhi.site/tags/ebpf/" 
            class="tag-item" 
            style="font-size: 0.9em;"
            title="1 article">
@@ -2592,7 +2592,7 @@ Nginx 请求处理阶段 Nginx 将一个 HTTP 请求的处理过程精心划分�
         
         
         
-        <a href="https://www.jinzhi.site/tags/elf/" 
+        <a href="https://blog.jinzhi.site/tags/elf/" 
            class="tag-item" 
            style="font-size: 0.9em;"
            title="1 article">
@@ -2611,7 +2611,7 @@ Nginx 请求处理阶段 Nginx 将一个 HTTP 请求的处理过程精心划分�
         
         
         
-        <a href="https://www.jinzhi.site/tags/envoy/" 
+        <a href="https://blog.jinzhi.site/tags/envoy/" 
            class="tag-item" 
            style="font-size: 0.9em;"
            title="1 article">
@@ -2630,7 +2630,7 @@ Nginx 请求处理阶段 Nginx 将一个 HTTP 请求的处理过程精心划分�
         
         
         
-        <a href="https://www.jinzhi.site/tags/financial-analysis/" 
+        <a href="https://blog.jinzhi.site/tags/financial-analysis/" 
            class="tag-item" 
            style="font-size: 0.9em;"
            title="1 article">
@@ -2649,7 +2649,7 @@ Nginx 请求处理阶段 Nginx 将一个 HTTP 请求的处理过程精心划分�
         
         
         
-        <a href="https://www.jinzhi.site/tags/go/" 
+        <a href="https://blog.jinzhi.site/tags/go/" 
            class="tag-item" 
            style="font-size: 0.9em;"
            title="2 articles">
@@ -2668,7 +2668,7 @@ Nginx 请求处理阶段 Nginx 将一个 HTTP 请求的处理过程精心划分�
         
         
         
-        <a href="https://www.jinzhi.site/tags/http/" 
+        <a href="https://blog.jinzhi.site/tags/http/" 
            class="tag-item" 
            style="font-size: 0.9em;"
            title="1 article">
@@ -2687,7 +2687,7 @@ Nginx 请求处理阶段 Nginx 将一个 HTTP 请求的处理过程精心划分�
         
         
         
-        <a href="https://www.jinzhi.site/tags/inference/" 
+        <a href="https://blog.jinzhi.site/tags/inference/" 
            class="tag-item" 
            style="font-size: 0.9em;"
            title="1 article">
@@ -2706,7 +2706,7 @@ Nginx 请求处理阶段 Nginx 将一个 HTTP 请求的处理过程精心划分�
         
         
         
-        <a href="https://www.jinzhi.site/tags/investing/" 
+        <a href="https://blog.jinzhi.site/tags/investing/" 
            class="tag-item" 
            style="font-size: 0.9em;"
            title="1 article">
@@ -2725,7 +2725,7 @@ Nginx 请求处理阶段 Nginx 将一个 HTTP 请求的处理过程精心划分�
         
         
         
-        <a href="https://www.jinzhi.site/tags/kaist-cs431/" 
+        <a href="https://blog.jinzhi.site/tags/kaist-cs431/" 
            class="tag-item" 
            style="font-size: 0.9em;"
            title="7 articles">
@@ -2744,7 +2744,7 @@ Nginx 请求处理阶段 Nginx 将一个 HTTP 请求的处理过程精心划分�
         
         
         
-        <a href="https://www.jinzhi.site/tags/kernel/" 
+        <a href="https://blog.jinzhi.site/tags/kernel/" 
            class="tag-item" 
            style="font-size: 0.9em;"
            title="1 article">
@@ -2763,7 +2763,7 @@ Nginx 请求处理阶段 Nginx 将一个 HTTP 请求的处理过程精心划分�
         
         
         
-        <a href="https://www.jinzhi.site/tags/kubecon/" 
+        <a href="https://blog.jinzhi.site/tags/kubecon/" 
            class="tag-item" 
            style="font-size: 0.9em;"
            title="1 article">
@@ -2782,7 +2782,7 @@ Nginx 请求处理阶段 Nginx 将一个 HTTP 请求的处理过程精心划分�
         
         
         
-        <a href="https://www.jinzhi.site/tags/kubernetes/" 
+        <a href="https://blog.jinzhi.site/tags/kubernetes/" 
            class="tag-item" 
            style="font-size: 0.9em;"
            title="2 articles">
@@ -2801,7 +2801,7 @@ Nginx 请求处理阶段 Nginx 将一个 HTTP 请求的处理过程精心划分�
         
         
         
-        <a href="https://www.jinzhi.site/tags/l7gateway/" 
+        <a href="https://blog.jinzhi.site/tags/l7gateway/" 
            class="tag-item" 
            style="font-size: 0.9em;"
            title="4 articles">
@@ -2820,7 +2820,7 @@ Nginx 请求处理阶段 Nginx 将一个 HTTP 请求的处理过程精心划分�
         
         
         
-        <a href="https://www.jinzhi.site/tags/linux/" 
+        <a href="https://blog.jinzhi.site/tags/linux/" 
            class="tag-item" 
            style="font-size: 0.9em;"
            title="3 articles">
@@ -2839,7 +2839,7 @@ Nginx 请求处理阶段 Nginx 将一个 HTTP 请求的处理过程精心划分�
         
         
         
-        <a href="https://www.jinzhi.site/tags/llm/" 
+        <a href="https://blog.jinzhi.site/tags/llm/" 
            class="tag-item" 
            style="font-size: 0.9em;"
            title="2 articles">
@@ -2858,7 +2858,7 @@ Nginx 请求处理阶段 Nginx 将一个 HTTP 请求的处理过程精心划分�
         
         
         
-        <a href="https://www.jinzhi.site/tags/lua/" 
+        <a href="https://blog.jinzhi.site/tags/lua/" 
            class="tag-item" 
            style="font-size: 0.9em;"
            title="3 articles">
@@ -2877,7 +2877,7 @@ Nginx 请求处理阶段 Nginx 将一个 HTTP 请求的处理过程精心划分�
         
         
         
-        <a href="https://www.jinzhi.site/tags/makefile/" 
+        <a href="https://blog.jinzhi.site/tags/makefile/" 
            class="tag-item" 
            style="font-size: 0.9em;"
            title="1 article">
@@ -2896,7 +2896,7 @@ Nginx 请求处理阶段 Nginx 将一个 HTTP 请求的处理过程精心划分�
         
         
         
-        <a href="https://www.jinzhi.site/tags/mindfulness/" 
+        <a href="https://blog.jinzhi.site/tags/mindfulness/" 
            class="tag-item" 
            style="font-size: 0.9em;"
            title="1 article">
@@ -2915,7 +2915,7 @@ Nginx 请求处理阶段 Nginx 将一个 HTTP 请求的处理过程精心划分�
         
         
         
-        <a href="https://www.jinzhi.site/tags/network/" 
+        <a href="https://blog.jinzhi.site/tags/network/" 
            class="tag-item" 
            style="font-size: 0.9em;"
            title="3 articles">
@@ -2934,7 +2934,7 @@ Nginx 请求处理阶段 Nginx 将一个 HTTP 请求的处理过程精心划分�
         
         
         
-        <a href="https://www.jinzhi.site/tags/nonfiction/" 
+        <a href="https://blog.jinzhi.site/tags/nonfiction/" 
            class="tag-item" 
            style="font-size: 0.9em;"
            title="6 articles">
@@ -2953,7 +2953,7 @@ Nginx 请求处理阶段 Nginx 将一个 HTTP 请求的处理过程精心划分�
         
         
         
-        <a href="https://www.jinzhi.site/tags/operatingsystem/" 
+        <a href="https://blog.jinzhi.site/tags/operatingsystem/" 
            class="tag-item" 
            style="font-size: 0.9em;"
            title="1 article">
@@ -2972,7 +2972,7 @@ Nginx 请求处理阶段 Nginx 将一个 HTTP 请求的处理过程精心划分�
         
         
         
-        <a href="https://www.jinzhi.site/tags/philosophy/" 
+        <a href="https://blog.jinzhi.site/tags/philosophy/" 
            class="tag-item" 
            style="font-size: 0.9em;"
            title="1 article">
@@ -2991,7 +2991,7 @@ Nginx 请求处理阶段 Nginx 将一个 HTTP 请求的处理过程精心划分�
         
         
         
-        <a href="https://www.jinzhi.site/tags/rust/" 
+        <a href="https://blog.jinzhi.site/tags/rust/" 
            class="tag-item" 
            style="font-size: 1.5em;"
            title="10 articles">
@@ -3010,7 +3010,7 @@ Nginx 请求处理阶段 Nginx 将一个 HTTP 请求的处理过程精心划分�
         
         
         
-        <a href="https://www.jinzhi.site/tags/schedule/" 
+        <a href="https://blog.jinzhi.site/tags/schedule/" 
            class="tag-item" 
            style="font-size: 0.9em;"
            title="1 article">
@@ -3029,7 +3029,7 @@ Nginx 请求处理阶段 Nginx 将一个 HTTP 请求的处理过程精心划分�
         
         
         
-        <a href="https://www.jinzhi.site/tags/science/" 
+        <a href="https://blog.jinzhi.site/tags/science/" 
            class="tag-item" 
            style="font-size: 0.9em;"
            title="2 articles">
@@ -3048,7 +3048,7 @@ Nginx 请求处理阶段 Nginx 将一个 HTTP 请求的处理过程精心划分�
         
         
         
-        <a href="https://www.jinzhi.site/tags/softwareengineering/" 
+        <a href="https://blog.jinzhi.site/tags/softwareengineering/" 
            class="tag-item" 
            style="font-size: 0.9em;"
            title="2 articles">
@@ -3067,7 +3067,7 @@ Nginx 请求处理阶段 Nginx 将一个 HTTP 请求的处理过程精心划分�
         
         
         
-        <a href="https://www.jinzhi.site/tags/stocks/" 
+        <a href="https://blog.jinzhi.site/tags/stocks/" 
            class="tag-item" 
            style="font-size: 0.9em;"
            title="1 article">
@@ -3086,7 +3086,7 @@ Nginx 请求处理阶段 Nginx 将一个 HTTP 请求的处理过程精心划分�
         
         
         
-        <a href="https://www.jinzhi.site/tags/wasm/" 
+        <a href="https://blog.jinzhi.site/tags/wasm/" 
            class="tag-item" 
            style="font-size: 0.9em;"
            title="1 article">

@@ -2,7 +2,7 @@
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
 	<channel>
 		<title>Archive for 2022-01 on chengzhycn&#39;s blog</title>
-		<link>https://www.jinzhi.site/posts/2022-01/</link>
+		<link>https://blog.jinzhi.site/posts/2022-01/</link>
 		<description>Recent content in Archive for 2022-01 on chengzhycn&#39;s blog</description>
 		<generator>Hugo</generator>
 		<language>en-us</language>
@@ -12,12 +12,12 @@
 		
 			<lastBuildDate>Tue, 11 Jan 2022 14:30:28 +0800</lastBuildDate>
 		
-			<atom:link href="https://www.jinzhi.site/posts/2022-01/index.xml" rel="self" type="application/rss+xml" />
+			<atom:link href="https://blog.jinzhi.site/posts/2022-01/index.xml" rel="self" type="application/rss+xml" />
 			<item>
 				<title>Linux 进程调度</title>
-				<link>https://www.jinzhi.site/posts/2022-01/linux-%E8%BF%9B%E7%A8%8B%E8%B0%83%E5%BA%A6/</link>
+				<link>https://blog.jinzhi.site/posts/2022-01/linux-%E8%BF%9B%E7%A8%8B%E8%B0%83%E5%BA%A6/</link>
 				<pubDate>Tue, 11 Jan 2022 14:30:28 +0800</pubDate>
-				<guid>https://www.jinzhi.site/posts/2022-01/linux-%E8%BF%9B%E7%A8%8B%E8%B0%83%E5%BA%A6/</guid>
+				<guid>https://blog.jinzhi.site/posts/2022-01/linux-%E8%BF%9B%E7%A8%8B%E8%B0%83%E5%BA%A6/</guid>
 				<description>&lt;p&gt;总体来说，调度主要解决两类问题：&lt;/p&gt;&#xA;&lt;ul&gt;&#xA;&lt;li&gt;什么时候调度&lt;/li&gt;&#xA;&lt;li&gt;调度的目标是谁&#xA;而一个优秀的调度系统，可以从如下几个指标判断：&lt;/li&gt;&#xA;&lt;li&gt;fast process response time&lt;/li&gt;&#xA;&lt;li&gt;good throughput for background jobs&lt;/li&gt;&#xA;&lt;li&gt;avoidance of process starvation&lt;/li&gt;&#xA;&lt;li&gt;reconciliation of the needs of low- and high- priority processes&lt;/li&gt;&#xA;&lt;/ul&gt;&#xA;&lt;p&gt;Linux调度基于分时（Time-Sharing）：多个进程共享同一个CPU，CPU运行时切分成多个时间片。分时技术依赖于timer interrupt，对进程来说是透明的。&lt;/p&gt;&#xA;&lt;p&gt;Linux进程是&lt;strong&gt;可抢占&lt;/strong&gt;的。当进程切换到&lt;code&gt;TASK_RUNNING&lt;/code&gt;状态，内核检查其动态优先级是否比当前运行的进程的优先级高。如果更高，当前执行的进程中断掉，调度器切入，选择另外一个进程运行（通常是刚刚切换成runnable的进程）。当进程的时间片消耗完毕时，进程也是可被抢占的。当前进程&lt;code&gt;struct thread_info&lt;/code&gt;中的&lt;code&gt;TIF_NEED_RESCHED&lt;/code&gt;被设置，timer interrupt handler终止后，scheduler切入。&lt;/p&gt;&#xA;&lt;p&gt;一个被抢占的进程并不是被暂停，它还维持在&lt;code&gt;TASK_RUNNING&lt;/code&gt;状态，只不过不再使用CPU。&lt;/p&gt;&#xA;&lt;h2 id=&#34;调度算法&#34;&gt;调度算法&lt;/h2&gt;&#xA;&lt;p&gt;Linux 2.6版本之前的调度算法很简单，进程切换时，内核扫描runnable进程列表，计算它们的优先级，选择“最优”的进程运行。这种算法的问题是切换时的时间开销会随着进程数目的增多呈线性增长。&lt;/p&gt;&#xA;&lt;p&gt;调度策略：&lt;/p&gt;&#xA;&lt;ul&gt;&#xA;&lt;li&gt;&lt;code&gt;SCHED_FIFO&lt;/code&gt;&lt;/li&gt;&#xA;&lt;li&gt;&lt;code&gt;SCHED_RR&lt;/code&gt;&lt;/li&gt;&#xA;&lt;li&gt;&lt;code&gt;SCHED_NORMAL&lt;/code&gt;&lt;/li&gt;&#xA;&lt;/ul&gt;&#xA;&lt;h3 id=&#34;o1-scheduler&#34;&gt;O(1) Scheduler&lt;/h3&gt;&#xA;&lt;p&gt;基于Linux-2.6.12版本。&lt;/p&gt;&#xA;&lt;h4 id=&#34;优先级&#34;&gt;优先级&lt;/h4&gt;&#xA;&lt;p&gt;Linux 2.6.12 内核里，优先级表示分为用户态和内核态。用户态优先级就是我们常用的nice值。取值范围[-20, 19]。内核态优先级被称作静态优先级（static priority），取值范围是[0, 139]。其中，[0, 99]是Real-Time Process，[100, 139]对应用户态nice值。&lt;/p&gt;&#xA;&lt;p&gt;在静态优先级外，真正发挥作用的是&lt;strong&gt;动态优先级（dynamic priority）&lt;/strong&gt;。动态优先级实际上是静态优先级加上了一个运行时补偿（bonus）：&#xA;$$&#xA;dynamic_priority = max(100, min((static_priority - 5 + bonus), 139)), bonus \in [0, 10]&#xA;$$&lt;/p&gt;</description>
 			</item>
 	</channel>
