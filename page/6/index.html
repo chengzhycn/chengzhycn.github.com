@@ -216,6 +216,49 @@
     
       <article class="post on-list">
         <h2 class="post-title">
+          <a href="https://blog.jinzhi.site/posts/2025-06/spurious-retransmit-%E5%AF%BC%E8%87%B4-nat-%E8%AE%BE%E5%A4%87%E5%93%8D%E5%BA%94-rst/">Spurious Retransmit 导致 NAT 设备响应 RST</a>
+        </h2>
+
+        <div class="post-meta"><time class="post-date">2025-06-13</time></div>
+
+        
+          <span class="post-tags">
+            
+            #<a href="https://blog.jinzhi.site/tags/debug/">debug</a>&nbsp;
+            
+          </span>
+        
+
+        
+
+
+        <div class="post-content">
+          
+            <p>在一个线上问题排查过程中，出现了一个新的问题：wget 下载文件在连接建立很短的时间内（1 - 2s）就被 RESET 了。
+首先先简要说明一下链路：</p>
+<p><img src="/images/notes/spurious-retransmit-%E5%AF%BC%E8%87%B4-nat-%E8%AE%BE%E5%A4%87%E5%93%8D%E5%BA%94-rst/5035a324e7b30c51292018e81c2e41b6_MD5.jpeg" alt=""></p>
+<p>客户端经过一个SNAT设备出公网，在服务器上下载一个大文件。端到端的 RTT 大约 90 ms。由于最开始并没有怀疑到 SNAT 设备，并且 server 端无法抓包，我们分别在客户端 和 SNAT 设备到 server 间一台网元设备上抓包。
+<img src="/images/notes/spurious-retransmit-%E5%AF%BC%E8%87%B4-nat-%E8%AE%BE%E5%A4%87%E5%93%8D%E5%BA%94-rst/adc7d13285d32bfc4c287a8d5afd1da1_MD5.jpeg" alt="中间网元设备"></p>
+<p><img src="/images/notes/spurious-retransmit-%E5%AF%BC%E8%87%B4-nat-%E8%AE%BE%E5%A4%87%E5%93%8D%E5%BA%94-rst/a9850b914275bd0d8c5c53f1dfd3b2d4_MD5.jpeg" alt="SNAT 设备"></p>
+<p>如上，中间网元设备显示客户端（端口 34567）先发送了 RST 报文，随后服务器（端口 443）响应 RST 报文。但是客户端抓包显示它根本没有发送过 RST 报文。</p>
+<p>此时，我们再从 SNAT 设备上抓包，发现就是 SNAT 设备首先给服务器发送了 RST 报文。</p>
+<p>这里的 SNAT 设备实际上是一台基于 IPtables 的 Linux 设备。</p>
+<p><img src="/images/notes/spurious-retransmit-%E5%AF%BC%E8%87%B4-nat-%E8%AE%BE%E5%A4%87%E5%93%8D%E5%BA%94-rst/bc892bf5d9ba1a52cb9c0ea3baf99b64_MD5.jpg" alt="">
+抓包可以看到，RST 是对一个 TCP Spurious Retransmission 的响应。为什么会发出这个 RST 呢？正好网上有一个相似的场景：<a href="https://github.com/moby/libnetwork/issues/1090">Add workaround for spurious retransmits leading to connection resets</a></p>
+<p><img src="/images/notes/spurious-retransmit-%E5%AF%BC%E8%87%B4-nat-%E8%AE%BE%E5%A4%87%E5%93%8D%E5%BA%94-rst/1f45fd40111f9e29fb5a47fd8e1baad0_MD5.jpeg" alt=""></p>
+<p>总的来说，就是 spurious retransmits 报文在序列号超出 TCP 窗口时，会被 conntrack 认为是 invalid 包，从而不再经过反向 SNAT 规则的处理。由于目的地址没有被转换，报文会按照原来的目的地址送往 INPUT，而本地又没有这个 socket，则响应一个 RST 报文。</p>
+          
+        </div>
+
+        
+          <div>
+            <a class="read-more button inline" href="/posts/2025-06/spurious-retransmit-%E5%AF%BC%E8%87%B4-nat-%E8%AE%BE%E5%A4%87%E5%93%8D%E5%BA%94-rst/">[Read more]</a>
+          </div>
+        
+      </article>
+    
+      <article class="post on-list">
+        <h2 class="post-title">
           <a href="https://blog.jinzhi.site/posts/2025-04/vrf-an-overview/">VRF: An Overview</a>
         </h2>
 
@@ -489,104 +532,6 @@ Key to Flags:
         
       </article>
     
-      <article class="post on-list">
-        <h2 class="post-title">
-          <a href="https://blog.jinzhi.site/posts/2022-10/linux-%E6%94%B6%E5%8C%85%E5%92%8C%E5%8F%91%E5%8C%85%E6%B5%81%E7%A8%8B/">Linux 收包和发包流程</a>
-        </h2>
-
-        <div class="post-meta"><time class="post-date">2022-10-13</time></div>
-
-        
-          <span class="post-tags">
-            
-            #<a href="https://blog.jinzhi.site/tags/linux/">Linux</a>&nbsp;
-            
-            #<a href="https://blog.jinzhi.site/tags/network/">Network</a>&nbsp;
-            
-            #<a href="https://blog.jinzhi.site/tags/kernel/">Kernel</a>&nbsp;
-            
-          </span>
-        
-
-        
-
-
-        <div class="post-content">
-          
-            <h2 id="流程图">流程图</h2>
-<p>From 《Understanding Linux Network Internals》</p>
-<p><img src="/images/notes/linux-%E6%94%B6%E5%8C%85%E5%92%8C%E5%8F%91%E5%8C%85%E6%B5%81%E7%A8%8B/image-20220128172744059.png" alt="image-20220128172744059"></p>
-<p><img src="/images/notes/linux-%E6%94%B6%E5%8C%85%E5%92%8C%E5%8F%91%E5%8C%85%E6%B5%81%E7%A8%8B/image-20220129171450456.png" alt="image-20220129171450456"></p>
-<h2 id="收包流程">收包流程</h2>
-<p>TL; DR</p>
-<p><img src="/images/notes/linux-%E6%94%B6%E5%8C%85%E5%92%8C%E5%8F%91%E5%8C%85%E6%B5%81%E7%A8%8B/Linux_Packet_Receive_Flow.png" alt="image-20220129171450456"></p>
-<ul>
-<li><strong>收包<code>NET_RX_SOFTRQ</code>的软中断处理函数是<code>net_rx_action</code></strong></li>
-<li><strong><code>net_rx_action</code>中会调用网卡驱动注册的poll回调函数处理</strong></li>
-<li><strong>poll回调函数将数据帧从网卡ring buffer中取出，构造skb：</strong>
-<ul>
-<li><strong>运行xdpdrv上的bpf program，得到action result</strong></li>
-<li><strong>如果是XDP_PASS，构造skb，并初始化skb中一些metadata字段</strong></li>
-</ul>
-</li>
-<li><strong>调用内核的GRO和RPS处理流程</strong></li>
-<li><strong>进入<code>__netif_receive_skb_core</code>，处理skb：</strong>
-<ul>
-<li><strong>运行xdpgeneric上的bpf program，得到action result</strong></li>
-<li><strong>如果是XDP_PASS，遍历<code>ptype_all</code>和<code>dev-&gt;ptype_all</code>，进行抓包处理</strong></li>
-<li><strong>tc ingress 处理<code>sch_handle_ingress</code></strong></li>
-<li><strong>查找<code>ptype_base</code>和<code>dev-&gt;ptype_specific</code>，交由对应的三层协议栈回调函数处理</strong></li>
-</ul>
-</li>
-</ul>
-<h3 id="napi">NAPI</h3>
-<p>**NAPI的思想是从完全的中断收包模型，改用中断和polling混合。**如果内核在处理旧的数据帧时，收到了新的数据帧，网卡设备没有必要再触发一个中断。内核继续处理设备input queue里的数据（该设备的interrupt禁止了），在队列为空时重新使能中断。</p>
-<p>从内核的角度，NAPI有如下的优势：</p>
-<ul>
-<li>降低CPU的负载（更少的中断）</li>
-<li>更多的设备处理公平性</li>
-</ul>
-<p>以ixgbe网卡为例，描述下NAPI处理流程。</p>
-<h4 id="注册">注册</h4>
-<p>ixgbe驱动在初始化中断向量时会调用<code>netif_napi_add</code>初始化NAPI，==<strong>将<code>ixgbe_poll</code>函数注册到napi结构体，并将napi加入到设备的napi_list内</strong>==：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="cm">/**
-</span></span></span><span class="line"><span class="cl"><span class="cm"> * ixgbe_alloc_q_vector - Allocate memory for a single interrupt vector
-</span></span></span><span class="line"><span class="cl"><span class="cm"> * @adapter: board private structure to initialize
-</span></span></span><span class="line"><span class="cl"><span class="cm"> * @v_count: q_vectors allocated on adapter, used for ring interleaving
-</span></span></span><span class="line"><span class="cl"><span class="cm"> * @v_idx: index of vector in adapter struct
-</span></span></span><span class="line"><span class="cl"><span class="cm"> * @txr_count: total number of Tx rings to allocate
-</span></span></span><span class="line"><span class="cl"><span class="cm"> * @txr_idx: index of first Tx ring to allocate
-</span></span></span><span class="line"><span class="cl"><span class="cm"> * @xdp_count: total number of XDP rings to allocate
-</span></span></span><span class="line"><span class="cl"><span class="cm"> * @xdp_idx: index of first XDP ring to allocate
-</span></span></span><span class="line"><span class="cl"><span class="cm"> * @rxr_count: total number of Rx rings to allocate
-</span></span></span><span class="line"><span class="cl"><span class="cm"> * @rxr_idx: index of first Rx ring to allocate
-</span></span></span><span class="line"><span class="cl"><span class="cm"> *
-</span></span></span><span class="line"><span class="cl"><span class="cm"> * We allocate one q_vector.  If allocation fails we return -ENOMEM.
-</span></span></span><span class="line"><span class="cl"><span class="cm"> **/</span>
-</span></span><span class="line"><span class="cl"><span class="k">static</span> <span class="kt">int</span> <span class="nf">ixgbe_alloc_q_vector</span><span class="p">(</span><span class="k">struct</span> <span class="n">ixgbe_adapter</span> <span class="o">*</span><span class="n">adapter</span><span class="p">,</span>
-</span></span><span class="line"><span class="cl">                <span class="kt">int</span> <span class="n">v_count</span><span class="p">,</span> <span class="kt">int</span> <span class="n">v_idx</span><span class="p">,</span>
-</span></span><span class="line"><span class="cl">                <span class="kt">int</span> <span class="n">txr_count</span><span class="p">,</span> <span class="kt">int</span> <span class="n">txr_idx</span><span class="p">,</span>
-</span></span><span class="line"><span class="cl">                <span class="kt">int</span> <span class="n">xdp_count</span><span class="p">,</span> <span class="kt">int</span> <span class="n">xdp_idx</span><span class="p">,</span>
-</span></span><span class="line"><span class="cl">                <span class="kt">int</span> <span class="n">rxr_count</span><span class="p">,</span> <span class="kt">int</span> <span class="n">rxr_idx</span><span class="p">)</span>
-</span></span><span class="line"><span class="cl"><span class="p">{</span>
-</span></span><span class="line"><span class="cl">	<span class="cm">/* ... */</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl">    <span class="cm">/* initialize NAPI */</span>
-</span></span><span class="line"><span class="cl">    <span class="nf">netif_napi_add</span><span class="p">(</span><span class="n">adapter</span><span class="o">-&gt;</span><span class="n">netdev</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">q_vector</span><span class="o">-&gt;</span><span class="n">napi</span><span class="p">,</span>
-</span></span><span class="line"><span class="cl">               <span class="n">ixgbe_poll</span><span class="p">,</span> <span class="mi">64</span><span class="p">);</span>
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span></code></pre></div><h4 id="中断处理函数">中断处理函数</h4>
-<p>ixgbe驱动收到中断后，会调用<code>ixgbe_msix_clean_rings</code></p>
-          
-        </div>
-
-        
-          <div>
-            <a class="read-more button inline" href="/posts/2022-10/linux-%E6%94%B6%E5%8C%85%E5%92%8C%E5%8F%91%E5%8C%85%E6%B5%81%E7%A8%8B/">[Read more]</a>
-          </div>
-        
-      </article>
-    
 
     <div class="pagination">
   <div class="pagination__buttons">
@@ -850,10 +795,42 @@ Key to Flags:
       
       
     
+      
+      
+      
+    
 
     
     
 
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2026-06/" class="archive-link">
+          <span class="archive-date">2026-06</span>
+          <span class="archive-month-name">Jun</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
     
       
       
@@ -1528,8 +1505,14 @@ Key to Flags:
       
         
       
+    
+      
+        
+      
         
       
+        
+      
     
       
         
@@ -1788,10 +1771,16 @@ Key to Flags:
       
         
       
+    
+    
     
     
     
+      
+      
     
+      
+      
     
       
       
@@ -2158,9 +2147,14 @@ Key to Flags:
       
       
     
+      
+      
     
     
     
+    
+    
+      
     
       
     
@@ -2296,6 +2290,25 @@ Key to Flags:
            title="3 articles">
           apisix
           <span class="tag-count">(3)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/behavioral-finance/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          behavioral-finance
+          <span class="tag-count">(1)</span>
         </a>
       
     
@@ -2578,9 +2591,9 @@ Key to Flags:
         <a href="https://blog.jinzhi.site/tags/investing/" 
            class="tag-item" 
            style="font-size: 0.9em;"
-           title="1 article">
+           title="2 articles">
           investing
-          <span class="tag-count">(1)</span>
+          <span class="tag-count">(2)</span>
         </a>
       
     
