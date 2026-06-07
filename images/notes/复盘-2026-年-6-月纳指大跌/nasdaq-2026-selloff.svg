@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="620" viewBox="0 0 1100 620">
+<rect width="100%" height="100%" fill="#ffffff"/>
+<text x="76" y="34" font-family="Arial, sans-serif" font-size="24" font-weight="700" fill="#111827">Nasdaq Composite around June 2026 selloff</text>
+<text x="76" y="58" font-family="Arial, sans-serif" font-size="13" fill="#4b5563">FRED NASDAQCOM through Jun 4; Jun 5 close added from Reuters/AP market report</text>
+<line x1="76" y1="76.0" x2="1066" y2="76.0" stroke="#e5e7eb" stroke-width="1"/>
+<text x="66" y="80.0" text-anchor="end" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">27,514</text>
+<line x1="76" y1="169.6" x2="1066" y2="169.6" stroke="#e5e7eb" stroke-width="1"/>
+<text x="66" y="173.6" text-anchor="end" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">26,295</text>
+<line x1="76" y1="263.2" x2="1066" y2="263.2" stroke="#e5e7eb" stroke-width="1"/>
+<text x="66" y="267.2" text-anchor="end" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">25,077</text>
+<line x1="76" y1="356.8" x2="1066" y2="356.8" stroke="#e5e7eb" stroke-width="1"/>
+<text x="66" y="360.8" text-anchor="end" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">23,858</text>
+<line x1="76" y1="450.4" x2="1066" y2="450.4" stroke="#e5e7eb" stroke-width="1"/>
+<text x="66" y="454.4" text-anchor="end" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">22,639</text>
+<line x1="76" y1="544.0" x2="1066" y2="544.0" stroke="#e5e7eb" stroke-width="1"/>
+<text x="66" y="548.0" text-anchor="end" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">21,421</text>
+<text x="76.0" y="584" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">2026-04-01</text>
+<text x="563.4" y="584" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">2026-05-03</text>
+<text x="1066.0" y="584" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">2026-06-05</text>
+<text x="22" y="310.0" transform="rotate(-90 22 310.0)" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">Index</text>
+<polyline points="76.0,511.7 91.2,508.8 152.2,499.8 167.4,498.1 182.6,450.7 197.8,436.3 213.1,430.2 258.8,408.6 274.0,373.6 289.2,344.7 304.5,338.0 319.7,309.9 365.4,314.8 380.6,325.9 395.8,295.4 411.1,312.2 426.3,281.6 472.0,277.8 487.2,294.9 502.5,294.2 517.7,277.4 532.9,260.3 578.6,263.9 593.8,244.0 609.1,204.7 624.3,207.2 639.5,173.3 685.2,171.2 700.5,185.5 715.7,161.4 730.9,143.5 746.2,175.0 791.8,185.3 807.1,202.2 822.3,171.5 837.5,169.8 852.8,165.9 913.7,141.9 928.9,140.5 944.2,121.8 959.4,117.6 1005.1,108.8 1020.3,108.3 1035.5,126.7 1050.8,128.5 1066.0,214.6" fill="none" stroke="#2563eb" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="1066.0" cy="214.6" r="4" fill="#2563eb"/>
+<text x="76" y="562" font-family="Arial, sans-serif" font-size="12" fill="#374151">Jun 5: Nasdaq Composite -4.18%, weekly -4.7%; close 25,709.43.</text>
+<line x1="746" y1="92" x2="774" y2="92" stroke="#2563eb" stroke-width="3"/>
+<text x="782" y="96" font-family="Arial, sans-serif" font-size="13" fill="#111827">Nasdaq Composite</text>
+</svg>

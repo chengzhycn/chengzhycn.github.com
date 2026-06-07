@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1180" height="680" viewBox="0 0 1180 680">
+<rect width="100%" height="100%" fill="#ffffff"/>
+<text x="82" y="34" font-family="Arial, sans-serif" font-size="25" font-weight="700" fill="#111827">Nasdaq shock windows, aligned by trading day</text>
+<text x="82" y="59" font-family="Arial, sans-serif" font-size="14" fill="#4b5563">Each event starts at 100; x-axis is trading days since the first shock-session.</text>
+<line x1="82" y1="584.0" x2="950" y2="584.0" stroke="#e5e7eb" stroke-width="1"/>
+<text x="70" y="588.0" text-anchor="end" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">84</text>
+<line x1="82" y1="484.0" x2="950" y2="484.0" stroke="#e5e7eb" stroke-width="1"/>
+<text x="70" y="488.0" text-anchor="end" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">88</text>
+<line x1="82" y1="384.0" x2="950" y2="384.0" stroke="#e5e7eb" stroke-width="1"/>
+<text x="70" y="388.0" text-anchor="end" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">92</text>
+<line x1="82" y1="284.0" x2="950" y2="284.0" stroke="#e5e7eb" stroke-width="1"/>
+<text x="70" y="288.0" text-anchor="end" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">96</text>
+<line x1="82" y1="184.0" x2="950" y2="184.0" stroke="#9ca3af" stroke-width="1.5"/>
+<text x="70" y="188.0" text-anchor="end" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">100</text>
+<line x1="82" y1="84.0" x2="950" y2="84.0" stroke="#e5e7eb" stroke-width="1"/>
+<text x="70" y="88.0" text-anchor="end" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">104</text>
+<line x1="82.0" y1="84" x2="82.0" y2="584" stroke="#f3f4f6" stroke-width="1"/>
+<text x="82.0" y="628" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">Day 0</text>
+<line x1="353.2" y1="84" x2="353.2" y2="584" stroke="#f3f4f6" stroke-width="1"/>
+<text x="353.2" y="628" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">Day 5</text>
+<line x1="624.5" y1="84" x2="624.5" y2="584" stroke="#f3f4f6" stroke-width="1"/>
+<text x="624.5" y="628" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">Day 10</text>
+<line x1="895.8" y1="84" x2="895.8" y2="584" stroke="#f3f4f6" stroke-width="1"/>
+<text x="895.8" y="628" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">Day 15</text>
+<text x="516.0" y="656" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" fill="#4b5563">Trading days since event start</text>
+<text x="24" y="334.0" transform="rotate(-90 24 334.0)" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" fill="#4b5563">Nasdaq Composite, indexed to 100</text>
+<polyline points="82.0,184.0 136.2,182.3 190.5,159.5 244.8,154.3 299.0,143.6 353.2,142.9 407.5,165.4 461.8,167.6 516.0,272.8" fill="none" stroke="#dc2626" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="82.0" cy="184.0" r="4" fill="#ffffff" stroke="#dc2626" stroke-width="2"/>
+<circle cx="516.0" cy="272.8" r="4" fill="#ffffff" stroke="#dc2626" stroke-width="2"/>
+<text x="524.0" y="276.8" font-family="Arial, sans-serif" font-size="12" fill="#dc2626">96.4</text>
+<polyline points="82.0,184.0 136.2,333.2 190.5,470.0 244.8,467.8 299.0,515.4 353.2,251.6 407.5,356.4 461.8,308.5 516.0,293.3 570.2,294.5 624.5,367.8 678.8,370.7 733.0,429.7 787.2,368.7 841.5,310.8 895.8,245.8 950.0,215.0" fill="none" stroke="#2563eb" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="82.0" cy="184.0" r="4" fill="#ffffff" stroke="#2563eb" stroke-width="2"/>
+<circle cx="299.0" cy="515.4" r="4" fill="#ffffff" stroke="#2563eb" stroke-width="2"/>
+<circle cx="950.0" cy="215.0" r="4" fill="#ffffff" stroke="#2563eb" stroke-width="2"/>
+<text x="958.0" y="219.0" font-family="Arial, sans-serif" font-size="12" fill="#2563eb">98.8</text>
+<polyline points="82.0,184.0 136.2,241.6 190.5,300.9 244.8,382.8 299.0,359.1 353.2,383.4 407.5,317.4 461.8,305.3 516.0,300.3 570.2,242.5 624.5,241.8 678.8,184.7 733.0,179.4" fill="none" stroke="#059669" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="82.0" cy="184.0" r="4" fill="#ffffff" stroke="#059669" stroke-width="2"/>
+<circle cx="353.2" cy="383.4" r="4" fill="#ffffff" stroke="#059669" stroke-width="2"/>
+<circle cx="733.0" cy="179.4" r="4" fill="#ffffff" stroke="#059669" stroke-width="2"/>
+<text x="741.0" y="183.4" font-family="Arial, sans-serif" font-size="12" fill="#059669">100.2</text>
+<polyline points="82.0,184.0 136.2,308.1 190.5,338.1 244.8,434.6 299.0,373.7 353.2,419.7 407.5,433.4 461.8,391.3 516.0,363.6 570.2,392.6 624.5,421.7 678.8,445.9" fill="none" stroke="#7c3aed" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="82.0" cy="184.0" r="4" fill="#ffffff" stroke="#7c3aed" stroke-width="2"/>
+<circle cx="678.8" cy="445.9" r="4" fill="#ffffff" stroke="#7c3aed" stroke-width="2"/>
+<text x="686.8" y="449.9" font-family="Arial, sans-serif" font-size="12" fill="#7c3aed">89.5</text>
+<text x="974" y="72" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#111827">Event windows</text>
+<line x1="974" y1="96" x2="1004" y2="96" stroke="#dc2626" stroke-width="3.5"/>
+<text x="1014" y="100" font-family="Arial, sans-serif" font-size="12" fill="#111827">2026 AI/rates shock</text>
+<text x="1014" y="118" font-family="Arial, sans-serif" font-size="11" fill="#6b7280">start 2026-05-26</text>
+<text x="1014" y="134" font-family="Arial, sans-serif" font-size="11" fill="#6b7280">min 96.4 on day 8</text>
+<line x1="974" y1="150" x2="1004" y2="150" stroke="#2563eb" stroke-width="3.5"/>
+<text x="1014" y="154" font-family="Arial, sans-serif" font-size="12" fill="#111827">2025 tariff shock</text>
+<text x="1014" y="172" font-family="Arial, sans-serif" font-size="11" fill="#6b7280">start 2025-04-02</text>
+<text x="1014" y="188" font-family="Arial, sans-serif" font-size="11" fill="#6b7280">min 86.7 on day 4</text>
+<line x1="974" y1="204" x2="1004" y2="204" stroke="#059669" stroke-width="3.5"/>
+<text x="1014" y="208" font-family="Arial, sans-serif" font-size="12" fill="#111827">2024 carry/recession scare</text>
+<text x="1014" y="226" font-family="Arial, sans-serif" font-size="11" fill="#6b7280">start 2024-07-31</text>
+<text x="1014" y="242" font-family="Arial, sans-serif" font-size="11" fill="#6b7280">min 92.0 on day 5</text>
+<line x1="974" y1="258" x2="1004" y2="258" stroke="#7c3aed" stroke-width="3.5"/>
+<text x="1014" y="262" font-family="Arial, sans-serif" font-size="12" fill="#111827">2020 tech momentum unwind</text>
+<text x="1014" y="280" font-family="Arial, sans-serif" font-size="11" fill="#6b7280">start 2020-09-02</text>
+<text x="1014" y="296" font-family="Arial, sans-serif" font-size="11" fill="#6b7280">min 89.5 on day 11</text>
+<text x="82" y="608" font-family="Arial, sans-serif" font-size="12" fill="#374151">Read this as path-shape comparison, not calendar timing: same start level, same trading-day clock, different historical causes.</text>
+</svg>

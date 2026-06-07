@@ -10,9 +10,30 @@
 		
 		
 		
-			<lastBuildDate>Sun, 07 Jun 2026 12:16:28 +0800</lastBuildDate>
+			<lastBuildDate>Sun, 07 Jun 2026 12:51:19 +0800</lastBuildDate>
 		
 			<atom:link href="https://blog.jinzhi.site/tags/index.xml" rel="self" type="application/rss+xml" />
+			<item>
+				<title>Investing</title>
+				<link>https://blog.jinzhi.site/tags/investing/</link>
+				<pubDate>Sun, 07 Jun 2026 12:51:19 +0800</pubDate>
+				<guid>https://blog.jinzhi.site/tags/investing/</guid>
+				<description></description>
+			</item>
+			<item>
+				<title>Market-Analysis</title>
+				<link>https://blog.jinzhi.site/tags/market-analysis/</link>
+				<pubDate>Sun, 07 Jun 2026 12:51:19 +0800</pubDate>
+				<guid>https://blog.jinzhi.site/tags/market-analysis/</guid>
+				<description></description>
+			</item>
+			<item>
+				<title>Stocks</title>
+				<link>https://blog.jinzhi.site/tags/stocks/</link>
+				<pubDate>Sun, 07 Jun 2026 12:51:19 +0800</pubDate>
+				<guid>https://blog.jinzhi.site/tags/stocks/</guid>
+				<description></description>
+			</item>
 			<item>
 				<title>Behavioral-Finance</title>
 				<link>https://blog.jinzhi.site/tags/behavioral-finance/</link>
@@ -21,24 +42,10 @@
 				<description></description>
 			</item>
 			<item>
-				<title>Investing</title>
-				<link>https://blog.jinzhi.site/tags/investing/</link>
-				<pubDate>Sun, 07 Jun 2026 12:16:28 +0800</pubDate>
-				<guid>https://blog.jinzhi.site/tags/investing/</guid>
-				<description></description>
-			</item>
-			<item>
 				<title>Financial-Analysis</title>
 				<link>https://blog.jinzhi.site/tags/financial-analysis/</link>
 				<pubDate>Fri, 29 May 2026 07:48:49 +0800</pubDate>
 				<guid>https://blog.jinzhi.site/tags/financial-analysis/</guid>
-				<description></description>
-			</item>
-			<item>
-				<title>Stocks</title>
-				<link>https://blog.jinzhi.site/tags/stocks/</link>
-				<pubDate>Fri, 29 May 2026 07:48:49 +0800</pubDate>
-				<guid>https://blog.jinzhi.site/tags/stocks/</guid>
 				<description></description>
 			</item>
 			<item>
@@ -189,7 +196,7 @@
 				<description></description>
 			</item>
 			<item>
-				<title>EBPF</title>
+				<title>Ebpf</title>
 				<link>https://blog.jinzhi.site/tags/ebpf/</link>
 				<pubDate>Fri, 05 Jan 2024 18:06:28 +0800</pubDate>
 				<guid>https://blog.jinzhi.site/tags/ebpf/</guid>

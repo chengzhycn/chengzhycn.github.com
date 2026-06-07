@@ -216,6 +216,51 @@
     
       <article class="post on-list">
         <h2 class="post-title">
+          <a href="https://blog.jinzhi.site/posts/2026-01/%E6%97%B6%E5%BB%B6%E7%9A%84%E5%BB%BA%E6%A8%A1%E4%B8%8E%E6%B5%8B%E9%87%8F/">时延的建模与测量</a>
+        </h2>
+
+        <div class="post-meta"><time class="post-date">2026-01-09</time></div>
+
+        
+          <span class="post-tags">
+            
+            #<a href="https://blog.jinzhi.site/tags/softwareengineering/">SoftwareEngineering</a>&nbsp;
+            
+          </span>
+        
+
+        
+
+
+        <div class="post-content">
+          
+            <p>本文是 2025年10月出版的《Latency： Reduce delay in software systems》第二章的读书笔记</p>
+<h2 id="时延的定律">时延的定律</h2>
+<h3 id="littles-law">Little&rsquo;s Law</h3>
+<p>利特尔法则（Little&rsquo;s Law）是排队论和运筹学中最经典、最直观，但也最具威力的定律之一。</p>
+<p>Little&rsquo;s Law 的数学表达式如下所示：
+$$L = \lambda \times W $$</p>
+<ul>
+<li>$L$ (Inventory / Queue Length)：系统中平均拥有的“东西”数量（比如排队的人数、仓库的库存、处理的任务）</li>
+<li>$\lambda$ (Throughput / Arrival Rate)：单位时间内进入或离开系统的平均数量（吞吐率/到达率）</li>
+<li>$W$ (Wait Time / Cycle Time)：一个“东西”在系统里停留的平均时间（前置时间/等待时间）</li>
+</ul>
+<p>需要注意的是，<strong>Little&rsquo;s Law 描述的是一个稳态系统：在一个稳定的系统中，存货数量 = 到达速率 x 停留时间</strong>。</p>
+<p>举个例子，一个咖啡馆内，平均每分钟有 2 个客人进店（$\lambda$），每个客人在店里从进门到拿咖啡走人平均停留 10 分钟（$W$）。那么，任一时刻店中的停留人数 $L = \lambda \times W$  为 20 人，即在这 10 分钟内店中累积的人数，第 11 分钟到达速率等于离开速率，系统达到平衡。</p>
+<p>在并发系统中，$\lambda$ (吞吐量) 可以理解为每秒处理多少个请求（QPS/TPS），$W$ (响应时间) 可以理解为每个请求平均花多少秒（Latency），$L$ (并发数) 可以理解为在任一给定时刻，已经进入系统但尚未处理完成的请求总数。</p>
+<p>在计算机系统中，每一个 $L$ 都不是免费的，它必须占用某种物理资源：</p>
+          
+        </div>
+
+        
+          <div>
+            <a class="read-more button inline" href="/posts/2026-01/%E6%97%B6%E5%BB%B6%E7%9A%84%E5%BB%BA%E6%A8%A1%E4%B8%8E%E6%B5%8B%E9%87%8F/">[Read more]</a>
+          </div>
+        
+      </article>
+    
+      <article class="post on-list">
+        <h2 class="post-title">
           <a href="https://blog.jinzhi.site/posts/2025-11/kubecon-north-america-2025-review/">KubeCon North America 2025 Review</a>
         </h2>
 
@@ -532,60 +577,6 @@
         
       </article>
     
-      <article class="post on-list">
-        <h2 class="post-title">
-          <a href="https://blog.jinzhi.site/posts/2025-10/websocket-origin-header-%E6%A0%A1%E9%AA%8C%E5%A4%B1%E8%B4%A5/">WebSocket Origin Header 校验失败</a>
-        </h2>
-
-        <div class="post-meta"><time class="post-date">2025-10-21</time></div>
-
-        
-          <span class="post-tags">
-            
-            #<a href="https://blog.jinzhi.site/tags/http/">HTTP</a>&nbsp;
-            
-          </span>
-        
-
-        
-
-
-        <div class="post-content">
-          
-            <p>最近做 APISIX 线上服务时遇到一个场景：业务使用 websocket 转发时，在浏览器会出现 WebSocket close with status code 1006 的错误。打开调试工具查看发现在 websocket 握手时服务端返回了 403。</p>
-<p><img src="/images/notes/websocket-origin-header-%E6%A0%A1%E9%AA%8C%E5%A4%B1%E8%B4%A5/76f75e967736245ec923202987a22482_MD5.jpeg" alt="76f75e967736245ec923202987a22482_MD5"></p>
-<p><img src="/images/notes/websocket-origin-header-%E6%A0%A1%E9%AA%8C%E5%A4%B1%E8%B4%A5/4efbf4b7a2093ed4f1d6e522139dc92e_MD5.jpeg" alt="4efbf4b7a2093ed4f1d6e522139dc92e_MD5"></p>
-<p>非常奇怪的是，如果业务不经过 APISIX 直接访问后端 code-server 是没有问题的（中间也得经过一层 Ingress 转发）。</p>
-<p>简单的流量模型如下：</p>
-<pre tabindex="0"><code>                                                                                                                      
-                                                                                                                      
-                               +--------------+                              +--------------+          +-------------+
-  https://domain.com:9443/xxx  |              |  http://domain.com:23480/xxx |              |          |             |
---------------------------------   APISIX     -------------------------------+   Ingress    -----------+ code-server |
-                               |              |                              |              |          |             |
-                               +--------------+                              +--------------+          +-------------+
-</code></pre><p>经过对比发现，两者的请求头里面 Host 和 Origin 是存在差异的。尝试在 APISIX 中强制修改 Host 头部，问题没有解决。然后利用 proxy-rewrite 强制修改 Origin 头部，请求恢复正常。</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-json" data-lang="json"><span class="line"><span class="cl">    <span class="s2">&#34;plugins&#34;</span><span class="err">:</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">      <span class="nt">&#34;proxy-rewrite&#34;</span><span class="p">:</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">        <span class="nt">&#34;uri&#34;</span><span class="p">:</span> <span class="s2">&#34;/anything&#34;</span><span class="p">,</span>
-</span></span><span class="line"><span class="cl">        <span class="nt">&#34;headers&#34;</span><span class="p">:</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">          <span class="nt">&#34;set&#34;</span><span class="p">:</span> <span class="p">{</span>
-</span></span><span class="line"><span class="cl">	        <span class="nt">&#34;Origin&#34;</span><span class="p">:</span> <span class="s2">&#34;http://domain.com&#34;</span>
-</span></span><span class="line"><span class="cl">          <span class="p">}</span>
-</span></span><span class="line"><span class="cl">        <span class="p">}</span>
-</span></span><span class="line"><span class="cl">      <span class="p">}</span>
-</span></span><span class="line"><span class="cl">    <span class="p">}</span><span class="err">,</span>
-</span></span></code></pre></div><p>那么问题来了，为什么改完 Origin Header 就行了？code-server 是如何处理 Origin Header 的？为什么 Ingress 可以，APISIX 不行？</p>
-          
-        </div>
-
-        
-          <div>
-            <a class="read-more button inline" href="/posts/2025-10/websocket-origin-header-%E6%A0%A1%E9%AA%8C%E5%A4%B1%E8%B4%A5/">[Read more]</a>
-          </div>
-        
-      </article>
-    
 
     <div class="pagination">
   <div class="pagination__buttons">
@@ -853,6 +844,10 @@
       
       
     
+      
+      
+      
+    
 
     
     
@@ -882,7 +877,7 @@
         <a href="/posts/2026-06/" class="archive-link">
           <span class="archive-date">2026-06</span>
           <span class="archive-month-name">Jun</span>
-          <span class="archive-count">(1)</span>
+          <span class="archive-count">(2)</span>
         </a>
       </div>
     
@@ -1559,6 +1554,14 @@
       
         
       
+        
+      
+    
+      
+        
+      
+        
+      
     
       
         
@@ -1825,10 +1828,19 @@
       
         
       
+    
+    
+    
     
     
+      
+      
     
+      
+      
     
+      
+      
     
       
       
@@ -2086,6 +2098,9 @@
     
     
     
+    
+      
+      
     
       
       
@@ -2207,6 +2222,8 @@
     
     
     
+    
+      
     
       
     
@@ -2645,9 +2662,9 @@
         <a href="https://blog.jinzhi.site/tags/investing/" 
            class="tag-item" 
            style="font-size: 0.9em;"
-           title="2 articles">
+           title="3 articles">
           investing
-          <span class="tag-count">(2)</span>
+          <span class="tag-count">(3)</span>
         </a>
       
     
@@ -2818,6 +2835,25 @@
            style="font-size: 0.9em;"
            title="1 article">
           makefile
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/market-analysis/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          market-analysis
           <span class="tag-count">(1)</span>
         </a>
       
@@ -3006,9 +3042,9 @@
         <a href="https://blog.jinzhi.site/tags/stocks/" 
            class="tag-item" 
            style="font-size: 0.9em;"
-           title="1 article">
+           title="2 articles">
           stocks
-          <span class="tag-count">(1)</span>
+          <span class="tag-count">(2)</span>
         </a>
       
     

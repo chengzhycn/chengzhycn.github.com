@@ -10,21 +10,21 @@
 		
 		
 		
-			<lastBuildDate>Sun, 07 Jun 2026 12:16:28 +0800</lastBuildDate>
+			<lastBuildDate>Sun, 07 Jun 2026 12:51:19 +0800</lastBuildDate>
 		
 			<atom:link href="https://blog.jinzhi.site/categories/index.xml" rel="self" type="application/rss+xml" />
+			<item>
+				<title>Personal</title>
+				<link>https://blog.jinzhi.site/categories/personal/</link>
+				<pubDate>Sun, 07 Jun 2026 12:51:19 +0800</pubDate>
+				<guid>https://blog.jinzhi.site/categories/personal/</guid>
+				<description></description>
+			</item>
 			<item>
 				<title>Reading</title>
 				<link>https://blog.jinzhi.site/categories/reading/</link>
 				<pubDate>Sun, 07 Jun 2026 12:16:28 +0800</pubDate>
 				<guid>https://blog.jinzhi.site/categories/reading/</guid>
-				<description></description>
-			</item>
-			<item>
-				<title>Personal</title>
-				<link>https://blog.jinzhi.site/categories/personal/</link>
-				<pubDate>Fri, 29 May 2026 07:48:49 +0800</pubDate>
-				<guid>https://blog.jinzhi.site/categories/personal/</guid>
 				<description></description>
 			</item>
 			<item>

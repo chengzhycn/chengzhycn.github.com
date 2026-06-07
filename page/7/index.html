@@ -216,6 +216,84 @@
     
       <article class="post on-list">
         <h2 class="post-title">
+          <a href="https://blog.jinzhi.site/posts/2024-01/ebpf-%E5%85%A8%E5%B1%80%E5%8F%98%E9%87%8F%E7%9A%84%E5%AE%9E%E7%8E%B0/">eBPF 全局变量的实现</a>
+        </h2>
+
+        <div class="post-meta"><time class="post-date">2024-01-02</time></div>
+
+        
+          <span class="post-tags">
+            
+            #<a href="https://blog.jinzhi.site/tags/ebpf/">ebpf</a>&nbsp;
+            
+          </span>
+        
+
+        
+
+
+        <div class="post-content">
+          
+            <p>Linux内核在v5.2支持了eBPF全局变量（见<a href="https://www.yuque.com/chengzhycn/hx665b/cmbgkdheaf0wyqht#vVcxE">v5.2</a>）。</p>
+<p>全局变量会被Clang编译器放入<code>.bss</code>, <code>.data</code>, <code>.rodata</code> sections。那么支持全局变量即如何把这些sections中的数据加载进内核，并且在relocation时，给访问这些变量的指令正确的地址。</p>
+<h2 id="早期-workaround">早期 workaround</h2>
+<p>关于 eBPF 静态变量支持的讨论在<a href="https://lpc.events/event/2/contributions/115/">Linux Plumbers Conference 2018</a> 由Cilium提出。早期的 workaround 如下：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;linux/bpf.h&gt;</span><span class="cp">
+</span></span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">typedef</span> <span class="kt">unsigned</span> <span class="kt">int</span> <span class="n">__u32</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="k">typedef</span> <span class="kt">long</span> <span class="kt">long</span> <span class="kt">unsigned</span> <span class="kt">int</span> <span class="n">__64</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="cp">#ifndef __section
+</span></span></span><span class="line"><span class="cl"><span class="cp"># define __section(NAME)				\
+</span></span></span><span class="line"><span class="cl"><span class="cp">	__attribute__((section(NAME), used))
+</span></span></span><span class="line"><span class="cl"><span class="cp">#endif
+</span></span></span><span class="line"><span class="cl"><span class="cp">#ifndef __fetch
+</span></span></span><span class="line"><span class="cl"><span class="cp"># define __fetch(x) (__u32)(__u64)(&amp;(x))
+</span></span></span><span class="line"><span class="cl"><span class="cp">#endif
+</span></span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="n">__u32</span> <span class="n">foo</span> <span class="o">=</span> <span class="mi">42</span><span class="p">;</span> 			<span class="c1">// .data section
+</span></span></span><span class="line"><span class="cl"><span class="c1">// __u32 foo;   			// .bss section
+</span></span></span><span class="line"><span class="cl"><span class="c1">// const __u32 foo = 42; 	// .rodata section
+</span></span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kt">int</span> <span class="nf">__main</span><span class="p">(</span><span class="k">struct</span> <span class="n">__sk_buff</span> <span class="o">*</span><span class="n">skb</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="n">skb</span><span class="o">-&gt;</span><span class="n">mark</span> <span class="o">=</span> <span class="nf">__fetch</span><span class="p">(</span><span class="n">foo</span><span class="p">);</span>
+</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="kt">char</span> <span class="n">__license</span><span class="p">[]</span> <span class="nf">__section</span><span class="p">(</span><span class="s">&#34;license&#34;</span><span class="p">)</span> <span class="o">=</span> <span class="s">&#34;&#34;</span><span class="p">;</span>
+</span></span></code></pre></div><p>编译后，foo变量存储在<code>.data</code> section内。</p>
+<pre tabindex="0"><code># llvm-readelf -S test.o
+There are 8 section headers, starting at offset 0x148:
+
+Section Headers:
+  [Nr] Name              Type            Address          Off    Size   ES Flg Lk Inf Al
+  [ 0]                   NULL            0000000000000000 000000 000000 00      0   0  0
+  [ 1] .strtab           STRTAB          0000000000000000 0000fa 00004b 00      0   0  1
+  [ 2] .text             PROGBITS        0000000000000000 000040 000028 00  AX  0   0  8
+  [ 3] .rel.text         REL             0000000000000000 0000e8 000010 10      7   2  8
+  [ 4] .data             PROGBITS        0000000000000000 000068 000004 00  WA  0   0  4
+  [ 5] license           PROGBITS        0000000000000000 00006c 000001 00  WA  0   0  1
+  [ 6] .llvm_addrsig     LLVM_ADDRSIG    0000000000000000 0000f8 000002 00   E  7   0  1
+  [ 7] .symtab           SYMTAB          0000000000000000 000070 000078 18      1   2  8
+Key to Flags:
+  W (write), A (alloc), X (execute), M (merge), S (strings), I (info),
+  L (link order), O (extra OS processing required), G (group), T (TLS),
+  C (compressed), x (unknown), o (OS specific), E (exclude),
+  p (processor specific)
+</code></pre><p><code>.rel.text</code> section中也存在foo变量的relocation信息：</p>
+          
+        </div>
+
+        
+          <div>
+            <a class="read-more button inline" href="/posts/2024-01/ebpf-%E5%85%A8%E5%B1%80%E5%8F%98%E9%87%8F%E7%9A%84%E5%AE%9E%E7%8E%B0/">[Read more]</a>
+          </div>
+        
+      </article>
+    
+      <article class="post on-list">
+        <h2 class="post-title">
           <a href="https://blog.jinzhi.site/posts/2022-10/linux-%E6%94%B6%E5%8C%85%E5%92%8C%E5%8F%91%E5%8C%85%E6%B5%81%E7%A8%8B/">Linux 收包和发包流程</a>
         </h2>
 
@@ -563,84 +641,6 @@ clean:
         
       </article>
     
-      <article class="post on-list">
-        <h2 class="post-title">
-          <a href="https://blog.jinzhi.site/posts/2022-06/%E7%AE%97%E6%B3%95%E7%9A%84%E5%8A%9B%E9%87%8F%E4%BA%BA%E7%B1%BB%E5%A6%82%E4%BD%95%E5%85%B1%E5%90%8C%E7%94%9F%E5%AD%98/">算法的力量：人类如何共同生存？</a>
-        </h2>
-
-        <div class="post-meta"><time class="post-date">2022-06-26</time></div>
-
-        
-          <span class="post-tags">
-            
-            #<a href="https://blog.jinzhi.site/tags/nonfiction/">nonfiction</a>&nbsp;
-            
-          </span>
-        
-
-        
-
-
-        <div class="post-content">
-          
-            <h2 id="算法的力量人类如何共同生存">《算法的力量：人类如何共同生存？》</h2>
-<p>作者 <em>杰米·萨斯坎德</em></p>
-<p><img src="/images/notes/%E7%AE%97%E6%B3%95%E7%9A%84%E5%8A%9B%E9%87%8F%E4%BA%BA%E7%B1%BB%E5%A6%82%E4%BD%95%E5%85%B1%E5%90%8C%E7%94%9F%E5%AD%98/t6_3300013547.jpg" alt=""></p>
-<h3 id="导论">导论</h3>
-<p>我们都需要搭建一种智识上的框架，来帮助我们清晰且批判性地思考数字创新的政治后果。这本书希望使用政治学理论的思想和方法，来促成此种框架的形成。</p>
-<p>有些事情看上去是无法言传的，或者干脆是无法想象的，那是因为常用概念库还没有发展出对它们的阐释。正如维特根斯坦（Ludwig Wittgenstein）所说：“我语言的有限性就是我世界的有限性。”</p>
-<p>在工业革命期间，动力织布机、长筒袜和精纺机的发明就曾威胁要取代熟练的纺织工人的工作。一些被称为卢德派（Luddites）的工人发动了遍及英国乡村的猛烈攻击，他们在离开时摧毁了新机器。我们仍然使用“卢德派”一词来形容那些抵制具有破坏性的新技术到来的人。</p>
-<p>卢德派的例子中可以看出，创新的经济后果常常要求政治给予回应，而新技术也会引发道德上的挑战。</p>
-<p>所有政治秩序都建立在协调、合作和控制的基础之上。缺乏三者中的任何一个，组织集体生活都是不可能的。</p>
-<p>确切地说，统计学的功能性定义，即“让先验的独立的事物结合在一起，从而将现实性和一致性赋予更大、更复杂的事物”￼，与政治的目的基本一致，一个是数值的抽象，一个则基于人类的现实。</p>
-<p>退后一步，现在提出一个为阅读整本书提供指导的暂定假设已成为可能：我们如何收集、存储、分析并交流信息，本质上就是如何组织它们——这与我们组织政治的方式密切相关。因此，当一个社会开发出新奇的信息技术和通信技术时，我们便可以预见，政治上的变革也将到来。</p>
-<h3 id="第一章-日益强大的系统">第一章 日益强大的系统</h3>
-<p>下个世纪，政治将被三大发展所转变：日益强大的系统、日益综合的技术和日益量化的社会。</p>
-<p>机器学习，借用多明戈斯的话来说，就是自动化本身的“自动化”。</p>
-<p>机器学习算法有三种“学习”方法。在监督学习（supervised learning）中，人类程序员设置了一系列确定的结果并为机器提供反馈，告诉它们其判断是否与确定的结果相合。相形之下，在无监督学习（unsupervised learning）中，机器将获得数据，然后自行寻找其范式。因此，一个无监督学习的机器可以用来“发现知识”，即建立人类程序员完全没有意识到的连接。￼在强化学习（reinforcement learning）中，机器被给予“奖励”和“惩罚”，从而告诉它做得是否正确。机器实现了自我完善。</p>
-<p>然而，我们在本书的不同地方都能见到，对有缺陷的现实世界数据的依赖也能对机器学习系统造成破坏。微软于2016年3月23日在Twitter上推出了其人工智能聊天机器人Tay。Tay可以模拟一个19岁的女孩说话，并能从与其他Twitter用户的交流中学习。在它面世16小时后，Tay被禁止继续运行，因其发布了一系列含有种族主义和色情内容的煽动性推文，其中还有一张希特勒的照片，照片上打着“前方高能”的说明，还有一条推文说：“去他妈的机器人爸爸！我就是这样一个淘气的机器人！”Tay从Twitter上其他用户的这种交流方式中“学习”了此类说法。这个例子表明，人类在社交媒体上如何表达，机器学习也能有样学样。</p>
-<h3 id="第二章-日益综合的技术">第二章 日益综合的技术</h3>
-<p>数字技术的发展还有五种潜在趋势：更无处不在，连接性更强，更敏感，更具构成性，更具沉浸性。</p>
-<p>区块链的社会意义在于它可以在陌生人之间实现安全交易，而无须可信的第三方中介，如银行、信用卡公司或国家。它意图解决计算机科学（和政治学）中长期存在的问题：在没有通常所说的“人际关系”的人与人之间，如何建立起“信任”之类的东西。</p>
-<p>现代机器人科学仍然是一个充满挑战的领域，部分原因在于“莫拉韦克悖论”（Moravec&rsquo;s paradox），即（也许与预期相反）高层次推理只需要少量的计算，但低层次的感觉运动技巧则需要大量的计算资源。</p>
-<h3 id="第三章-日益量化的社会">第三章 日益量化的社会</h3>
-<p>数据“是对某种事物的描述，它使对这些事物的记录、分析和重组成为可能”。将现象转化为数据的过程被称为“数据化”。</p>
-<p>四个因素促成了这个过程。第一，越来越多的社会活动通过数字系统或数字平台展开，可供收集的数据就更多了。第二，在过去五十年中，存储数据的成本每两年左右就减少一半，而其密度却增加了5000万倍。￼第三，算力的爆炸式增长使我们有能力处理存储的内容。第四，数字信息的复制几乎没有边际成本，它们可以相当廉价地复制数百万次。这些因素共同解释了为什么从基于印刷的信息系统过渡到数字化系统的过程中就产生了如此大规模的数据爆炸。</p>
-<p>数据科学家一直在努力地通过清洗、处理和组织等方式，将原始数据转化为信息，然后对它们进行分析和解读，再将其转化为知识。</p>
-<p>Facebook的商业价值主要在于它从用户处收集的数据，这些数据用途十分广泛，从定向广告到搭建面部识别人工智能系统。</p>
-<p>日益量化的社会是一个更容易通过机器和控制机器的人来检查和分析的社会。</p>
-<h3 id="第四章-像理论家一样思考">第四章 像理论家一样思考</h3>
-<p>我们正试图使用一种为昨天的世界创造的语言去掌握今天的世界。而且，过去的生活似乎更加反映了人类的天性，原因很简单，过去的生活是人类语言的更好反映。
-——安托万·德·圣艾克絮佩里，《风沙星辰》（1939）</p>
-<p>过去，科学技术的进步帮助人类扫清了一些世界上的未解之谜。20世纪初，马克斯·韦伯的写作将现代性的中心化特征定义为“除魅”（Entzauberung），译为“启蒙”（de-magification）或“祛魅”（disenchantment）。这个过程就是理性观察取代魔法和迷信，成为解释生活中神秘事件的方法之过程。我们这代人也许是体验了相反效果的第一代——世界的“再神秘化”。随着时间的流逝，我们会发现自己被具有超凡力量的、微妙而复杂的技术越发紧密地包围起来；其中的大多数我们都几乎无法理解，更不用说控制了。阿瑟·克拉克（Arthur C. Clarke）说：“任何足够先进的技术都无法与魔法区分开来。”￼诚如斯言，若数字生活世界要为我们准备一场魔术表演，它必将与我们所见过的一切截然不同。</p>
-<p>对于某些人来说，政治等同于政府：立法者决定社会集体目标并制定能实现这些目标的法律和政策的过程。根据这种观点，政治是在政客和公务员的控制下，在议会、政府大楼和市政厅里发生的事情。普通公民也能通过投票或行动主义或多或少地参与政治（可以这么理解），这取决于国家性质和公民意愿。</p>
-<p>一种观点认为，政治无处不在￼，不仅存在于公共领域，还存在于私人领域：朋友和同事之间、家庭内部；俱乐部、团队和宗教机构；在政府中，也在艺术、建筑、科学、文学中，并嵌入语言本身。只要是存在合作、冲突或控制的地方，政治就存在；或是在所有某些特定的社会关系可能被另作安排的领域，从职场政治到性政治，政治也存在。这种观点认为，政治不是一种可以避免或忽略的东西。</p>
-<p>阻止某事发生或被改变的最可靠方法，就是干脆不要把它提上日程。</p>
-<p>我对政治的定义如下：
-政治指的是人类的集体生活，包括我们为什么共同生活，如何安排和约束我们的集体生活，以及我们可以或应该以何种方式来有区别地安排和约束这种集体生活。
-该定义不以任何特定形式的政治制度为前提。实际上，它所假设的只是（a）人类将继续集体生活，（b）人类的集体生活能够以不止一种方式组织起来，（c）约束集体生活的方式不止一种。这些都是最微小的假设，能让我们以一种开放的心态继续前行。</p>
-<p>语言共同体在概念使用上的差别是至关重要的。当一个英国人听到“自由”一词时，他可能会想到弱化政府对经济和公民社会的干预的支持者。而如果是一个美国人听到“自由”一词，结果可能恰恰相反，他更可能想到主张扩大福利国家的社会主义者。</p>
-<p>概念分析就是试图去了解当人们在谈论政治时，他们在谈论什么的过程。￼这就包括使政治话语经得起细致的调查和质疑，弄清定义和区别，从而使其变得清晰、一致、简单。</p>
-<p>政治言论的目的经常就在于欺骗、叫停争论、混淆视听和迷惑别人；用奥威尔的话来说：“撒谎听起来很真实，让谋杀受人尊敬，为空中的风赋予固态的外观。”</p>
-<p>概念分析还涉及试图理解概念的道德内涵及其意义。</p>
-<p>“规范分析”即试图判断政治领域中是非善恶的方法，与道德哲学和伦理学紧密相关。我们对彼此负有何种正义的责任？我们是否有义务参与公共生活？我们享有做何种事情的自由，什么事情是应被禁止的？违反法律在任何情况下都是不可接受的吗？以上这些就是“规范性问题”。规范分析使我们能够通过反思和争论来确定原则，从而指导我们如何共同生活。</p>
-<p>规范性理论用于阐明特定制度、政策或原则的道德正误。</p>
-<p>语境分析是用来找出概念从何而来、为何能出现、在它们的构思过程中被赋予了何种含义，以及其含义是如何随着时间改变的。</p>
-<h3 id="第五章-代码就是力量">第五章 代码就是力量</h3>
-<p>强者如何统治弱者？答案是施加权力，它是政治秩序的基石和政治概念的教父。</p>
-<p>我认为，未来的权力将采用三种形式。第一种是武力（第六章），第二种是审查（第七章），第三种是感知控制（第八章）。数字技术将逐渐成为这三种形式的主要来源。</p>
-<p>我们不妨从“对某人有控制权”（having power over someone）和“有权力做某事”（having power to do something）的简单区分入手开始讨论。￼控制权（power over）是这样一种权力：如老板告诉他的下属去完成一项任务，或是学校老师要求其学生安静地坐着。这是关于管理者要求被管理者遵守规则的过程。相反，行动权（power to）并不意味着“管理者和被管理者”的体系，它指的是一种能力、才能，或是某人得以做某事的能力，例如，沿着街道行走或是举起沉重的杠铃。这是一个广义的定义。有了行动权的某人或某个团体在自身强大的同时并不需要剥夺相应对象的权力。</p>
-<p>若A对B有控制权，即A有能力迫使B做某些B原本不会去做的事情。</p>
-          
-        </div>
-
-        
-          <div>
-            <a class="read-more button inline" href="/posts/2022-06/%E7%AE%97%E6%B3%95%E7%9A%84%E5%8A%9B%E9%87%8F%E4%BA%BA%E7%B1%BB%E5%A6%82%E4%BD%95%E5%85%B1%E5%90%8C%E7%94%9F%E5%AD%98/">[Read more]</a>
-          </div>
-        
-      </article>
-    
 
     <div class="pagination">
   <div class="pagination__buttons">
@@ -908,6 +908,10 @@ clean:
       
       
     
+      
+      
+      
+    
 
     
     
@@ -937,7 +941,7 @@ clean:
         <a href="/posts/2026-06/" class="archive-link">
           <span class="archive-date">2026-06</span>
           <span class="archive-month-name">Jun</span>
-          <span class="archive-count">(1)</span>
+          <span class="archive-count">(2)</span>
         </a>
       </div>
     
@@ -1614,6 +1618,14 @@ clean:
       
         
       
+        
+      
+    
+      
+        
+      
+        
+      
     
       
         
@@ -1880,10 +1892,19 @@ clean:
       
         
       
+    
+    
+    
     
     
+      
+      
     
+      
+      
     
+      
+      
     
       
       
@@ -2141,6 +2162,9 @@ clean:
     
     
     
+    
+      
+      
     
       
       
@@ -2262,6 +2286,8 @@ clean:
     
     
     
+    
+      
     
       
     
@@ -2700,9 +2726,9 @@ clean:
         <a href="https://blog.jinzhi.site/tags/investing/" 
            class="tag-item" 
            style="font-size: 0.9em;"
-           title="2 articles">
+           title="3 articles">
           investing
-          <span class="tag-count">(2)</span>
+          <span class="tag-count">(3)</span>
         </a>
       
     
@@ -2873,6 +2899,25 @@ clean:
            style="font-size: 0.9em;"
            title="1 article">
           makefile
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/market-analysis/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          market-analysis
           <span class="tag-count">(1)</span>
         </a>
       
@@ -3061,9 +3106,9 @@ clean:
         <a href="https://blog.jinzhi.site/tags/stocks/" 
            class="tag-item" 
            style="font-size: 0.9em;"
-           title="1 article">
+           title="2 articles">
           stocks
-          <span class="tag-count">(1)</span>
+          <span class="tag-count">(2)</span>
         </a>
       
     
