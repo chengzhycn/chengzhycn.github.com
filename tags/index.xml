@@ -10,21 +10,28 @@
 		
 		
 		
-			<lastBuildDate>Sun, 07 Jun 2026 18:19:23 +0800</lastBuildDate>
+			<lastBuildDate>Mon, 08 Jun 2026 12:32:50 +0800</lastBuildDate>
 		
 			<atom:link href="https://blog.jinzhi.site/tags/index.xml" rel="self" type="application/rss+xml" />
 			<item>
-				<title>Financial-Analysis</title>
-				<link>https://blog.jinzhi.site/tags/financial-analysis/</link>
-				<pubDate>Sun, 07 Jun 2026 18:19:23 +0800</pubDate>
-				<guid>https://blog.jinzhi.site/tags/financial-analysis/</guid>
+				<title>AI</title>
+				<link>https://blog.jinzhi.site/tags/ai/</link>
+				<pubDate>Mon, 08 Jun 2026 12:32:50 +0800</pubDate>
+				<guid>https://blog.jinzhi.site/tags/ai/</guid>
 				<description></description>
 			</item>
 			<item>
 				<title>Investing</title>
 				<link>https://blog.jinzhi.site/tags/investing/</link>
-				<pubDate>Sun, 07 Jun 2026 18:19:23 +0800</pubDate>
+				<pubDate>Mon, 08 Jun 2026 12:32:50 +0800</pubDate>
 				<guid>https://blog.jinzhi.site/tags/investing/</guid>
+				<description></description>
+			</item>
+			<item>
+				<title>Financial-Analysis</title>
+				<link>https://blog.jinzhi.site/tags/financial-analysis/</link>
+				<pubDate>Sun, 07 Jun 2026 18:19:23 +0800</pubDate>
+				<guid>https://blog.jinzhi.site/tags/financial-analysis/</guid>
 				<description></description>
 			</item>
 			<item>
@@ -119,13 +126,6 @@
 				<description></description>
 			</item>
 			<item>
-				<title>AI</title>
-				<link>https://blog.jinzhi.site/tags/ai/</link>
-				<pubDate>Wed, 05 Nov 2025 21:18:28 +0800</pubDate>
-				<guid>https://blog.jinzhi.site/tags/ai/</guid>
-				<description></description>
-			</item>
-			<item>
 				<title>HTTP</title>
 				<link>https://blog.jinzhi.site/tags/http/</link>
 				<pubDate>Tue, 21 Oct 2025 15:18:28 +0800</pubDate>
@@ -196,7 +196,7 @@
 				<description></description>
 			</item>
 			<item>
-				<title>EBPF</title>
+				<title>Ebpf</title>
 				<link>https://blog.jinzhi.site/tags/ebpf/</link>
 				<pubDate>Fri, 05 Jan 2024 18:06:28 +0800</pubDate>
 				<guid>https://blog.jinzhi.site/tags/ebpf/</guid>
