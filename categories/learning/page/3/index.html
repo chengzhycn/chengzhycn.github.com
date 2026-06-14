@@ -207,6 +207,84 @@
     
       <article class="post on-list">
         <h1 class="post-title">
+          <a href="https://blog.jinzhi.site/posts/2025-09/luatable-%E6%B5%85%E6%9E%90/">Lua：Table 浅析</a>
+        </h1>
+        <div class="post-meta"><time class="post-date">2025-09-14</time></div>
+
+        
+          <span class="post-tags">
+            
+            #<a href="https://blog.jinzhi.site/tags/lua/">Lua</a>&nbsp;
+            
+          </span>
+        
+
+        
+
+
+        <div class="post-content">
+          
+            <p>本文的分析基于 OpenResty 的 Lua 分支（https://github.com/openresty/luajit2）。</p>
+<h2 id="核心-api">核心 API</h2>
+<p>table 的 API 定义在 src/lib_table.c 中，API 分为三个部分：</p>
+<p>标准库函数：</p>
+<ul>
+<li>table.insert() - 向 table 插入元素</li>
+<li>table.remove() - 移除 table 元素</li>
+<li>table.concat() - 连接 table 元素为字符串</li>
+<li>table.sort() - 对 table 进行排序</li>
+<li>table.maxn() - 找到 table 中最大数字键</li>
+<li>table.move() - 移动 table 元素</li>
+</ul>
+<p>LuaJIT 扩展函数：</p>
+<ul>
+<li>table.new() - 预分配指定大小的 table</li>
+</ul>
+<p>OpenResty 扩展函数：</p>
+<ul>
+<li>table.clear() - 清空 table 内容</li>
+<li>table.clone() - 克隆 table</li>
+<li>table.nkeys() - 获取 table 键的数量</li>
+<li>table.isarray() - 检查是否为数组</li>
+<li>table.isempty() - 检查 table 是否为空</li>
+</ul>
+<h2 id="数据结构">数据结构</h2>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="k">typedef</span> <span class="k">struct</span> <span class="n">Node</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="n">TValue</span> <span class="n">val</span><span class="p">;</span>         <span class="c1">// 值对象，必须是第一个字段
+</span></span></span><span class="line"><span class="cl">  <span class="n">TValue</span> <span class="n">key</span><span class="p">;</span>         <span class="c1">// 键对象
+</span></span></span><span class="line"><span class="cl">  <span class="n">MRef</span> <span class="n">next</span><span class="p">;</span>          <span class="c1">// 哈希链指针
+</span></span></span><span class="line"><span class="cl"><span class="cp">#if !LJ_GC64
+</span></span></span><span class="line"><span class="cl">  <span class="n">MRef</span> <span class="n">freetop</span><span class="p">;</span>       <span class="c1">// 32位架构下的空闲节点顶部指针(存储在node[0])
+</span></span></span><span class="line"><span class="cl"><span class="cp">#endif
+</span></span></span><span class="line"><span class="cl"><span class="p">}</span> <span class="n">Node</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">typedef</span> <span class="k">struct</span> <span class="n">GCtab</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="n">GCHeader</span><span class="p">;</span>           <span class="c1">// GC 通用头部：nextgc, marked, gct
+</span></span></span><span class="line"><span class="cl">  <span class="kt">uint8_t</span> <span class="n">nomm</span><span class="p">;</span>       <span class="c1">// 元方法负缓存掩码
+</span></span></span><span class="line"><span class="cl">  <span class="kt">int8_t</span> <span class="n">colo</span><span class="p">;</span>        <span class="c1">// 数组共址标记 (-1表示已分离, &gt;0表示共址大小)
+</span></span></span><span class="line"><span class="cl">  <span class="n">MRef</span> <span class="n">array</span><span class="p">;</span>         <span class="c1">// 数组部分指针
+</span></span></span><span class="line"><span class="cl">  <span class="n">GCRef</span> <span class="n">gclist</span><span class="p">;</span>       <span class="c1">// GC 链表指针
+</span></span></span><span class="line"><span class="cl">  <span class="n">GCRef</span> <span class="n">metatable</span><span class="p">;</span>    <span class="c1">// 元表引用
+</span></span></span><span class="line"><span class="cl">  <span class="n">MRef</span> <span class="n">node</span><span class="p">;</span>          <span class="c1">// 哈希部分指针
+</span></span></span><span class="line"><span class="cl">  <span class="kt">uint32_t</span> <span class="n">asize</span><span class="p">;</span>     <span class="c1">// 数组部分大小 [0, asize-1]
+</span></span></span><span class="line"><span class="cl">  <span class="kt">uint32_t</span> <span class="n">hmask</span><span class="p">;</span>     <span class="c1">// 哈希掩码 (哈希部分大小-1)
+</span></span></span><span class="line"><span class="cl"><span class="cp">#if LJ_GC64
+</span></span></span><span class="line"><span class="cl">  <span class="n">MRef</span> <span class="n">freetop</span><span class="p">;</span>       <span class="c1">// 64位架构下的空闲节点顶部指针
+</span></span></span><span class="line"><span class="cl"><span class="cp">#endif
+</span></span></span><span class="line"><span class="cl"><span class="p">}</span> <span class="n">GCtab</span><span class="p">;</span>
+</span></span></code></pre></div><p>可以看到，GCtab 中同时定义了数组部分 <code>array</code> 和哈希部分 <code>node</code>。</p>
+          
+        </div>
+
+        
+          <div>
+            <a class="read-more button inline" href="/posts/2025-09/luatable-%E6%B5%85%E6%9E%90/">[Read more]</a>
+          </div>
+        
+      </article>
+    
+      <article class="post on-list">
+        <h1 class="post-title">
           <a href="https://blog.jinzhi.site/posts/2025-09/luaconcurrency/">Lua：Concurrency</a>
         </h1>
         <div class="post-meta"><time class="post-date">2025-09-01</time></div>
@@ -501,86 +579,6 @@
         
       </article>
     
-      <article class="post on-list">
-        <h1 class="post-title">
-          <a href="https://blog.jinzhi.site/posts/2025-04/vrf-an-overview/">VRF: An Overview</a>
-        </h1>
-        <div class="post-meta"><time class="post-date">2025-04-25</time></div>
-
-        
-          <span class="post-tags">
-            
-            #<a href="https://blog.jinzhi.site/tags/network/">Network</a>&nbsp;
-            
-          </span>
-        
-
-        
-
-
-        <div class="post-content">
-          
-            <h2 id="什么是-vrfvirtual-routing-forwarding">什么是 VRF（virtual routing forwarding）</h2>
-<p>VRF是一种实现三层网络隔离的关键技术。<strong>它通过创建多个路由表，为不同的网络流量提供独立的转发路径。</strong> 这意味着，任何三层网络结构，如接口的IP地址、静态路由的配置，甚至BGP（边界网关协议）会话，都可以被映射到特定的VRF中。这种映射机制就像是为每个VRF构建了一个独立的网络空间，彼此之间相互隔离，极大地增强了网络的安全性和管理的便利性。在MPLS VPN（多协议标签交换虚拟专用网络）等应用场景中，VRF为实现大规模的网络隔离和灵活的路由策略提供了基础框架。就像 VLAN 隔离了二层网络一样，VRF 隔离了三层网络。</p>
-<p><img src="/images/notes/vrf-an-overview/5eb20c3e919fe3724b92c2ae7a66a7da_MD5.png" alt="5eb20c3e919fe3724b92c2ae7a66a7da_MD5"></p>
-<h2 id="为什么需要-vrf">为什么需要 VRF</h2>
-<p>在 VRF 出现之前，Linux 用户主要采用两种方式来尝试实现类似的功能：策略路由（policy routing）和网络命名空间（net namespace）。然而，这两种方法都存在明显的局限性。</p>
-<p>策略路由虽然能够通过多个路由表和策略规则来模拟 VRF 的部分功能（事实上，在 Linux 中，也是基于策略路由来去对 VRF 做的实现），但它的缺点十分突出。这种方式在配置和管理上非常复杂，难以确保网络隔离的有效性，在面对严格的网络审计时，往往无法通过。其复杂性不仅增加了运维的难度，还可能导致网络故障的风险上升，因此不被推荐使用。</p>
-<p>网络命名空间在容器技术兴起后得到了广泛应用，它能够为容器提供全面的网络隔离。但在模拟 VRF 功能时，却显得有些“大材小用”。网络命名空间会对所有网络相关的资源进行完全隔离，包括设备、接口、ARP 表和路由表等。这意味着，即使是一些不需要隔离的服务，也会被隔离在不同的命名空间中。以 LLDP（链路层发现协议）为例，在使用网络命名空间的情况下，若要在不同的网络隔离环境中使用 LLDP，就需要在每个命名空间中单独运行实例，并且由于默认套接字相同，还需要为每个实例创建独特的套接字。这不仅增加了系统的开销，还使得管理变得更加复杂。相比之下，VRF 在隔离三层网络结构的同时，允许全局配置的共享和非三层感知服务的统一运行，大大提高了资源的利用效率。</p>
-<table>
-	<thead>
-			<tr>
-					<th>Policy Routing</th>
-					<th>VRF</th>
-					<th>Net Namespace</th>
-			</tr>
-	</thead>
-	<tbody>
-			<tr>
-					<td>隔离路由表</td>
-					<td>隔离三层网络</td>
-					<td>整个协议栈从二层到 socket 隔离</td>
-			</tr>
-	</tbody>
-</table>
-<p><img src="/images/notes/vrf-an-overview/a9f7c55f8f39572d339b138fb1e12429_MD5.png" alt="a9f7c55f8f39572d339b138fb1e12429_MD5"><img src="/images/notes/vrf-an-overview/c9b6614c864c7d35a8ef0a4f12ecdbfa_MD5.png" alt="c9b6614c864c7d35a8ef0a4f12ecdbfa_MD5"><img src="/images/notes/vrf-an-overview/9edc8b051f504bf72140d1238513d687_MD5.png" alt="9edc8b051f504bf72140d1238513d687_MD5"></p>
-<h2 id="vrf-配置">VRF 配置</h2>
-<p>在 Linux 系统中配置 VRF，主要借助<code>iproute2</code>包来完成一系列操作。</p>
-<ul>
-<li>创建 VRF，并关联到 table 1</li>
-</ul>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">test1@test1:~$ ip link add vrf-1 <span class="nb">type</span> vrf table <span class="m">1</span>
-</span></span><span class="line"><span class="cl">test1@test1:~$ ip link <span class="nb">set</span> vrf-1 up
-</span></span></code></pre></div><ul>
-<li>添加接口到 VRF，可以看到 wg0 的 master 是 vrf-1，所有 wg0 的流量会使用关联的 vrf-1 路由表进行路由</li>
-</ul>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">test1@test1:~$ ip link <span class="nb">set</span> wg0 master vrf-1
-</span></span><span class="line"><span class="cl">test1@test1:~$ ip -d link show wg0 
-</span></span><span class="line"><span class="cl">9: wg0: &lt;POINTOPOINT,NOARP,UP,LOWER_UP&gt; mtu <span class="m">1400</span> qdisc noqueue master vrf-1 state UNKNOWN mode DEFAULT group default qlen <span class="m">1000</span>
-</span></span><span class="line"><span class="cl">    link/none  promiscuity <span class="m">0</span> minmtu <span class="m">0</span> maxmtu <span class="m">2147483552</span> 
-</span></span><span class="line"><span class="cl">    wireguard 
-</span></span><span class="line"><span class="cl">    vrf_slave table <span class="m">1</span> addrgenmode none numtxqueues <span class="m">1</span> numrxqueues <span class="m">1</span> gso_max_size <span class="m">65536</span> gso_max_segs <span class="m">65535</span>
-</span></span></code></pre></div><ul>
-<li>添加和查看 VRF  静态路由</li>
-</ul>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">root@test1:~# ip route add default via 10.1.0.10 vrf vrf-1
-</span></span><span class="line"><span class="cl">root@test1:~# ip route show table <span class="m">1</span> 
-</span></span><span class="line"><span class="cl">default via 10.1.0.10 dev wg0 
-</span></span><span class="line"><span class="cl"><span class="nb">local</span> 10.1.0.10 dev wg0 proto kernel scope host src 10.1.0.10 
-</span></span><span class="line"><span class="cl">root@test1:~# ip route show vrf vrf-1 
-</span></span><span class="line"><span class="cl">default via 10.1.0.10 dev wg0 
-</span></span></code></pre></div><h3 id="vrf-之间路由">VRF 之间路由</h3>
-<p>有两种方法可以执行跨 VRF 路由。第一种方法涉及一个 VRF 的表中配置的路由，指向绑定到不同 VRF 的设备。</p>
-          
-        </div>
-
-        
-          <div>
-            <a class="read-more button inline" href="/posts/2025-04/vrf-an-overview/">[Read more]</a>
-          </div>
-        
-      </article>
-    
 
     <div class="pagination">
   <div class="pagination__buttons">
@@ -860,6 +858,10 @@
       
       
     
+      
+      
+      
+    
 
     
     
@@ -889,7 +891,7 @@
         <a href="/posts/2026-06/" class="archive-link">
           <span class="archive-date">2026-06</span>
           <span class="archive-month-name">Jun</span>
-          <span class="archive-count">(4)</span>
+          <span class="archive-count">(5)</span>
         </a>
       </div>
     
@@ -1578,22 +1580,6 @@
       
         
       
-        
-      
-    
-      
-        
-      
-        
-      
-    
-      
-        
-      
-        
-      
-        
-      
     
       
         
@@ -1611,14 +1597,6 @@
     
       
         
-      
-    
-      
-        
-      
-        
-      
-    
       
         
       
@@ -1646,6 +1624,36 @@
       
         
       
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
     
       
         
@@ -1665,22 +1673,6 @@
         
       
     
-      
-        
-      
-    
-      
-        
-      
-        
-      
-        
-      
-    
-      
-        
-      
-        
       
         
       
@@ -1720,38 +1712,6 @@
       
         
       
-    
-      
-        
-      
-    
-      
-        
-      
-        
-      
-    
-      
-        
-      
-    
-      
-        
-      
-    
-      
-    
-      
-        
-      
-    
-      
-        
-      
-    
-      
-        
-      
         
       
         
@@ -1761,14 +1721,6 @@
         
       
         
-      
-    
-      
-        
-      
-        
-      
-    
       
         
       
@@ -1796,8 +1748,6 @@
       
     
       
-        
-      
     
       
         
@@ -1811,6 +1761,26 @@
         
       
         
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
       
         
       
@@ -1848,6 +1818,44 @@
       
         
       
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
     
       
         
@@ -1856,6 +1864,12 @@
     
     
     
+    
+      
+      
+    
+      
+      
     
       
       
@@ -2660,9 +2674,9 @@
         <a href="https://blog.jinzhi.site/tags/http/" 
            class="tag-item" 
            style="font-size: 0.9em;"
-           title="1 article">
+           title="2 articles">
           HTTP
-          <span class="tag-count">(1)</span>
+          <span class="tag-count">(2)</span>
         </a>
       
     
@@ -2926,9 +2940,9 @@
         <a href="https://blog.jinzhi.site/tags/network/" 
            class="tag-item" 
            style="font-size: 0.9em;"
-           title="3 articles">
+           title="4 articles">
           Network
-          <span class="tag-count">(3)</span>
+          <span class="tag-count">(4)</span>
         </a>
       
     

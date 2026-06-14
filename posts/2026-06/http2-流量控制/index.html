@@ -2,16 +2,23 @@
 <html lang="en">
 <head>
   
-    <title>Categories :: chengzhycn&#39;s blog</title>
+    <title>HTTP2 流量控制 :: chengzhycn&#39;s blog</title>
   
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="" />
+<meta name="description" content="核心问题 注：文章由 codex 整理。
+HTTP/2 的一个核心收益是 multiplexing：多个 request/response 可以复用同一条 TCP connection，并且不同 stream 的 frame 可以交错发送。这个能力解决了 HTTP/1.x 依赖多连接并发的问题，但也引入了一个新问题：如果某个接收方、某个 stream 或某个应用层消费者处理不过来，发送方应该怎样被限制，而不至于把整个连接的内存打爆？
+HTTP/2 flow control 解决的就是这个问题。它不是拥塞控制（congestion control），也不是优先级调度（prioritization），而是一个接收方驱动的背压机制：
+TCP 拥塞控制关心网络路径能承受多少数据。 HTTP/2 flow control 关心接收端应用和协议栈愿意接收多少 DATA payload。 HTTP/2 priority 关心多个 stream 竞争发送机会时先发谁。 可以把它理解为：TCP 管路决定“路上能跑多少车”，HTTP/2 flow control 决定“每个收货口和总仓库还能接多少货”。
+基本模型 HTTP/2 的流量控制基于 credit/window：
+接收方声明自己还能接收多少字节。 发送方发送 DATA frame 时消耗窗口。 接收方消费掉数据、释放缓冲后，通过 WINDOW_UPDATE 把窗口加回来。 如果窗口耗尽，发送方必须暂停发送受流控约束的数据。 这里有两个层级的窗口：
+窗口 作用范围 用来限制什么 stream flow-control window 单个 stream 某个 request/response body 的发送量 connection flow-control window 整条 HTTP/2 connection 所有 stream 的 DATA frame 总发送量 发送一个 DATA frame 之前，发送方必须同时检查两个窗口：frame payload 长度不能超过 stream window，也不能超过 connection window。发送后，这两个窗口都会按 payload 长度扣减。注意，HTTP/2 frame header 的 9 个字节不计入流控窗口。
+" />
 <meta name="keywords" content="" />
 
   <meta name="robots" content="noodp" />
 
-<link rel="canonical" href="https://blog.jinzhi.site/categories/" />
+<link rel="canonical" href="https://blog.jinzhi.site/posts/2026-06/http2-%E6%B5%81%E9%87%8F%E6%8E%A7%E5%88%B6/" />
 
 
 
@@ -76,10 +83,17 @@
 
 
 <meta property="og:locale" content="en" />
-<meta property="og:type" content="website" />
-<meta property="og:title" content="Categories">
-<meta property="og:description" content="" />
-<meta property="og:url" content="https://blog.jinzhi.site/categories/" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="HTTP2 流量控制">
+<meta property="og:description" content="核心问题 注：文章由 codex 整理。
+HTTP/2 的一个核心收益是 multiplexing：多个 request/response 可以复用同一条 TCP connection，并且不同 stream 的 frame 可以交错发送。这个能力解决了 HTTP/1.x 依赖多连接并发的问题，但也引入了一个新问题：如果某个接收方、某个 stream 或某个应用层消费者处理不过来，发送方应该怎样被限制，而不至于把整个连接的内存打爆？
+HTTP/2 flow control 解决的就是这个问题。它不是拥塞控制（congestion control），也不是优先级调度（prioritization），而是一个接收方驱动的背压机制：
+TCP 拥塞控制关心网络路径能承受多少数据。 HTTP/2 flow control 关心接收端应用和协议栈愿意接收多少 DATA payload。 HTTP/2 priority 关心多个 stream 竞争发送机会时先发谁。 可以把它理解为：TCP 管路决定“路上能跑多少车”，HTTP/2 flow control 决定“每个收货口和总仓库还能接多少货”。
+基本模型 HTTP/2 的流量控制基于 credit/window：
+接收方声明自己还能接收多少字节。 发送方发送 DATA frame 时消耗窗口。 接收方消费掉数据、释放缓冲后，通过 WINDOW_UPDATE 把窗口加回来。 如果窗口耗尽，发送方必须暂停发送受流控约束的数据。 这里有两个层级的窗口：
+窗口 作用范围 用来限制什么 stream flow-control window 单个 stream 某个 request/response body 的发送量 connection flow-control window 整条 HTTP/2 connection 所有 stream 的 DATA frame 总发送量 发送一个 DATA frame 之前，发送方必须同时检查两个窗口：frame payload 长度不能超过 stream window，也不能超过 connection window。发送后，这两个窗口都会按 payload 长度扣减。注意，HTTP/2 frame header 的 9 个字节不计入流控窗口。
+" />
+<meta property="og:url" content="https://blog.jinzhi.site/posts/2026-06/http2-%E6%B5%81%E9%87%8F%E6%8E%A7%E5%88%B6/" />
 <meta property="og:site_name" content="chengzhycn&#39;s blog" />
 
   <meta property="og:image" content="https://blog.jinzhi.site/og-image.png">
@@ -87,11 +101,13 @@
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="627">
 
+  <meta property="article:section" content="Learning" />
+
+
+  <meta property="article:published_time" content="2026-06-14 21:32:31 &#43;0800 &#43;0800" />
 
 
 
-
-  <link href="/categories/index.xml" rel="alternate" type="application/rss+xml" title="chengzhycn&#39;s blog" />
 
 
 
@@ -201,62 +217,280 @@
 
   <div class="content">
     
-  <div class="terms">
-    <h1>Categories</h1>
+<article class="post">
+  <h1 class="post-title">
+    <a href="https://blog.jinzhi.site/posts/2026-06/http2-%E6%B5%81%E9%87%8F%E6%8E%A7%E5%88%B6/">HTTP2 流量控制</a>
+  </h1>
+  <div class="post-meta"><time class="post-date">2026-06-14</time><span class="post-reading-time">4 min read (680 words)</span></div>
+
+  
+    <span class="post-tags">
+      
+      #<a href="https://blog.jinzhi.site/tags/http/">HTTP</a>&nbsp;
+      
+      #<a href="https://blog.jinzhi.site/tags/network/">Network</a>&nbsp;
+      
+    </span>
+  
+  
+
+
+  
+    <div class="table-of-contents">
+      <h2>
+        Table of Contents
+      </h2>
+      <nav id="TableOfContents">
+  <ul>
+    <li><a href="#核心问题">核心问题</a></li>
+    <li><a href="#基本模型">基本模型</a></li>
+    <li><a href="#为什么需要两层窗口">为什么需要两层窗口</a></li>
+    <li><a href="#window_update-的工作方式"><code>WINDOW_UPDATE</code> 的工作方式</a></li>
+    <li><a href="#初始窗口和动态调整">初始窗口和动态调整</a></li>
+    <li><a href="#哪些-frame-受流控影响">哪些 frame 受流控影响</a></li>
+    <li><a href="#与-tcp-flow-control--congestion-control-的区别">与 TCP flow control / congestion control 的区别</a></li>
+    <li><a href="#性能影响">性能影响</a></li>
+    <li><a href="#实现和网关中的常见坑">实现和网关中的常见坑</a>
+      <ul>
+        <li><a href="#1-只更新-stream-window忘了-connection-window">1. 只更新 stream window，忘了 connection window</a></li>
+        <li><a href="#2-代理没有把背压正确传递到上下游">2. 代理没有把背压正确传递到上下游</a></li>
+        <li><a href="#3-把收到数据等同于消费数据">3. 把收到数据等同于消费数据</a></li>
+        <li><a href="#4-初始窗口调得过大">4. 初始窗口调得过大</a></li>
+        <li><a href="#5-忽略负窗口状态">5. 忽略负窗口状态</a></li>
+      </ul>
+    </li>
+    <li><a href="#排查思路">排查思路</a></li>
+    <li><a href="#和-grpc-的关系">和 gRPC 的关系</a></li>
+    <li><a href="#关键结论">关键结论</a></li>
+  </ul>
+</nav>
+    </div>
+  
+
+  <div class="post-content"><div>
+        <h2 id="核心问题">核心问题<a href="#核心问题" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<blockquote>
+<p>注：文章由 codex 整理。</p>
+</blockquote>
+<p>HTTP/2 的一个核心收益是 multiplexing：多个 request/response 可以复用同一条 TCP connection，并且不同 stream 的 frame 可以交错发送。这个能力解决了 HTTP/1.x 依赖多连接并发的问题，但也引入了一个新问题：<strong>如果某个接收方、某个 stream 或某个应用层消费者处理不过来，发送方应该怎样被限制，而不至于把整个连接的内存打爆？</strong></p>
+<p>HTTP/2 flow control 解决的就是这个问题。它不是拥塞控制（congestion control），也不是优先级调度（prioritization），而是一个接收方驱动的背压机制：</p>
+<ul>
+<li>TCP 拥塞控制关心网络路径能承受多少数据。</li>
+<li>HTTP/2 flow control 关心接收端应用和协议栈愿意接收多少 <code>DATA</code> payload。</li>
+<li>HTTP/2 priority 关心多个 stream 竞争发送机会时先发谁。</li>
+</ul>
+<p>可以把它理解为：TCP 管路决定“路上能跑多少车”，HTTP/2 flow control 决定“每个收货口和总仓库还能接多少货”。</p>
+<h2 id="基本模型">基本模型<a href="#基本模型" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>HTTP/2 的流量控制基于 credit/window：</p>
+<ol>
+<li>接收方声明自己还能接收多少字节。</li>
+<li>发送方发送 <code>DATA</code> frame 时消耗窗口。</li>
+<li>接收方消费掉数据、释放缓冲后，通过 <code>WINDOW_UPDATE</code> 把窗口加回来。</li>
+<li>如果窗口耗尽，发送方必须暂停发送受流控约束的数据。</li>
+</ol>
+<p>这里有两个层级的窗口：</p>
+<table>
+	<thead>
+			<tr>
+					<th>窗口</th>
+					<th>作用范围</th>
+					<th>用来限制什么</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>stream flow-control window</td>
+					<td>单个 stream</td>
+					<td>某个 request/response body 的发送量</td>
+			</tr>
+			<tr>
+					<td>connection flow-control window</td>
+					<td>整条 HTTP/2 connection</td>
+					<td>所有 stream 的 <code>DATA</code> frame 总发送量</td>
+			</tr>
+	</tbody>
+</table>
+<p>发送一个 <code>DATA</code> frame 之前，发送方必须同时检查两个窗口：<strong>frame payload 长度不能超过 stream window，也不能超过 connection window</strong>。发送后，这两个窗口都会按 payload 长度扣减。注意，HTTP/2 frame header 的 9 个字节不计入流控窗口。</p>
+<h2 id="为什么需要两层窗口">为什么需要两层窗口<a href="#为什么需要两层窗口" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>只做 connection 级别窗口是不够的。一个大 response 或上传 stream 可能吃光整条连接的窗口，导致其他小请求也被拖住。</p>
+<p>只做 stream 级别窗口也不够。假设每个 stream 都允许 64 KiB，而一个连接上同时打开很多 stream，总缓冲需求会随并发数线性增长，接收方仍然可能被压垮。</p>
+<p>所以 HTTP/2 同时维护两层约束：</p>
+<ul>
+<li>stream window 保护单个 stream 的接收缓冲。</li>
+<li>connection window 保护整条连接上的总体内存和处理能力。</li>
+</ul>
+<p>这也是 HTTP/2 multiplexing 的代价之一：协议不再只面对“一个连接一个消息”的简单队列，而要在同一条连接里对多个独立 stream 做资源隔离。</p>
+<h2 id="window_update-的工作方式"><code>WINDOW_UPDATE</code> 的工作方式<a href="#window_update-的工作方式" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p><code>WINDOW_UPDATE</code> frame 是 HTTP/2 flow control 的核心控制消息。它携带一个 31-bit 的 <code>Window Size Increment</code>，表示“你可以在现有窗口基础上再多发送多少字节”。</p>
+<p>它可以作用在两个对象上：</p>
+<ul>
+<li><code>Stream Identifier = 0</code>：更新 connection flow-control window。</li>
+<li><code>Stream Identifier != 0</code>：更新对应 stream 的 flow-control window。</li>
+</ul>
+<p>一个接收方通常会在应用层读走 body、协议栈释放 buffer 后发送 <code>WINDOW_UPDATE</code>。这点很重要：窗口不是“收到数据就马上归还”，而应当和实际消费能力绑定。否则 flow control 就会退化成形式上的 ACK，无法形成背压。</p>
+<p>一个简化的数据流如下：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">Sender                                      Receiver
+</span></span><span class="line"><span class="cl">  |                                            |
+</span></span><span class="line"><span class="cl">  | DATA stream=1 len=16KB                     |
+</span></span><span class="line"><span class="cl">  |-------------------------------------------&gt;|
+</span></span><span class="line"><span class="cl">  | stream window -= 16KB                      | buffer += 16KB
+</span></span><span class="line"><span class="cl">  | connection window -= 16KB                  |
+</span></span><span class="line"><span class="cl">  |                                            | app reads 16KB
+</span></span><span class="line"><span class="cl">  |                                            | buffer -= 16KB
+</span></span><span class="line"><span class="cl">  | WINDOW_UPDATE stream=1 +16KB               |
+</span></span><span class="line"><span class="cl">  |&lt;-------------------------------------------|
+</span></span><span class="line"><span class="cl">  | WINDOW_UPDATE connection +16KB             |
+</span></span><span class="line"><span class="cl">  |&lt;-------------------------------------------|
+</span></span></code></pre></div><p><code>WINDOW_UPDATE</code> 本身不受 flow control 约束，否则就会出现窗口用尽后连恢复窗口的控制消息都发不出去的死锁。</p>
+<h2 id="初始窗口和动态调整">初始窗口和动态调整<a href="#初始窗口和动态调整" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>HTTP/2 连接建立时，新 stream 的默认初始窗口是 <code>65,535</code> bytes，connection flow-control window 也是 <code>65,535</code> bytes。</p>
+<p>stream 初始窗口可以通过 <code>SETTINGS_INITIAL_WINDOW_SIZE</code> 调整。这个设置不仅影响新 stream，也会影响处于 <code>open</code> 或 <code>half-closed (remote)</code> 状态的已有 stream：窗口会按新旧值的差值整体调整。</p>
+<p>这里有一个容易忽略的细节：如果把初始窗口调小，已有 stream 的可用窗口可能变成负数。负窗口不是协议错误，而是表示发送方已经“超前发送”了新限制下不该继续发送的数据。发送方必须记住这个负值，并等待后续 <code>WINDOW_UPDATE</code> 把窗口恢复为正数后，才能继续发送新的 <code>DATA</code> frame。</p>
+<p>connection window 不能通过 <code>SETTINGS_INITIAL_WINDOW_SIZE</code> 修改，只能通过 <code>WINDOW_UPDATE</code> 增加。</p>
+<h2 id="哪些-frame-受流控影响">哪些 frame 受流控影响<a href="#哪些-frame-受流控影响" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>在 RFC 9113 定义的 frame 类型中，只有 <code>DATA</code> frame 受 flow control 影响。<code>HEADERS</code>、<code>SETTINGS</code>、<code>WINDOW_UPDATE</code>、<code>PING</code>、<code>RST_STREAM</code>、<code>GOAWAY</code> 等控制 frame 不消耗流控窗口。</p>
+<p>这有几个直接后果：</p>
+<ul>
+<li>大 body 会被 flow control 限制，header 不会。</li>
+<li>header 太大要靠 <code>SETTINGS_MAX_FIELD_SECTION_SIZE</code>、实现侧限制或 <code>431</code>/stream reset 等机制处理，不是靠 flow control。</li>
+<li>即使某个 stream 的发送方向被 flow control 卡住，连接仍然应该能处理控制 frame，例如 <code>RST_STREAM</code> 或 <code>WINDOW_UPDATE</code>。</li>
+</ul>
+<h2 id="与-tcp-flow-control--congestion-control-的区别">与 TCP flow control / congestion control 的区别<a href="#与-tcp-flow-control--congestion-control-的区别" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>HTTP/2 flow control 很容易和 TCP 的窗口机制混在一起。它们都叫 window，但含义不同。</p>
+<table>
+	<thead>
+			<tr>
+					<th>机制</th>
+					<th>层次</th>
+					<th>控制目标</th>
+					<th>由谁驱动</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>TCP receive window</td>
+					<td>传输层</td>
+					<td>接收端 TCP buffer 能否继续接收字节流</td>
+					<td>TCP 接收端</td>
+			</tr>
+			<tr>
+					<td>TCP congestion window (<code>cwnd</code>)</td>
+					<td>传输层</td>
+					<td>网络路径是否拥塞</td>
+					<td>TCP 发送端根据 ACK/loss/ECN 估算</td>
+			</tr>
+			<tr>
+					<td>HTTP/2 flow-control window</td>
+					<td>应用层协议</td>
+					<td>接收端 HTTP/2 stream/connection buffer 与应用消费能力</td>
+					<td>HTTP/2 接收端</td>
+			</tr>
+	</tbody>
+</table>
+<p>HTTP/2 运行在 TCP 之上。即使 TCP 认为还能继续发送，HTTP/2 也可能因为某个 stream window 或 connection window 为 0 而停止发送 <code>DATA</code> frame。反过来，即使 HTTP/2 window 很大，TCP 也可能因为网络拥塞、receive window 小、丢包或重传而发不出去。</p>
+<p>排查吞吐问题时，这个分层很关键：</p>
+<ul>
+<li><code>cwnd</code> 小、重传多、RTT 抖动大，更像 TCP/网络路径问题。</li>
+<li>HTTP/2 连接上 <code>WINDOW_UPDATE</code> 回得慢，或者 connection window 长时间归零，更像应用层消费或协议层流控问题。</li>
+<li>某个 stream 卡住但其他 stream 正常，优先看 stream window、应用读取、stream 状态。</li>
+<li>所有 stream 都卡住，优先看 connection window、TCP 发送状态、对端整体读能力。</li>
+</ul>
+<h2 id="性能影响">性能影响<a href="#性能影响" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>HTTP/2 flow control 的窗口大小直接影响高带宽、高延迟链路上的吞吐上限。</p>
+<p>如果窗口太小，发送方会频繁停下来等待 <code>WINDOW_UPDATE</code>，实际吞吐可能被限制在近似：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">throughput &lt;= flow_control_window / RTT
+</span></span></code></pre></div><p>例如默认窗口 <code>65,535</code> bytes，在 <code>100 ms</code> RTT 上，单个 stream 即使底层网络没有问题，理论上也只能达到大约：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">65,535 bytes / 0.1 s ~= 655 KB/s ~= 5.2 Mbps
+</span></span></code></pre></div><p>这只是粗略估算，因为实现可能提前批量更新窗口，多个 stream 也会共享 connection window，但它能解释一个常见现象：<strong>HTTP/2 默认窗口在长肥管道（long fat network）上可能明显偏小</strong>。</p>
+<p>性能调优通常要同时考虑：</p>
+<ul>
+<li>单 stream 大对象下载/上传：增大 stream initial window。</li>
+<li>多 stream 并发传输：增大 connection window，避免总窗口成为瓶颈。</li>
+<li>内存占用：窗口越大，接收方可能需要预留或承受的缓冲越大。</li>
+<li>更新策略：<code>WINDOW_UPDATE</code> 太碎会增加控制 frame 和调度开销，太晚又会造成发送停顿。</li>
+</ul>
+<h2 id="实现和网关中的常见坑">实现和网关中的常见坑<a href="#实现和网关中的常见坑" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<h3 id="1-只更新-stream-window忘了-connection-window">1. 只更新 stream window，忘了 connection window<a href="#1-只更新-stream-window忘了-connection-window" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>发送 <code>DATA</code> 会同时消耗 stream window 和 connection window。接收方消费数据后，也通常需要分别归还 stream 级和 connection 级 credit。只更新其中一个，发送方仍可能因为另一个窗口耗尽而停住。</p>
+<h3 id="2-代理没有把背压正确传递到上下游">2. 代理没有把背压正确传递到上下游<a href="#2-代理没有把背压正确传递到上下游" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>HTTP/2 flow control 是 hop-by-hop 的。中间代理不会把下游连接收到的 <code>WINDOW_UPDATE</code> 原样转发给上游连接，而是在两个连接之间重新实现背压。</p>
+<p>一个代理如果从上游读得太快、向下游写得太慢，就会在本地积压 body。健康的代理应该让下游消费能力影响上游读取节奏，而不是无上限缓存。</p>
+<h3 id="3-把收到数据等同于消费数据">3. 把收到数据等同于消费数据<a href="#3-把收到数据等同于消费数据" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>如果协议栈在收到 <code>DATA</code> 后立刻发送 <code>WINDOW_UPDATE</code>，但应用层还没读走数据，窗口就不能真实反映应用消费能力。高并发或慢消费者场景下，这会扩大内存压力。</p>
+<h3 id="4-初始窗口调得过大">4. 初始窗口调得过大<a href="#4-初始窗口调得过大" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>增大窗口可以提升吞吐，但也放大了单连接、单 stream 可积压的数据量。对公网网关、API Gateway、服务网格 sidecar 这类多租户入口来说，窗口配置还要和最大并发 stream 数、最大请求体、连接数上限一起看。</p>
+<h3 id="5-忽略负窗口状态">5. 忽略负窗口状态<a href="#5-忽略负窗口状态" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>当 <code>SETTINGS_INITIAL_WINDOW_SIZE</code> 被调小，已有 stream window 可能变成负数。实现如果没有正确处理负窗口，可能出现多发数据、误报 flow-control error，或者永久停顿。</p>
+<h2 id="排查思路">排查思路<a href="#排查思路" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>遇到 HTTP/2 大 body 慢、上传卡住、gRPC stream 堵住时，可以按这个顺序判断：</p>
+<ol>
+<li>确认是不是 HTTP/2 层面卡住：抓包或日志中观察 <code>DATA</code> 是否停止、<code>WINDOW_UPDATE</code> 是否延迟或缺失。</li>
+<li>区分 stream 级和 connection 级：单个 stream 停住看 stream window；所有 stream 停住看 connection window。</li>
+<li>看应用消费速度：服务端 handler 是否及时读取 request body；客户端是否及时读取 response body；gRPC stream 是否有用户态队列堆积。</li>
+<li>看 TCP 层状态：如果 HTTP/2 window 足够但仍发不出去，再看 <code>cwnd</code>、重传、send queue、receive window、RTT。</li>
+<li>看代理链路：如果经过 gateway/sidecar/load balancer，需要分别看每一跳的 HTTP/2 window，而不是只看端到端。</li>
+</ol>
+<p>可观察信号包括：</p>
+<ul>
+<li><code>WINDOW_UPDATE</code> frame 的频率和增量。</li>
+<li><code>DATA</code> frame 发送停顿的位置。</li>
+<li>每个 stream 的 pending send bytes / pending receive bytes。</li>
+<li>连接级 write buffer 和 read buffer。</li>
+<li>应用层 body read / write 延迟。</li>
+<li>TCP <code>send-q</code>、<code>recv-q</code>、RTT、重传、拥塞窗口。</li>
+</ul>
+<h2 id="和-grpc-的关系">和 gRPC 的关系<a href="#和-grpc-的关系" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>gRPC over HTTP/2 的 request message 和 response message 最终都承载在 HTTP/2 <code>DATA</code> frame 中，所以同样受 HTTP/2 flow control 影响。</p>
+<p>这对 streaming RPC 尤其明显：</p>
+<ul>
+<li>server streaming：客户端读得慢，会通过 flow control 反压服务端发送。</li>
+<li>client streaming：服务端读 request stream 慢，会反压客户端上传。</li>
+<li>bidi streaming：两个方向各自都有独立的发送与接收压力，但共享同一条 HTTP/2 connection 的连接级窗口。</li>
+</ul>
+<p>因此，gRPC 的“发送慢”不一定是业务处理慢，也可能是对端没有及时读流，导致 HTTP/2 window 没有恢复。</p>
+<h2 id="关键结论">关键结论<a href="#关键结论" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>HTTP/2 flow control 的本质是接收方驱动的应用层背压：</p>
+<ul>
+<li>它只约束 <code>DATA</code> frame，不约束 header 和控制 frame。</li>
+<li>它同时有 stream 级和 connection 级窗口。</li>
+<li>发送方必须同时满足两个窗口才能发送 body 数据。</li>
+<li><code>WINDOW_UPDATE</code> 是 credit 归还机制，不是 TCP ACK。</li>
+<li>窗口太小会限制高 RTT 链路吞吐，窗口太大又会增加内存风险。</li>
+<li>在代理和 gRPC 场景中，flow control 是定位“看起来像网络慢，实际是对端不读”的关键线索。</li>
+</ul>
+<p>参考资料：</p>
+<ul>
+<li><a href="https://www.rfc-editor.org/rfc/rfc9113.html">RFC 9113: HTTP/2</a></li>
+</ul>
+
+      </div></div>
+
+  
     
-    <ul>
-      
-      
-        
-        
-        
-          <li>
-            <a class="terms-title" href="https://blog.jinzhi.site/categories/courses/">Courses [7]</a>
-          </li>
-        
-      
-        
-        
-        
-          <li>
-            <a class="terms-title" href="https://blog.jinzhi.site/categories/learning/">Learning [27]</a>
-          </li>
-        
-      
-        
-        
-        
-          <li>
-            <a class="terms-title" href="https://blog.jinzhi.site/categories/network/">Network [1]</a>
-          </li>
-        
-      
-        
-        
-        
-          <li>
-            <a class="terms-title" href="https://blog.jinzhi.site/categories/personal/">Personal [3]</a>
-          </li>
-        
-      
-        
-        
-        
-          <li>
-            <a class="terms-title" href="https://blog.jinzhi.site/categories/reading/">Reading [14]</a>
-          </li>
-        
-      
-        
-        
-        
-          <li>
-            <a class="terms-title" href="https://blog.jinzhi.site/categories/work/">Work [4]</a>
-          </li>
-        
-      
-    </ul>
+<div class="pagination">
+  <div class="pagination__title">
+    <span class="pagination__title-h">Read other posts</span>
+    <hr />
   </div>
+  <div class="pagination__buttons">
+    
+    
+    
+      <a href="https://blog.jinzhi.site/posts/2026-06/%E7%AE%97%E5%8A%9B%E7%94%B5%E5%8A%9B%E7%AE%97%E7%94%B5%E5%8D%8F%E5%90%8C%E7%9A%84%E5%95%86%E4%B8%9A%E6%A8%A1%E5%BC%8F%E4%B8%8E%E6%8A%95%E8%B5%84%E9%80%BB%E8%BE%91/" class="button inline next">
+         [<span class="button__text">算力×电力：算电协同的商业模式与投资逻辑</span>] &gt;
+      </a>
+    
+  </div>
+</div>
+
+
+  
+
+  
+    
+
+  
+</article>
 
   </div>
 

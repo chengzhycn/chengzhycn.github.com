@@ -10,9 +10,16 @@
 		
 		
 		
-			<lastBuildDate>Sun, 23 Nov 2025 15:18:28 +0800</lastBuildDate>
+			<lastBuildDate>Sun, 14 Jun 2026 21:32:31 +0800</lastBuildDate>
 		
 			<atom:link href="https://blog.jinzhi.site/tags/network/index.xml" rel="self" type="application/rss+xml" />
+			<item>
+				<title>HTTP2 流量控制</title>
+				<link>https://blog.jinzhi.site/posts/2026-06/http2-%E6%B5%81%E9%87%8F%E6%8E%A7%E5%88%B6/</link>
+				<pubDate>Sun, 14 Jun 2026 21:32:31 +0800</pubDate>
+				<guid>https://blog.jinzhi.site/posts/2026-06/http2-%E6%B5%81%E9%87%8F%E6%8E%A7%E5%88%B6/</guid>
+				<description>&lt;h2 id=&#34;核心问题&#34;&gt;核心问题&lt;/h2&gt;&#xA;&lt;blockquote&gt;&#xA;&lt;p&gt;注：文章由 codex 整理。&lt;/p&gt;&#xA;&lt;/blockquote&gt;&#xA;&lt;p&gt;HTTP/2 的一个核心收益是 multiplexing：多个 request/response 可以复用同一条 TCP connection，并且不同 stream 的 frame 可以交错发送。这个能力解决了 HTTP/1.x 依赖多连接并发的问题，但也引入了一个新问题：&lt;strong&gt;如果某个接收方、某个 stream 或某个应用层消费者处理不过来，发送方应该怎样被限制，而不至于把整个连接的内存打爆？&lt;/strong&gt;&lt;/p&gt;&#xA;&lt;p&gt;HTTP/2 flow control 解决的就是这个问题。它不是拥塞控制（congestion control），也不是优先级调度（prioritization），而是一个接收方驱动的背压机制：&lt;/p&gt;&#xA;&lt;ul&gt;&#xA;&lt;li&gt;TCP 拥塞控制关心网络路径能承受多少数据。&lt;/li&gt;&#xA;&lt;li&gt;HTTP/2 flow control 关心接收端应用和协议栈愿意接收多少 &lt;code&gt;DATA&lt;/code&gt; payload。&lt;/li&gt;&#xA;&lt;li&gt;HTTP/2 priority 关心多个 stream 竞争发送机会时先发谁。&lt;/li&gt;&#xA;&lt;/ul&gt;&#xA;&lt;p&gt;可以把它理解为：TCP 管路决定“路上能跑多少车”，HTTP/2 flow control 决定“每个收货口和总仓库还能接多少货”。&lt;/p&gt;&#xA;&lt;h2 id=&#34;基本模型&#34;&gt;基本模型&lt;/h2&gt;&#xA;&lt;p&gt;HTTP/2 的流量控制基于 credit/window：&lt;/p&gt;&#xA;&lt;ol&gt;&#xA;&lt;li&gt;接收方声明自己还能接收多少字节。&lt;/li&gt;&#xA;&lt;li&gt;发送方发送 &lt;code&gt;DATA&lt;/code&gt; frame 时消耗窗口。&lt;/li&gt;&#xA;&lt;li&gt;接收方消费掉数据、释放缓冲后，通过 &lt;code&gt;WINDOW_UPDATE&lt;/code&gt; 把窗口加回来。&lt;/li&gt;&#xA;&lt;li&gt;如果窗口耗尽，发送方必须暂停发送受流控约束的数据。&lt;/li&gt;&#xA;&lt;/ol&gt;&#xA;&lt;p&gt;这里有两个层级的窗口：&lt;/p&gt;&#xA;&lt;table&gt;&#xA;&#x9;&lt;thead&gt;&#xA;&#x9;&#x9;&#x9;&lt;tr&gt;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;&lt;th&gt;窗口&lt;/th&gt;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;&lt;th&gt;作用范围&lt;/th&gt;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;&lt;th&gt;用来限制什么&lt;/th&gt;&#xA;&#x9;&#x9;&#x9;&lt;/tr&gt;&#xA;&#x9;&lt;/thead&gt;&#xA;&#x9;&lt;tbody&gt;&#xA;&#x9;&#x9;&#x9;&lt;tr&gt;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;&lt;td&gt;stream flow-control window&lt;/td&gt;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;&lt;td&gt;单个 stream&lt;/td&gt;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;&lt;td&gt;某个 request/response body 的发送量&lt;/td&gt;&#xA;&#x9;&#x9;&#x9;&lt;/tr&gt;&#xA;&#x9;&#x9;&#x9;&lt;tr&gt;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;&lt;td&gt;connection flow-control window&lt;/td&gt;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;&lt;td&gt;整条 HTTP/2 connection&lt;/td&gt;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;&lt;td&gt;所有 stream 的 &lt;code&gt;DATA&lt;/code&gt; frame 总发送量&lt;/td&gt;&#xA;&#x9;&#x9;&#x9;&lt;/tr&gt;&#xA;&#x9;&lt;/tbody&gt;&#xA;&lt;/table&gt;&#xA;&lt;p&gt;发送一个 &lt;code&gt;DATA&lt;/code&gt; frame 之前，发送方必须同时检查两个窗口：&lt;strong&gt;frame payload 长度不能超过 stream window，也不能超过 connection window&lt;/strong&gt;。发送后，这两个窗口都会按 payload 长度扣减。注意，HTTP/2 frame header 的 9 个字节不计入流控窗口。&lt;/p&gt;</description>
+			</item>
 			<item>
 				<title>KubeCon North America 2025 Review</title>
 				<link>https://blog.jinzhi.site/posts/2025-11/kubecon-north-america-2025-review/</link>

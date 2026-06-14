@@ -216,6 +216,87 @@
     
       <article class="post on-list">
         <h2 class="post-title">
+          <a href="https://blog.jinzhi.site/posts/2025-04/vrf-an-overview/">VRF: An Overview</a>
+        </h2>
+
+        <div class="post-meta"><time class="post-date">2025-04-25</time></div>
+
+        
+          <span class="post-tags">
+            
+            #<a href="https://blog.jinzhi.site/tags/network/">Network</a>&nbsp;
+            
+          </span>
+        
+
+        
+
+
+        <div class="post-content">
+          
+            <h2 id="什么是-vrfvirtual-routing-forwarding">什么是 VRF（virtual routing forwarding）</h2>
+<p>VRF是一种实现三层网络隔离的关键技术。<strong>它通过创建多个路由表，为不同的网络流量提供独立的转发路径。</strong> 这意味着，任何三层网络结构，如接口的IP地址、静态路由的配置，甚至BGP（边界网关协议）会话，都可以被映射到特定的VRF中。这种映射机制就像是为每个VRF构建了一个独立的网络空间，彼此之间相互隔离，极大地增强了网络的安全性和管理的便利性。在MPLS VPN（多协议标签交换虚拟专用网络）等应用场景中，VRF为实现大规模的网络隔离和灵活的路由策略提供了基础框架。就像 VLAN 隔离了二层网络一样，VRF 隔离了三层网络。</p>
+<p><img src="/images/notes/vrf-an-overview/5eb20c3e919fe3724b92c2ae7a66a7da_MD5.png" alt="5eb20c3e919fe3724b92c2ae7a66a7da_MD5"></p>
+<h2 id="为什么需要-vrf">为什么需要 VRF</h2>
+<p>在 VRF 出现之前，Linux 用户主要采用两种方式来尝试实现类似的功能：策略路由（policy routing）和网络命名空间（net namespace）。然而，这两种方法都存在明显的局限性。</p>
+<p>策略路由虽然能够通过多个路由表和策略规则来模拟 VRF 的部分功能（事实上，在 Linux 中，也是基于策略路由来去对 VRF 做的实现），但它的缺点十分突出。这种方式在配置和管理上非常复杂，难以确保网络隔离的有效性，在面对严格的网络审计时，往往无法通过。其复杂性不仅增加了运维的难度，还可能导致网络故障的风险上升，因此不被推荐使用。</p>
+<p>网络命名空间在容器技术兴起后得到了广泛应用，它能够为容器提供全面的网络隔离。但在模拟 VRF 功能时，却显得有些“大材小用”。网络命名空间会对所有网络相关的资源进行完全隔离，包括设备、接口、ARP 表和路由表等。这意味着，即使是一些不需要隔离的服务，也会被隔离在不同的命名空间中。以 LLDP（链路层发现协议）为例，在使用网络命名空间的情况下，若要在不同的网络隔离环境中使用 LLDP，就需要在每个命名空间中单独运行实例，并且由于默认套接字相同，还需要为每个实例创建独特的套接字。这不仅增加了系统的开销，还使得管理变得更加复杂。相比之下，VRF 在隔离三层网络结构的同时，允许全局配置的共享和非三层感知服务的统一运行，大大提高了资源的利用效率。</p>
+<table>
+	<thead>
+			<tr>
+					<th>Policy Routing</th>
+					<th>VRF</th>
+					<th>Net Namespace</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>隔离路由表</td>
+					<td>隔离三层网络</td>
+					<td>整个协议栈从二层到 socket 隔离</td>
+			</tr>
+	</tbody>
+</table>
+<p><img src="/images/notes/vrf-an-overview/a9f7c55f8f39572d339b138fb1e12429_MD5.png" alt="a9f7c55f8f39572d339b138fb1e12429_MD5"><img src="/images/notes/vrf-an-overview/c9b6614c864c7d35a8ef0a4f12ecdbfa_MD5.png" alt="c9b6614c864c7d35a8ef0a4f12ecdbfa_MD5"><img src="/images/notes/vrf-an-overview/9edc8b051f504bf72140d1238513d687_MD5.png" alt="9edc8b051f504bf72140d1238513d687_MD5"></p>
+<h2 id="vrf-配置">VRF 配置</h2>
+<p>在 Linux 系统中配置 VRF，主要借助<code>iproute2</code>包来完成一系列操作。</p>
+<ul>
+<li>创建 VRF，并关联到 table 1</li>
+</ul>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">test1@test1:~$ ip link add vrf-1 <span class="nb">type</span> vrf table <span class="m">1</span>
+</span></span><span class="line"><span class="cl">test1@test1:~$ ip link <span class="nb">set</span> vrf-1 up
+</span></span></code></pre></div><ul>
+<li>添加接口到 VRF，可以看到 wg0 的 master 是 vrf-1，所有 wg0 的流量会使用关联的 vrf-1 路由表进行路由</li>
+</ul>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">test1@test1:~$ ip link <span class="nb">set</span> wg0 master vrf-1
+</span></span><span class="line"><span class="cl">test1@test1:~$ ip -d link show wg0 
+</span></span><span class="line"><span class="cl">9: wg0: &lt;POINTOPOINT,NOARP,UP,LOWER_UP&gt; mtu <span class="m">1400</span> qdisc noqueue master vrf-1 state UNKNOWN mode DEFAULT group default qlen <span class="m">1000</span>
+</span></span><span class="line"><span class="cl">    link/none  promiscuity <span class="m">0</span> minmtu <span class="m">0</span> maxmtu <span class="m">2147483552</span> 
+</span></span><span class="line"><span class="cl">    wireguard 
+</span></span><span class="line"><span class="cl">    vrf_slave table <span class="m">1</span> addrgenmode none numtxqueues <span class="m">1</span> numrxqueues <span class="m">1</span> gso_max_size <span class="m">65536</span> gso_max_segs <span class="m">65535</span>
+</span></span></code></pre></div><ul>
+<li>添加和查看 VRF  静态路由</li>
+</ul>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">root@test1:~# ip route add default via 10.1.0.10 vrf vrf-1
+</span></span><span class="line"><span class="cl">root@test1:~# ip route show table <span class="m">1</span> 
+</span></span><span class="line"><span class="cl">default via 10.1.0.10 dev wg0 
+</span></span><span class="line"><span class="cl"><span class="nb">local</span> 10.1.0.10 dev wg0 proto kernel scope host src 10.1.0.10 
+</span></span><span class="line"><span class="cl">root@test1:~# ip route show vrf vrf-1 
+</span></span><span class="line"><span class="cl">default via 10.1.0.10 dev wg0 
+</span></span></code></pre></div><h3 id="vrf-之间路由">VRF 之间路由</h3>
+<p>有两种方法可以执行跨 VRF 路由。第一种方法涉及一个 VRF 的表中配置的路由，指向绑定到不同 VRF 的设备。</p>
+          
+        </div>
+
+        
+          <div>
+            <a class="read-more button inline" href="/posts/2025-04/vrf-an-overview/">[Read more]</a>
+          </div>
+        
+      </article>
+    
+      <article class="post on-list">
+        <h2 class="post-title">
           <a href="https://blog.jinzhi.site/posts/2025-03/c-common-coding-conventions/">C³: Common Coding Conventions</a>
         </h2>
 
@@ -506,103 +587,6 @@ Key to Flags:
         
       </article>
     
-      <article class="post on-list">
-        <h2 class="post-title">
-          <a href="https://blog.jinzhi.site/posts/2022-07/make%E5%91%BD%E4%BB%A4%E5%92%8C%E7%BC%96%E8%AF%91/">make命令和编译</a>
-        </h2>
-
-        <div class="post-meta"><time class="post-date">2022-07-26</time></div>
-
-        
-          <span class="post-tags">
-            
-            #<a href="https://blog.jinzhi.site/tags/makefile/">makefile</a>&nbsp;
-            
-            #<a href="https://blog.jinzhi.site/tags/compile/">compile</a>&nbsp;
-            
-          </span>
-        
-
-        
-
-
-        <div class="post-content">
-          
-            <h2 id="makefile">Makefile</h2>
-<h3 id="标准格式">标准格式</h3>
-<pre tabindex="0"><code>target：dependencies1 dependencies2 ...
-   recipe
-
-.PHONY: clean
-clean:
-   -rm ...
-</code></pre><h4 id="注意事项">注意事项</h4>
-<ul>
-<li>运行make时如果没有指定target，那么make会构建Makefile中的第一个target</li>
-<li>通常情况下，目标名即生成的文件名。如果一条规则的目标文件存在并且该文件比它所有的依赖都要新，那么make会跳过recipe；如果目标文件不存在，那么目标文件的 <strong>timestamp</strong> 为开始的时间；否则timestamp为相应文件的修改时间。</li>
-<li>每次运行 <code>make clean</code>，”clean“中的recipe都会被执行，因为clean文件永远都不会被创建。（可以使用 <strong>.PHONY</strong> 创建伪目标使Makefile可读性更高）</li>
-<li>recipes必须用tab缩进</li>
-<li>可以通过并行的方式运行recipes：<code>make -j 4</code>（指定并行的任务数）</li>
-<li>如果没有指定规则，Make会自动化创建规则。例如，本地有一个C文件”program.c“，当运行 <code>make program</code>时，Make会自动编译生成 program</li>
-</ul>
-<h3 id="变量">变量</h3>
-<ul>
-<li><code>$@</code> 目标文件</li>
-<li><code>$^</code> 所有的依赖文件</li>
-<li><code>$&lt;</code> 第一个依赖</li>
-</ul>
-<h2 id="头文件">头文件</h2>
-<h3 id="环境变量">环境变量</h3>
-<ul>
-<li><code>C_INCLUDE_PATH</code> C语言头文件路径</li>
-<li><code>CPLUS_INCLUDE_PATH</code> C++ 头文件路径</li>
-</ul>
-<h3 id="搜索路径">搜索路径</h3>
-<h4 id="include">#include&lt;&gt;</h4>
-<ol>
-<li>先搜索 <code>-I</code> 指定的目录</li>
-<li>然后搜索gcc的环境变量 <code>CPLUS_INCLUDE_PATH</code></li>
-<li>最后搜索gcc的内定目录
-<ol>
-<li><code>/usr/include</code></li>
-<li><code>/usr/local/include</code></li>
-<li><code>/usr/lib/gcc/x86_64-redhat-linux/4.1.1/include</code></li>
-</ol>
-</li>
-</ol>
-<h4 id="include-">#include &quot;&quot;</h4>
-<ul>
-<li>搜索当前目录，#include&lt;&gt;方式不会搜索当前目录</li>
-</ul>
-<h2 id="动态库">动态库</h2>
-<h3 id="环境变量-1">环境变量</h3>
-<ul>
-<li><code>LD_LIBRARY_PATH</code>  动态链接库搜索路径</li>
-<li><code>PKG_CONFIG_PATH</code> .pc文件（package config）文件搜索路径</li>
-</ul>
-<h3 id="搜索路径-1">搜索路径</h3>
-<ol>
-<li>首先在环境变量 <code>LD_LIBRARY_PATH</code> 所记录的路径中查找</li>
-<li>在程序链接时指定的 rpath 中查找，可以  <code>readelf binfile | grep RPATH</code></li>
-<li>然后从缓存文件/etc/ld.so.cache中查找。这个缓存文件由/sbin/ldconfig命令读取配置文件/etc/ld.so.conf 之后生成（也可以在 ld.so.conf.d 目录下增加 <em>.conf 文件，里面写入库路径，在 ld.so.conf 中 include ld.so.conf.d/</em>.conf ）</li>
-<li>如果上述步骤都找不到，则到默认的系统路径中查找，先是/usr/lib然后是/lib</li>
-</ol>
-<ul>
-<li><a href="https://www.cnblogs.com/masterpanda/p/5700446.html">https://www.cnblogs.com/masterpanda/p/5700446.html</a></li>
-</ul>
-<h3 id="编译参数">编译参数</h3>
-<h4 id="-shared">-shared</h4>
-<p>指定生成动态连接库</p>
-          
-        </div>
-
-        
-          <div>
-            <a class="read-more button inline" href="/posts/2022-07/make%E5%91%BD%E4%BB%A4%E5%92%8C%E7%BC%96%E8%AF%91/">[Read more]</a>
-          </div>
-        
-      </article>
-    
 
     <div class="pagination">
   <div class="pagination__buttons">
@@ -882,6 +866,10 @@ clean:
       
       
     
+      
+      
+      
+    
 
     
     
@@ -911,7 +899,7 @@ clean:
         <a href="/posts/2026-06/" class="archive-link">
           <span class="archive-date">2026-06</span>
           <span class="archive-month-name">Jun</span>
-          <span class="archive-count">(4)</span>
+          <span class="archive-count">(5)</span>
         </a>
       </div>
     
@@ -1600,22 +1588,6 @@ clean:
       
         
       
-        
-      
-    
-      
-        
-      
-        
-      
-    
-      
-        
-      
-        
-      
-        
-      
     
       
         
@@ -1633,14 +1605,6 @@ clean:
     
       
         
-      
-    
-      
-        
-      
-        
-      
-    
       
         
       
@@ -1668,6 +1632,36 @@ clean:
       
         
       
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
     
       
         
@@ -1687,22 +1681,6 @@ clean:
         
       
     
-      
-        
-      
-    
-      
-        
-      
-        
-      
-        
-      
-    
-      
-        
-      
-        
       
         
       
@@ -1742,38 +1720,6 @@ clean:
       
         
       
-    
-      
-        
-      
-    
-      
-        
-      
-        
-      
-    
-      
-        
-      
-    
-      
-        
-      
-    
-      
-    
-      
-        
-      
-    
-      
-        
-      
-    
-      
-        
-      
         
       
         
@@ -1783,14 +1729,6 @@ clean:
         
       
         
-      
-    
-      
-        
-      
-        
-      
-    
       
         
       
@@ -1818,8 +1756,6 @@ clean:
       
     
       
-        
-      
     
       
         
@@ -1833,6 +1769,26 @@ clean:
         
       
         
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
       
         
       
@@ -1870,6 +1826,44 @@ clean:
       
         
       
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
     
       
         
@@ -1878,6 +1872,12 @@ clean:
     
     
     
+    
+      
+      
+    
+      
+      
     
       
       
@@ -2682,9 +2682,9 @@ clean:
         <a href="https://blog.jinzhi.site/tags/http/" 
            class="tag-item" 
            style="font-size: 0.9em;"
-           title="1 article">
+           title="2 articles">
           HTTP
-          <span class="tag-count">(1)</span>
+          <span class="tag-count">(2)</span>
         </a>
       
     
@@ -2948,9 +2948,9 @@ clean:
         <a href="https://blog.jinzhi.site/tags/network/" 
            class="tag-item" 
            style="font-size: 0.9em;"
-           title="3 articles">
+           title="4 articles">
           Network
-          <span class="tag-count">(3)</span>
+          <span class="tag-count">(4)</span>
         </a>
       
     
