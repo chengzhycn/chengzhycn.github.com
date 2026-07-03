@@ -207,6 +207,94 @@
     
       <article class="post on-list">
         <h1 class="post-title">
+          <a href="https://blog.jinzhi.site/posts/2025-09/go-%E6%B1%87%E7%BC%96%E5%88%86%E6%9E%90/">Go 汇编分析</a>
+        </h1>
+        <div class="post-meta"><time class="post-date">2025-09-17</time></div>
+
+        
+          <span class="post-tags">
+            
+            #<a href="https://blog.jinzhi.site/tags/go/">Go</a>&nbsp;
+            
+          </span>
+        
+
+        
+
+
+        <div class="post-content">
+          
+            <p>Go的汇编不是像 C/C++ 一样，对机器码的直接描述，而是兼容跨平台需求实现的半抽象化的指令集。</p>
+<p><a href="https://go.dev/doc/asm">https://go.dev/doc/asm</a></p>
+<h2 id="汇编分析go-117">汇编分析（Go 1.17）</h2>
+<p>我们用一个简单的例子来开始汇编分析：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kn">package</span><span class="w"> </span><span class="nx">main</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="kd">func</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">	</span><span class="nf">add</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">)</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="p">}</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="kd">func</span><span class="w"> </span><span class="nf">add</span><span class="p">(</span><span class="nx">i</span><span class="p">,</span><span class="w"> </span><span class="nx">j</span><span class="w"> </span><span class="kt">int</span><span class="p">)</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">	</span><span class="k">return</span><span class="w"> </span><span class="nx">i</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">j</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="p">}</span><span class="w">
+</span></span></span></code></pre></div><p>汇编结果，删去了一些无关的输出：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl"><span class="c1"># go tool compile -S -l -N main.go</span>
+</span></span><span class="line"><span class="cl"><span class="s2">&#34;&#34;</span>.main STEXT <span class="nv">size</span><span class="o">=</span><span class="m">54</span> <span class="nv">args</span><span class="o">=</span>0x0 <span class="nv">locals</span><span class="o">=</span>0x18 <span class="nv">funcid</span><span class="o">=</span>0x0
+</span></span><span class="line"><span class="cl">        0x0000 <span class="m">00000</span> <span class="o">(</span>main.go:3<span class="o">)</span>        TEXT    <span class="s2">&#34;&#34;</span>.main<span class="o">(</span>SB<span class="o">)</span>, ABIInternal, <span class="nv">$24</span>-0
+</span></span><span class="line"><span class="cl">        0x0000 <span class="m">00000</span> <span class="o">(</span>main.go:3<span class="o">)</span>        CMPQ    SP, 16<span class="o">(</span>R14<span class="o">)</span>
+</span></span><span class="line"><span class="cl">        0x0004 <span class="m">00004</span> <span class="o">(</span>main.go:3<span class="o">)</span>        PCDATA  <span class="nv">$0</span>, <span class="nv">$-</span><span class="m">2</span>
+</span></span><span class="line"><span class="cl">        0x0004 <span class="m">00004</span> <span class="o">(</span>main.go:3<span class="o">)</span>        JLS     <span class="m">47</span>
+</span></span><span class="line"><span class="cl">        0x0006 <span class="m">00006</span> <span class="o">(</span>main.go:3<span class="o">)</span>        PCDATA  <span class="nv">$0</span>, <span class="nv">$-</span><span class="m">1</span>
+</span></span><span class="line"><span class="cl">        0x0006 <span class="m">00006</span> <span class="o">(</span>main.go:3<span class="o">)</span>        SUBQ    <span class="nv">$24</span>, SP
+</span></span><span class="line"><span class="cl">        0x000a <span class="m">00010</span> <span class="o">(</span>main.go:3<span class="o">)</span>        MOVQ    BP, 16<span class="o">(</span>SP<span class="o">)</span>
+</span></span><span class="line"><span class="cl">        0x000f <span class="m">00015</span> <span class="o">(</span>main.go:3<span class="o">)</span>        LEAQ    16<span class="o">(</span>SP<span class="o">)</span>, BP
+</span></span><span class="line"><span class="cl">        0x0014 <span class="m">00020</span> <span class="o">(</span>main.go:3<span class="o">)</span>        FUNCDATA        <span class="nv">$0</span>, gclocals·33cdeccccebe80329f1fdbee7f5874cb<span class="o">(</span>SB<span class="o">)</span>
+</span></span><span class="line"><span class="cl">        0x0014 <span class="m">00020</span> <span class="o">(</span>main.go:3<span class="o">)</span>        FUNCDATA        <span class="nv">$1</span>, gclocals·33cdeccccebe80329f1fdbee7f5874cb<span class="o">(</span>SB<span class="o">)</span>
+</span></span><span class="line"><span class="cl">        0x0014 <span class="m">00020</span> <span class="o">(</span>main.go:4<span class="o">)</span>        MOVL    <span class="nv">$1</span>, AX
+</span></span><span class="line"><span class="cl">        0x0019 <span class="m">00025</span> <span class="o">(</span>main.go:4<span class="o">)</span>        MOVL    <span class="nv">$3</span>, BX
+</span></span><span class="line"><span class="cl">        0x001e <span class="m">00030</span> <span class="o">(</span>main.go:4<span class="o">)</span>        PCDATA  <span class="nv">$1</span>, <span class="nv">$0</span>
+</span></span><span class="line"><span class="cl">        0x001e <span class="m">00030</span> <span class="o">(</span>main.go:4<span class="o">)</span>        NOP
+</span></span><span class="line"><span class="cl">        0x0020 <span class="m">00032</span> <span class="o">(</span>main.go:4<span class="o">)</span>        CALL    <span class="s2">&#34;&#34;</span>.add<span class="o">(</span>SB<span class="o">)</span>
+</span></span><span class="line"><span class="cl">        0x0025 <span class="m">00037</span> <span class="o">(</span>main.go:5<span class="o">)</span>        MOVQ    16<span class="o">(</span>SP<span class="o">)</span>, BP
+</span></span><span class="line"><span class="cl">        0x002a <span class="m">00042</span> <span class="o">(</span>main.go:5<span class="o">)</span>        ADDQ    <span class="nv">$24</span>, SP
+</span></span><span class="line"><span class="cl">        0x002e <span class="m">00046</span> <span class="o">(</span>main.go:5<span class="o">)</span>        RET
+</span></span><span class="line"><span class="cl">        0x002f <span class="m">00047</span> <span class="o">(</span>main.go:5<span class="o">)</span>        NOP
+</span></span><span class="line"><span class="cl">        0x002f <span class="m">00047</span> <span class="o">(</span>main.go:3<span class="o">)</span>        PCDATA  <span class="nv">$1</span>, <span class="nv">$-</span><span class="m">1</span>
+</span></span><span class="line"><span class="cl">        0x002f <span class="m">00047</span> <span class="o">(</span>main.go:3<span class="o">)</span>        PCDATA  <span class="nv">$0</span>, <span class="nv">$-</span><span class="m">2</span>
+</span></span><span class="line"><span class="cl">        0x002f <span class="m">00047</span> <span class="o">(</span>main.go:3<span class="o">)</span>        CALL    runtime.morestack_noctxt<span class="o">(</span>SB<span class="o">)</span>
+</span></span><span class="line"><span class="cl">        0x0034 <span class="m">00052</span> <span class="o">(</span>main.go:3<span class="o">)</span>        PCDATA  <span class="nv">$0</span>, <span class="nv">$-</span><span class="m">1</span>
+</span></span><span class="line"><span class="cl">        0x0034 <span class="m">00052</span> <span class="o">(</span>main.go:3<span class="o">)</span>        JMP     <span class="m">0</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="s2">&#34;&#34;</span>.add STEXT nosplit <span class="nv">size</span><span class="o">=</span><span class="m">56</span> <span class="nv">args</span><span class="o">=</span>0x10 <span class="nv">locals</span><span class="o">=</span>0x10 <span class="nv">funcid</span><span class="o">=</span>0x0
+</span></span><span class="line"><span class="cl">        0x0000 <span class="m">00000</span> <span class="o">(</span>main.go:7<span class="o">)</span>        TEXT    <span class="s2">&#34;&#34;</span>.add<span class="o">(</span>SB<span class="o">)</span>, NOSPLIT<span class="p">|</span>ABIInternal, <span class="nv">$16</span>-16
+</span></span><span class="line"><span class="cl">        0x0000 <span class="m">00000</span> <span class="o">(</span>main.go:7<span class="o">)</span>        SUBQ    <span class="nv">$16</span>, SP
+</span></span><span class="line"><span class="cl">        0x0004 <span class="m">00004</span> <span class="o">(</span>main.go:7<span class="o">)</span>        MOVQ    BP, 8<span class="o">(</span>SP<span class="o">)</span>
+</span></span><span class="line"><span class="cl">        0x0009 <span class="m">00009</span> <span class="o">(</span>main.go:7<span class="o">)</span>        LEAQ    8<span class="o">(</span>SP<span class="o">)</span>, BP
+</span></span><span class="line"><span class="cl">        0x000e <span class="m">00014</span> <span class="o">(</span>main.go:7<span class="o">)</span>        FUNCDATA        <span class="nv">$0</span>, gclocals·33cdeccccebe80329f1fdbee7f5874cb<span class="o">(</span>SB<span class="o">)</span>
+</span></span><span class="line"><span class="cl">        0x000e <span class="m">00014</span> <span class="o">(</span>main.go:7<span class="o">)</span>        FUNCDATA        <span class="nv">$1</span>, gclocals·33cdeccccebe80329f1fdbee7f5874cb<span class="o">(</span>SB<span class="o">)</span>
+</span></span><span class="line"><span class="cl">        0x000e <span class="m">00014</span> <span class="o">(</span>main.go:7<span class="o">)</span>        FUNCDATA        <span class="nv">$5</span>, <span class="s2">&#34;&#34;</span>.add.arginfo1<span class="o">(</span>SB<span class="o">)</span>
+</span></span><span class="line"><span class="cl">        0x000e <span class="m">00014</span> <span class="o">(</span>main.go:7<span class="o">)</span>        MOVQ    AX, <span class="s2">&#34;&#34;</span>.i+24<span class="o">(</span>SP<span class="o">)</span>
+</span></span><span class="line"><span class="cl">        0x0013 <span class="m">00019</span> <span class="o">(</span>main.go:7<span class="o">)</span>        MOVQ    BX, <span class="s2">&#34;&#34;</span>.j+32<span class="o">(</span>SP<span class="o">)</span>
+</span></span><span class="line"><span class="cl">        0x0018 <span class="m">00024</span> <span class="o">(</span>main.go:7<span class="o">)</span>        MOVQ    <span class="nv">$0</span>, <span class="s2">&#34;&#34;</span>.~r2<span class="o">(</span>SP<span class="o">)</span>
+</span></span><span class="line"><span class="cl">        0x0020 <span class="m">00032</span> <span class="o">(</span>main.go:8<span class="o">)</span>        MOVQ    <span class="s2">&#34;&#34;</span>.i+24<span class="o">(</span>SP<span class="o">)</span>, AX
+</span></span><span class="line"><span class="cl">        0x0025 <span class="m">00037</span> <span class="o">(</span>main.go:8<span class="o">)</span>        ADDQ    <span class="s2">&#34;&#34;</span>.j+32<span class="o">(</span>SP<span class="o">)</span>, AX
+</span></span><span class="line"><span class="cl">        0x002a <span class="m">00042</span> <span class="o">(</span>main.go:8<span class="o">)</span>        MOVQ    AX, <span class="s2">&#34;&#34;</span>.~r2<span class="o">(</span>SP<span class="o">)</span>
+</span></span><span class="line"><span class="cl">        0x002e <span class="m">00046</span> <span class="o">(</span>main.go:8<span class="o">)</span>        MOVQ    8<span class="o">(</span>SP<span class="o">)</span>, BP
+</span></span><span class="line"><span class="cl">        0x0033 <span class="m">00051</span> <span class="o">(</span>main.go:8<span class="o">)</span>        ADDQ    <span class="nv">$16</span>, SP
+</span></span><span class="line"><span class="cl">        0x0037 <span class="m">00055</span> <span class="o">(</span>main.go:8<span class="o">)</span>        RET
+</span></span></code></pre></div><p><code>FUNCDATA</code>和<code>PCDATA</code>是由编译器引入的，主要包含垃圾回收时使用的信息，这里略过。</p>
+          
+        </div>
+
+        
+          <div>
+            <a class="read-more button inline" href="/posts/2025-09/go-%E6%B1%87%E7%BC%96%E5%88%86%E6%9E%90/">[Read more]</a>
+          </div>
+        
+      </article>
+    
+      <article class="post on-list">
+        <h1 class="post-title">
           <a href="https://blog.jinzhi.site/posts/2025-09/luatable-%E6%B5%85%E6%9E%90/">Lua：Table 浅析</a>
         </h1>
         <div class="post-meta"><time class="post-date">2025-09-14</time></div>
@@ -522,63 +610,6 @@
         
       </article>
     
-      <article class="post on-list">
-        <h1 class="post-title">
-          <a href="https://blog.jinzhi.site/posts/2025-06/kubernetes-csi-%E7%AE%80%E4%BB%8B/">Kubernetes CSI 简介</a>
-        </h1>
-        <div class="post-meta"><time class="post-date">2025-06-24</time></div>
-
-        
-          <span class="post-tags">
-            
-            #<a href="https://blog.jinzhi.site/tags/kubernetes/">kubernetes</a>&nbsp;
-            
-            #<a href="https://blog.jinzhi.site/tags/csi/">csi</a>&nbsp;
-            
-          </span>
-        
-
-        
-
-
-        <div class="post-content">
-          
-            <p>K8s CSI 是 Kubernetes 中非常重要的一个组件，它解决了存储与计算分离的复杂性，并为容器化应用提供了持久化存储的能力。</p>
-<h2 id="1-基本概念">1. 基本概念</h2>
-<p><strong>CSI (Container Storage Interface)</strong> 译为 <strong>容器存储接口</strong>。它是由 Kubernetes 社区与存储厂商共同制定的一套标准接口规范。</p>
-<p>在 CSI 出现之前，Kubernetes 存储插件的开发和管理存在以下痛点：</p>
-<ul>
-<li><strong>紧耦合问题：</strong> Kubernetes 内部集成了大量的存储驱动（In-tree 存储插件），例如 AWS EBS、GCE PD、Azure Disk、Ceph RBD 等。这意味着每当存储厂商需要支持 Kubernetes 时，他们都必须将其存储驱动代码提交到 Kubernetes 的核心代码库中。这种方式导致了：
-<ul>
-<li><strong>Kubernetes 代码库臃肿：</strong> 集成了大量存储逻辑，增加了核心代码的复杂性和维护难度。</li>
-<li><strong>发布周期长：</strong> 存储驱动的更新需要跟随 Kubernetes 的发布周期，新功能和 bug 修复不能及时推送到用户。</li>
-<li><strong>存储厂商开发受限：</strong> 每次更新都需要与 Kubernetes 社区协调，开发和测试流程繁琐。</li>
-</ul>
-</li>
-<li><strong>兼容性问题：</strong> 不同存储厂商的存储系统差异巨大，缺乏统一的接口规范，导致存储系统与 Kubernetes 之间的集成困难。</li>
-</ul>
-<p><strong>CSI 的目标就是解决这些问题，实现存储系统与 Kubernetes 的解耦。</strong> 它定义了一套通用的接口，允许任何存储厂商开发自己的 CSI 驱动，然后通过这些驱动来与 Kubernetes 进行交互，从而为容器提供存储服务。</p>
-<h3 id="11-资源定义">1.1. 资源定义</h3>
-<h3 id="111-volumes">1.1.1. Volumes</h3>
-<p>Volumes 是 Kubernetes 中 Pod 通过文件系统访问和共享数据的抽象。它主要提供了如下功能：</p>
-<ul>
-<li>通过 ConfigMap 或者 Secret 共享配置；</li>
-<li>跨容器、跨 Pod 甚至跨 Node 共享数据；</li>
-<li>数据持久化。在 Pod 销毁之后仍能继续访问数据。
-对于 Pod 来说，Volumes 通过 <code>.spec.volumes</code> 提供给 Pod，容器通过 <code>.spec.containers[*].volumeMounts</code> 来将指定 Volumes 挂载到指定目录。</li>
-</ul>
-<h3 id="112-persistent-volumes-和-persistent-volumes-claim">1.1.2. Persistent Volumes 和 Persistent Volumes Claim</h3>
-<p>PV 和 PVC 提供了两套 API 将存储的提供和消费分离。</p>
-          
-        </div>
-
-        
-          <div>
-            <a class="read-more button inline" href="/posts/2025-06/kubernetes-csi-%E7%AE%80%E4%BB%8B/">[Read more]</a>
-          </div>
-        
-      </article>
-    
 
     <div class="pagination">
   <div class="pagination__buttons">
@@ -862,10 +893,42 @@
       
       
     
+      
+      
+      
+    
 
     
     
 
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2026-07/" class="archive-link">
+          <span class="archive-date">2026-07</span>
+          <span class="archive-month-name">Jul</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
     
       
       
@@ -1586,22 +1649,6 @@
       
         
       
-        
-      
-    
-      
-        
-      
-        
-      
-    
-      
-        
-      
-        
-      
-        
-      
     
       
         
@@ -1619,14 +1666,6 @@
     
       
         
-      
-    
-      
-        
-      
-        
-      
-    
       
         
       
@@ -1654,6 +1693,36 @@
       
         
       
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
     
       
         
@@ -1673,22 +1742,6 @@
         
       
     
-      
-        
-      
-    
-      
-        
-      
-        
-      
-        
-      
-    
-      
-        
-      
-        
       
         
       
@@ -1728,38 +1781,6 @@
       
         
       
-    
-      
-        
-      
-    
-      
-        
-      
-        
-      
-    
-      
-        
-      
-    
-      
-        
-      
-    
-      
-    
-      
-        
-      
-    
-      
-        
-      
-    
-      
-        
-      
         
       
         
@@ -1769,14 +1790,6 @@
         
       
         
-      
-    
-      
-        
-      
-        
-      
-    
       
         
       
@@ -1804,8 +1817,6 @@
       
     
       
-        
-      
     
       
         
@@ -1819,6 +1830,26 @@
         
       
         
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
       
         
       
@@ -1856,6 +1887,44 @@
       
         
       
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
     
       
         
@@ -1864,6 +1933,12 @@
     
     
     
+    
+      
+      
+    
+      
+      
     
       
       
@@ -2370,9 +2445,9 @@
         <a href="https://blog.jinzhi.site/tags/agent/" 
            class="tag-item" 
            style="font-size: 0.9em;"
-           title="1 article">
+           title="2 articles">
           Agent
-          <span class="tag-count">(1)</span>
+          <span class="tag-count">(2)</span>
         </a>
       
     
@@ -2389,9 +2464,9 @@
         <a href="https://blog.jinzhi.site/tags/ai/" 
            class="tag-item" 
            style="font-size: 0.9em;"
-           title="2 articles">
+           title="3 articles">
           AI
-          <span class="tag-count">(2)</span>
+          <span class="tag-count">(3)</span>
         </a>
       
     

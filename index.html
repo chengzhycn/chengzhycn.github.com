@@ -216,6 +216,69 @@
     
       <article class="post on-list">
         <h2 class="post-title">
+          <a href="https://blog.jinzhi.site/posts/2026-07/claude-code-auto-mode-%E5%AE%9E%E7%8E%B0%E5%88%86%E6%9E%90/">Claude Code auto-mode 实现分析</a>
+        </h2>
+
+        <div class="post-meta"><time class="post-date">2026-07-03</time></div>
+
+        
+          <span class="post-tags">
+            
+            #<a href="https://blog.jinzhi.site/tags/ai/">AI</a>&nbsp;
+            
+            #<a href="https://blog.jinzhi.site/tags/agent/">Agent</a>&nbsp;
+            
+          </span>
+        
+
+        
+
+
+        <div class="post-content">
+          
+            <blockquote>
+<p>注：文章由 codex 整理。</p>
+</blockquote>
+<h2 id="背景">背景</h2>
+<p>本文分析的是 <code>chengzhycn/claude-code</code> 在提交 <code>4b9d30f7953273e567a18eb819f4eddd45fcc877</code> 上的源码实现。</p>
+<p>源码入口：</p>
+<ul>
+<li>仓库：https://github.com/chengzhycn/claude-code/tree/4b9d30f7953273e567a18eb819f4eddd45fcc877</li>
+<li>权限模式定义：<code>src/utils/permissions/PermissionMode.ts</code></li>
+<li>auto-mode 状态切换：<code>src/utils/permissions/permissionSetup.ts</code></li>
+<li>工具权限主流程：<code>src/utils/permissions/permissions.ts</code></li>
+<li>auto-mode classifier：<code>src/utils/permissions/yoloClassifier.ts</code></li>
+<li>Bash 权限判定：<code>src/tools/BashTool/bashPermissions.ts</code></li>
+<li>Bash 只读命令判定：<code>src/tools/BashTool/readOnlyValidation.ts</code></li>
+<li>Bash 注入/语法安全检查：<code>src/tools/BashTool/bashSecurity.ts</code></li>
+</ul>
+<p>核心问题是：Claude Code 怎么在“不每一步都问用户”和“不直接 bypass permissions”之间做折中。源码里的 auto-mode 不是一个简单的全局 allow，而是一套组合机制：</p>
+<ol>
+<li>进入 auto-mode 时先检查 feature gate 和 opt-in。</li>
+<li>临时剥离会绕过 classifier 的危险 allow rule。</li>
+<li>工具调用先走原有本地权限系统。</li>
+<li>对本地系统仍然需要 <code>ask</code> 的动作，再交给 auto-mode classifier 判断 allow/block。</li>
+<li>classifier 不可用、输出不可解析或 transcript 太长时，按场景 fail closed 或回退到人工 permission prompt。</li>
+</ol>
+<h2 id="模型">模型</h2>
+<p>auto-mode 可以理解成一个“permission prompt 的自动代理”，而不是新的沙箱。它的安全性来自三层：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">工具自己的权限检查
+</span></span><span class="line"><span class="cl">  -&gt; 本地静态安全规则：路径、只读命令、deny/ask/allow rule、shell 注入模式
+</span></span><span class="line"><span class="cl">  -&gt; auto-mode 快速路径：acceptEdits 可允许的操作、安全工具 allowlist
+</span></span><span class="line"><span class="cl">  -&gt; auto-mode classifier：读取 transcript + 当前 action，输出 allow/block
+</span></span></code></pre></div><p>这意味着：</p>
+          
+        </div>
+
+        
+          <div>
+            <a class="read-more button inline" href="/posts/2026-07/claude-code-auto-mode-%E5%AE%9E%E7%8E%B0%E5%88%86%E6%9E%90/">[Read more]</a>
+          </div>
+        
+      </article>
+    
+      <article class="post on-list">
+        <h2 class="post-title">
           <a href="https://blog.jinzhi.site/posts/2026-06/http2-%E6%B5%81%E9%87%8F%E6%8E%A7%E5%88%B6/">HTTP2 流量控制</a>
         </h2>
 
@@ -512,99 +575,6 @@
         
       </article>
     
-      <article class="post on-list">
-        <h2 class="post-title">
-          <a href="https://blog.jinzhi.site/posts/2026-06/fomo%E5%BD%93%E6%88%91%E4%BB%AC%E8%B0%88%E8%AE%BA%E8%B8%8F%E7%A9%BA%E6%97%B6%E6%88%91%E4%BB%AC%E5%9C%A8%E8%B0%88%E8%AE%BA%E4%BB%80%E4%B9%88/">FOMO：当我们谈论踏空时，我们在谈论什么</a>
-        </h2>
-
-        <div class="post-meta"><time class="post-date">2026-06-07</time></div>
-
-        
-          <span class="post-tags">
-            
-            #<a href="https://blog.jinzhi.site/tags/investing/">investing</a>&nbsp;
-            
-            #<a href="https://blog.jinzhi.site/tags/behavioral-finance/">behavioral-finance</a>&nbsp;
-            
-          </span>
-        
-
-        
-
-
-        <div class="post-content">
-          
-            <blockquote>
-<p>注：文章由 codex 整理。</p>
-</blockquote>
-<h2 id="节目--嘉宾--来源">节目 / 嘉宾 / 来源</h2>
-<ul>
-<li>节目：大方谈钱</li>
-<li>单集：FOMO: 当我们在谈论踏空时，我们在谈论什么</li>
-<li>嘉宾：杨天南</li>
-<li>来源：https://www.xiaoyuzhoufm.com/episode/6a09c334e1eb34a93991c25e</li>
-<li>时长：53:55</li>
-</ul>
-<p>这期讨论的是投资中的 <code>FOMO</code>（Fear of Missing Out，错失恐惧）：当市场出现局部暴涨、社交媒体开始晒收益、身边人好像都抓住了机会时，为什么“没赚到”会比“亏钱”更折磨人，以及普通投资者如何避免因为踏空焦虑而追高、加杠杆或买入结构上不利的产品。</p>
-<h2 id="核心启发">核心启发</h2>
-<p>这期的价值，不在于复盘“这轮行情谁涨了、谁踏空了”，而在于把踏空焦虑拆成一套可以自检的投资决策系统。</p>
-<p>看到踏空时，人很容易把问题理解成“为什么没买”。更准确的问题应该是：</p>
-<ul>
-<li>后悔的是一个真实可执行的决策，还是一个事后构造出来的完美剧本？</li>
-<li>缺的是发现机会的能力，还是仓位、持有、退出这些执行能力？</li>
-<li>当前资产结构是否天然会让投资者在每次热点行情里情绪失衡？</li>
-<li>是否把社交媒体上的极端样本，当成了自己的收益基准？</li>
-</ul>
-<p>这期的核心启发是：**FOMO 不只是情绪问题，也是一种资产结构、决策流程和信息环境共同作用的结果。**这样处理之后，解决方案就不是“忍住别焦虑”，而是重新设计配置方式、下注方式和复盘方式。</p>
-<h2 id="认知校正">认知校正</h2>
-<h3 id="1-踏空不是损失而是想象中的最优路径">1. 踏空不是损失，而是想象中的最优路径</h3>
-<p>踏空之所以比亏损更折磨人，是因为它没有明确边界。</p>
-<p>亏损至少是账户里的现实数字，亏了多少就是多少。踏空则很容易变成一个理想化的平行世界：最低点买入，仓位足够重，中途没有卖飞，最后又在高点附近退出。</p>
-<p>这个平行世界最大的问题，是它跳过了真实执行链里的难点：</p>
-<ul>
-<li>当时是否真的敢买？</li>
-<li>买了之后仓位是否足够？</li>
-<li>涨 20%、50%、100% 时是否能继续拿住？</li>
-<li>中途回撤时是否会被洗出去？</li>
-<li>什么时候卖出，卖出后是否还会后悔？</li>
-</ul>
-<p>所以复盘踏空时，不能只问“为什么没买”，还要问：“如果当时真的买了，大概率会在哪一步掉队？”</p>
-<h3 id="2-看见趋势不等于拥有收益">2. 看见趋势不等于拥有收益</h3>
-<p>节目里很有用的一个区分是：看到、买到、买够、拿住、卖出，是五种不同能力。</p>
-<p>很多大机会不是完全看不见。AI、机器人、光模块、房地产、新能源，这类趋势出现时，往往有很强的公共信号。真正拉开差距的不是“有没有听说过”，而是后面有没有持续跟踪、修正判断、建立信念、调整仓位。</p>
-<p>这可以理解为：</p>
-<ul>
-<li><code>prior</code>（先验）：判断某个方向可能重要。</li>
-<li><code>Bayesian update</code>（贝叶斯更新）：持续观察证据，判断这个方向是否在兑现。</li>
-<li><code>position sizing</code>（仓位管理）：把判断转化成合适的风险暴露。</li>
-<li><code>holding discipline</code>（持有纪律）：知道什么变化会增强或削弱原判断。</li>
-</ul>
-<p>这里的提醒是：不要把“也知道这个方向”误认为“本来应该赚到这笔钱”。知道只是入口，不是收益权。</p>
-<h3 id="3-社交媒体不是收益分布而是极端样本展览">3. 社交媒体不是收益分布，而是极端样本展览</h3>
-<p>社交媒体会严重扭曲投资者对市场收益的体感。普通收益没有传播性，只有极端赚钱、极端亏钱、极端戏剧化的内容容易被推到眼前。</p>
-<p>这意味着屏幕上看到的不是市场真实分布，而是一个经过传播机制筛选后的极端样本集合。它会带来两种误判：</p>
-<ul>
-<li>误以为“人人都赚到了”，从而低估市场里大多数人的普通结果。</li>
-<li>把别人的最大收益当作自己的最低合格线，从而高估自己应该承担的风险。</li>
-</ul>
-<p>看到收益截图时，应该先把它当成噪音样本，而不是当成配置参考。</p>
-<h3 id="4-投资结果短期内不按认知严格排序">4. 投资结果短期内不按认知严格排序</h3>
-<p>节目里提到一种很真实的痛苦：看到一个“好像没那么懂”的人赚得更多。</p>
-<p>这背后是对投资结果的误解。短期收益不是对认知水平的精确打分，它还受到运气、仓位、周期位置、交易纪律、风险偏好和退出时点影响。认知更深的人，可能因为更保守而仓位不足；认知较浅的人，可能因为更早行动、更敢下注而阶段性收益更高。</p>
-<p>更稳妥的做法，是不把短期收益当作对个人能力的证明或否定，而是复盘自己的投资系统是否可持续。</p>
-<h2 id="可迁移框架">可迁移框架</h2>
-<h3 id="框架一把后悔拆成执行链">框架一：把后悔拆成“执行链”</h3>
-<p>当再次出现“错过了某某机会”的想法，可以按下面这条链条拆：</p>
-          
-        </div>
-
-        
-          <div>
-            <a class="read-more button inline" href="/posts/2026-06/fomo%E5%BD%93%E6%88%91%E4%BB%AC%E8%B0%88%E8%AE%BA%E8%B8%8F%E7%A9%BA%E6%97%B6%E6%88%91%E4%BB%AC%E5%9C%A8%E8%B0%88%E8%AE%BA%E4%BB%80%E4%B9%88/">[Read more]</a>
-          </div>
-        
-      </article>
-    
 
     <div class="pagination">
   <div class="pagination__buttons">
@@ -882,10 +852,42 @@
       
       
     
+      
+      
+      
+    
 
     
     
 
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2026-07/" class="archive-link">
+          <span class="archive-date">2026-07</span>
+          <span class="archive-month-name">Jul</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
     
       
       
@@ -1606,22 +1608,6 @@
       
         
       
-        
-      
-    
-      
-        
-      
-        
-      
-    
-      
-        
-      
-        
-      
-        
-      
     
       
         
@@ -1639,14 +1625,6 @@
     
       
         
-      
-    
-      
-        
-      
-        
-      
-    
       
         
       
@@ -1674,6 +1652,36 @@
       
         
       
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
     
       
         
@@ -1693,22 +1701,6 @@
         
       
     
-      
-        
-      
-    
-      
-        
-      
-        
-      
-        
-      
-    
-      
-        
-      
-        
       
         
       
@@ -1748,38 +1740,6 @@
       
         
       
-    
-      
-        
-      
-    
-      
-        
-      
-        
-      
-    
-      
-        
-      
-    
-      
-        
-      
-    
-      
-    
-      
-        
-      
-    
-      
-        
-      
-    
-      
-        
-      
         
       
         
@@ -1789,14 +1749,6 @@
         
       
         
-      
-    
-      
-        
-      
-        
-      
-    
       
         
       
@@ -1824,8 +1776,6 @@
       
     
       
-        
-      
     
       
         
@@ -1839,6 +1789,26 @@
         
       
         
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
       
         
       
@@ -1876,6 +1846,44 @@
       
         
       
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
     
       
         
@@ -1884,6 +1892,12 @@
     
     
     
+    
+      
+      
+    
+      
+      
     
       
       
@@ -2390,9 +2404,9 @@
         <a href="https://blog.jinzhi.site/tags/agent/" 
            class="tag-item" 
            style="font-size: 0.9em;"
-           title="1 article">
+           title="2 articles">
           Agent
-          <span class="tag-count">(1)</span>
+          <span class="tag-count">(2)</span>
         </a>
       
     
@@ -2409,9 +2423,9 @@
         <a href="https://blog.jinzhi.site/tags/ai/" 
            class="tag-item" 
            style="font-size: 0.9em;"
-           title="2 articles">
+           title="3 articles">
           AI
-          <span class="tag-count">(2)</span>
+          <span class="tag-count">(3)</span>
         </a>
       
     

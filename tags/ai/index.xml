@@ -10,9 +10,16 @@
 		
 		
 		
-			<lastBuildDate>Mon, 08 Jun 2026 12:32:50 +0800</lastBuildDate>
+			<lastBuildDate>Fri, 03 Jul 2026 14:47:05 +0800</lastBuildDate>
 		
 			<atom:link href="https://blog.jinzhi.site/tags/ai/index.xml" rel="self" type="application/rss+xml" />
+			<item>
+				<title>Claude Code auto-mode 实现分析</title>
+				<link>https://blog.jinzhi.site/posts/2026-07/claude-code-auto-mode-%E5%AE%9E%E7%8E%B0%E5%88%86%E6%9E%90/</link>
+				<pubDate>Fri, 03 Jul 2026 14:47:05 +0800</pubDate>
+				<guid>https://blog.jinzhi.site/posts/2026-07/claude-code-auto-mode-%E5%AE%9E%E7%8E%B0%E5%88%86%E6%9E%90/</guid>
+				<description>&lt;blockquote&gt;&#xA;&lt;p&gt;注：文章由 codex 整理。&lt;/p&gt;&#xA;&lt;/blockquote&gt;&#xA;&lt;h2 id=&#34;背景&#34;&gt;背景&lt;/h2&gt;&#xA;&lt;p&gt;本文分析的是 &lt;code&gt;chengzhycn/claude-code&lt;/code&gt; 在提交 &lt;code&gt;4b9d30f7953273e567a18eb819f4eddd45fcc877&lt;/code&gt; 上的源码实现。&lt;/p&gt;&#xA;&lt;p&gt;源码入口：&lt;/p&gt;&#xA;&lt;ul&gt;&#xA;&lt;li&gt;仓库：https://github.com/chengzhycn/claude-code/tree/4b9d30f7953273e567a18eb819f4eddd45fcc877&lt;/li&gt;&#xA;&lt;li&gt;权限模式定义：&lt;code&gt;src/utils/permissions/PermissionMode.ts&lt;/code&gt;&lt;/li&gt;&#xA;&lt;li&gt;auto-mode 状态切换：&lt;code&gt;src/utils/permissions/permissionSetup.ts&lt;/code&gt;&lt;/li&gt;&#xA;&lt;li&gt;工具权限主流程：&lt;code&gt;src/utils/permissions/permissions.ts&lt;/code&gt;&lt;/li&gt;&#xA;&lt;li&gt;auto-mode classifier：&lt;code&gt;src/utils/permissions/yoloClassifier.ts&lt;/code&gt;&lt;/li&gt;&#xA;&lt;li&gt;Bash 权限判定：&lt;code&gt;src/tools/BashTool/bashPermissions.ts&lt;/code&gt;&lt;/li&gt;&#xA;&lt;li&gt;Bash 只读命令判定：&lt;code&gt;src/tools/BashTool/readOnlyValidation.ts&lt;/code&gt;&lt;/li&gt;&#xA;&lt;li&gt;Bash 注入/语法安全检查：&lt;code&gt;src/tools/BashTool/bashSecurity.ts&lt;/code&gt;&lt;/li&gt;&#xA;&lt;/ul&gt;&#xA;&lt;p&gt;核心问题是：Claude Code 怎么在“不每一步都问用户”和“不直接 bypass permissions”之间做折中。源码里的 auto-mode 不是一个简单的全局 allow，而是一套组合机制：&lt;/p&gt;&#xA;&lt;ol&gt;&#xA;&lt;li&gt;进入 auto-mode 时先检查 feature gate 和 opt-in。&lt;/li&gt;&#xA;&lt;li&gt;临时剥离会绕过 classifier 的危险 allow rule。&lt;/li&gt;&#xA;&lt;li&gt;工具调用先走原有本地权限系统。&lt;/li&gt;&#xA;&lt;li&gt;对本地系统仍然需要 &lt;code&gt;ask&lt;/code&gt; 的动作，再交给 auto-mode classifier 判断 allow/block。&lt;/li&gt;&#xA;&lt;li&gt;classifier 不可用、输出不可解析或 transcript 太长时，按场景 fail closed 或回退到人工 permission prompt。&lt;/li&gt;&#xA;&lt;/ol&gt;&#xA;&lt;h2 id=&#34;模型&#34;&gt;模型&lt;/h2&gt;&#xA;&lt;p&gt;auto-mode 可以理解成一个“permission prompt 的自动代理”，而不是新的沙箱。它的安全性来自三层：&lt;/p&gt;&#xA;&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; class=&#34;chroma&#34;&gt;&lt;code class=&#34;language-text&#34; data-lang=&#34;text&#34;&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;工具自己的权限检查&#xA;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;  -&amp;gt; 本地静态安全规则：路径、只读命令、deny/ask/allow rule、shell 注入模式&#xA;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;  -&amp;gt; auto-mode 快速路径：acceptEdits 可允许的操作、安全工具 allowlist&#xA;&lt;/span&gt;&lt;/span&gt;&lt;span class=&#34;line&#34;&gt;&lt;span class=&#34;cl&#34;&gt;  -&amp;gt; auto-mode classifier：读取 transcript + 当前 action，输出 allow/block&#xA;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;这意味着：&lt;/p&gt;</description>
+			</item>
 			<item>
 				<title>算力×电力：算电协同的商业模式与投资逻辑</title>
 				<link>https://blog.jinzhi.site/posts/2026-06/%E7%AE%97%E5%8A%9B%E7%94%B5%E5%8A%9B%E7%AE%97%E7%94%B5%E5%8D%8F%E5%90%8C%E7%9A%84%E5%95%86%E4%B8%9A%E6%A8%A1%E5%BC%8F%E4%B8%8E%E6%8A%95%E8%B5%84%E9%80%BB%E8%BE%91/</link>

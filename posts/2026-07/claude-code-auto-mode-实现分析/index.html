@@ -2,18 +2,22 @@
 <html lang="en">
 <head>
   
-    <title>Go channel 实现 :: chengzhycn&#39;s blog</title>
+    <title>Claude Code auto-mode 实现分析 :: chengzhycn&#39;s blog</title>
   
   <meta http-equiv="content-type" content="text/html; charset=utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="Go的Channel在runtime里面是一个hchan的结构体，每次我们make一个新的channel时，runtime从heap内分配一个hchan结构体管理channel。
-type hchan struct { qcount uint // total data in the queue dataqsiz uint // size of the circular queue buf unsafe.Pointer // points to an array of dataqsiz elements elemsize uint16 closed uint32 elemtype *_type // element type sendx uint // send index recvx uint // receive index recvq waitq // list of recv waiters sendq waitq // list of send waiters // lock protects all fields in hchan, as well as several // fields in sudogs blocked on this channel. // // Do not change another G&#39;s status while holding this lock // (in particular, do not ready a G), as this can deadlock // with stack shrinking. lock mutex } qcount：当前channel queue内的element数目，当qcount等于dataqsiz时，表示channel buffer已经满了，send channel会被阻塞； dataqsiz：channel的buffer大小，也就是我们在make时设定的值。dataqsiz在channel创建后不会再变动，因此channel的buffer是不会动态扩容的； buf：buffered channel缓存elements的内存地址。是一个数组实现的环形队列； elemsize：element类型大小； closed：channel是否已经被关闭，防止关闭已经关闭的channel； elemtype：channel element 类型； sendx：buffer中下一个生产的element的index； recvx：buffer中下一个消费的element的index； recvq：阻塞的接收channel，是一个sudog的链表 sendq：阻塞的发送channel，是一个sudog的链表 当buffer没有满时，send channel发送elements时直接把elements放在buf内，增加sendx和qcount；当buffer满时，send channel被阻塞，并加入到sendq链表内，等待被唤醒；
+<meta name="description" content=" 注：文章由 codex 整理。
+背景 本文分析的是 chengzhycn/claude-code 在提交 4b9d30f7953273e567a18eb819f4eddd45fcc877 上的源码实现。
+源码入口：
+仓库：https://github.com/chengzhycn/claude-code/tree/4b9d30f7953273e567a18eb819f4eddd45fcc877 权限模式定义：src/utils/permissions/PermissionMode.ts auto-mode 状态切换：src/utils/permissions/permissionSetup.ts 工具权限主流程：src/utils/permissions/permissions.ts auto-mode classifier：src/utils/permissions/yoloClassifier.ts Bash 权限判定：src/tools/BashTool/bashPermissions.ts Bash 只读命令判定：src/tools/BashTool/readOnlyValidation.ts Bash 注入/语法安全检查：src/tools/BashTool/bashSecurity.ts 核心问题是：Claude Code 怎么在“不每一步都问用户”和“不直接 bypass permissions”之间做折中。源码里的 auto-mode 不是一个简单的全局 allow，而是一套组合机制：
+进入 auto-mode 时先检查 feature gate 和 opt-in。 临时剥离会绕过 classifier 的危险 allow rule。 工具调用先走原有本地权限系统。 对本地系统仍然需要 ask 的动作，再交给 auto-mode classifier 判断 allow/block。 classifier 不可用、输出不可解析或 transcript 太长时，按场景 fail closed 或回退到人工 permission prompt。 模型 auto-mode 可以理解成一个“permission prompt 的自动代理”，而不是新的沙箱。它的安全性来自三层：
+工具自己的权限检查 -&gt; 本地静态安全规则：路径、只读命令、deny/ask/allow rule、shell 注入模式 -&gt; auto-mode 快速路径：acceptEdits 可允许的操作、安全工具 allowlist -&gt; auto-mode classifier：读取 transcript &#43; 当前 action，输出 allow/block 这意味着：
 " />
 <meta name="keywords" content="" />
 
   <meta name="robots" content="noodp" />
 
-<link rel="canonical" href="https://blog.jinzhi.site/posts/2021-09/go-channel-%E5%AE%9E%E7%8E%B0/" />
+<link rel="canonical" href="https://blog.jinzhi.site/posts/2026-07/claude-code-auto-mode-%E5%AE%9E%E7%8E%B0%E5%88%86%E6%9E%90/" />
 
 
 
@@ -79,11 +83,15 @@ type hchan struct { qcount uint // total data in the queue dataqsiz uint // size
 
 <meta property="og:locale" content="en" />
 <meta property="og:type" content="article" />
-<meta property="og:title" content="Go channel 实现">
-<meta property="og:description" content="Go的Channel在runtime里面是一个hchan的结构体，每次我们make一个新的channel时，runtime从heap内分配一个hchan结构体管理channel。
-type hchan struct { qcount uint // total data in the queue dataqsiz uint // size of the circular queue buf unsafe.Pointer // points to an array of dataqsiz elements elemsize uint16 closed uint32 elemtype *_type // element type sendx uint // send index recvx uint // receive index recvq waitq // list of recv waiters sendq waitq // list of send waiters // lock protects all fields in hchan, as well as several // fields in sudogs blocked on this channel. // // Do not change another G&#39;s status while holding this lock // (in particular, do not ready a G), as this can deadlock // with stack shrinking. lock mutex } qcount：当前channel queue内的element数目，当qcount等于dataqsiz时，表示channel buffer已经满了，send channel会被阻塞； dataqsiz：channel的buffer大小，也就是我们在make时设定的值。dataqsiz在channel创建后不会再变动，因此channel的buffer是不会动态扩容的； buf：buffered channel缓存elements的内存地址。是一个数组实现的环形队列； elemsize：element类型大小； closed：channel是否已经被关闭，防止关闭已经关闭的channel； elemtype：channel element 类型； sendx：buffer中下一个生产的element的index； recvx：buffer中下一个消费的element的index； recvq：阻塞的接收channel，是一个sudog的链表 sendq：阻塞的发送channel，是一个sudog的链表 当buffer没有满时，send channel发送elements时直接把elements放在buf内，增加sendx和qcount；当buffer满时，send channel被阻塞，并加入到sendq链表内，等待被唤醒；
+<meta property="og:title" content="Claude Code auto-mode 实现分析">
+<meta property="og:description" content=" 注：文章由 codex 整理。
+背景 本文分析的是 chengzhycn/claude-code 在提交 4b9d30f7953273e567a18eb819f4eddd45fcc877 上的源码实现。
+源码入口：
+仓库：https://github.com/chengzhycn/claude-code/tree/4b9d30f7953273e567a18eb819f4eddd45fcc877 权限模式定义：src/utils/permissions/PermissionMode.ts auto-mode 状态切换：src/utils/permissions/permissionSetup.ts 工具权限主流程：src/utils/permissions/permissions.ts auto-mode classifier：src/utils/permissions/yoloClassifier.ts Bash 权限判定：src/tools/BashTool/bashPermissions.ts Bash 只读命令判定：src/tools/BashTool/readOnlyValidation.ts Bash 注入/语法安全检查：src/tools/BashTool/bashSecurity.ts 核心问题是：Claude Code 怎么在“不每一步都问用户”和“不直接 bypass permissions”之间做折中。源码里的 auto-mode 不是一个简单的全局 allow，而是一套组合机制：
+进入 auto-mode 时先检查 feature gate 和 opt-in。 临时剥离会绕过 classifier 的危险 allow rule。 工具调用先走原有本地权限系统。 对本地系统仍然需要 ask 的动作，再交给 auto-mode classifier 判断 allow/block。 classifier 不可用、输出不可解析或 transcript 太长时，按场景 fail closed 或回退到人工 permission prompt。 模型 auto-mode 可以理解成一个“permission prompt 的自动代理”，而不是新的沙箱。它的安全性来自三层：
+工具自己的权限检查 -&gt; 本地静态安全规则：路径、只读命令、deny/ask/allow rule、shell 注入模式 -&gt; auto-mode 快速路径：acceptEdits 可允许的操作、安全工具 allowlist -&gt; auto-mode classifier：读取 transcript &#43; 当前 action，输出 allow/block 这意味着：
 " />
-<meta property="og:url" content="https://blog.jinzhi.site/posts/2021-09/go-channel-%E5%AE%9E%E7%8E%B0/" />
+<meta property="og:url" content="https://blog.jinzhi.site/posts/2026-07/claude-code-auto-mode-%E5%AE%9E%E7%8E%B0%E5%88%86%E6%9E%90/" />
 <meta property="og:site_name" content="chengzhycn&#39;s blog" />
 
   <meta property="og:image" content="https://blog.jinzhi.site/og-image.png">
@@ -94,7 +102,7 @@ type hchan struct { qcount uint // total data in the queue dataqsiz uint // size
   <meta property="article:section" content="Learning" />
 
 
-  <meta property="article:published_time" content="2021-09-12 09:30:28 &#43;0800 &#43;0800" />
+  <meta property="article:published_time" content="2026-07-03 14:47:05 &#43;0800 &#43;0800" />
 
 
 
@@ -209,14 +217,16 @@ type hchan struct { qcount uint // total data in the queue dataqsiz uint // size
     
 <article class="post">
   <h1 class="post-title">
-    <a href="https://blog.jinzhi.site/posts/2021-09/go-channel-%E5%AE%9E%E7%8E%B0/">Go channel 实现</a>
+    <a href="https://blog.jinzhi.site/posts/2026-07/claude-code-auto-mode-%E5%AE%9E%E7%8E%B0%E5%88%86%E6%9E%90/">Claude Code auto-mode 实现分析</a>
   </h1>
-  <div class="post-meta"><time class="post-date">2021-09-12</time><span class="post-reading-time">2 min read (265 words)</span></div>
+  <div class="post-meta"><time class="post-date">2026-07-03</time><span class="post-reading-time">6 min read (1246 words)</span></div>
 
   
     <span class="post-tags">
       
-      #<a href="https://blog.jinzhi.site/tags/go/">Go</a>&nbsp;
+      #<a href="https://blog.jinzhi.site/tags/ai/">AI</a>&nbsp;
+      
+      #<a href="https://blog.jinzhi.site/tags/agent/">Agent</a>&nbsp;
       
     </span>
   
@@ -230,93 +240,365 @@ type hchan struct { qcount uint // total data in the queue dataqsiz uint // size
       </h2>
       <nav id="TableOfContents">
   <ul>
-    <li><a href="#关闭channel">关闭channel</a></li>
+    <li><a href="#背景">背景</a></li>
+    <li><a href="#模型">模型</a></li>
+    <li><a href="#permissionmodeauto-是内部模式">PermissionMode：auto 是内部模式</a></li>
+    <li><a href="#进入-auto-mode先做-gate再剥离危险规则">进入 auto-mode：先做 gate，再剥离危险规则</a>
+      <ul>
+        <li><a href="#bash-危险权限">Bash 危险权限</a></li>
+        <li><a href="#powershell-危险权限">PowerShell 危险权限</a></li>
+        <li><a href="#agent-权限也被视为危险">Agent 权限也被视为危险</a></li>
+        <li><a href="#剥离是临时的">剥离是临时的</a></li>
+      </ul>
+    </li>
+    <li><a href="#工具权限主流程auto-mode-只接管-ask-分支">工具权限主流程：auto-mode 只接管 ask 分支</a></li>
+    <li><a href="#哪些工具被认为足够安全">哪些工具被认为足够安全</a></li>
+    <li><a href="#classifier-怎么判断动作是否安全">classifier 怎么判断动作是否安全</a>
+      <ul>
+        <li><a href="#classifier-输出">classifier 输出</a></li>
+        <li><a href="#两阶段-xml-classifier">两阶段 XML classifier</a></li>
+      </ul>
+    </li>
+    <li><a href="#classifier-失败时怎么处理">classifier 失败时怎么处理</a></li>
+    <li><a href="#bash-命令安全判定">Bash 命令安全判定</a>
+      <ul>
+        <li><a href="#1-ast--parser-安全层">1. AST / parser 安全层</a></li>
+        <li><a href="#2-shell-注入和语法绕过检查">2. shell 注入和语法绕过检查</a></li>
+        <li><a href="#3-只读命令-allowlist">3. 只读命令 allowlist</a></li>
+        <li><a href="#4-路径和复合命令约束">4. 路径和复合命令约束</a></li>
+      </ul>
+    </li>
+    <li><a href="#auto-mode-下-bash-的整体决策链">auto-mode 下 Bash 的整体决策链</a></li>
+    <li><a href="#设计边界">设计边界</a></li>
+    <li><a href="#总结">总结</a></li>
   </ul>
 </nav>
     </div>
   
 
   <div class="post-content"><div>
-        <p>Go的Channel在runtime里面是一个hchan的结构体，每次我们make一个新的channel时，runtime从heap内分配一个hchan结构体管理channel。</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kd">type</span><span class="w"> </span><span class="nx">hchan</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">qcount</span><span class="w">   </span><span class="kt">uint</span><span class="w">           </span><span class="c1">// total data in the queue</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">dataqsiz</span><span class="w"> </span><span class="kt">uint</span><span class="w">           </span><span class="c1">// size of the circular queue</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">buf</span><span class="w">      </span><span class="nx">unsafe</span><span class="p">.</span><span class="nx">Pointer</span><span class="w"> </span><span class="c1">// points to an array of dataqsiz elements</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">elemsize</span><span class="w"> </span><span class="kt">uint16</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">closed</span><span class="w">   </span><span class="kt">uint32</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">elemtype</span><span class="w"> </span><span class="o">*</span><span class="nx">_type</span><span class="w"> </span><span class="c1">// element type</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">sendx</span><span class="w">    </span><span class="kt">uint</span><span class="w">   </span><span class="c1">// send index</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">recvx</span><span class="w">    </span><span class="kt">uint</span><span class="w">   </span><span class="c1">// receive index</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">recvq</span><span class="w">    </span><span class="nx">waitq</span><span class="w">  </span><span class="c1">// list of recv waiters</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">sendq</span><span class="w">    </span><span class="nx">waitq</span><span class="w">  </span><span class="c1">// list of send waiters</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="c1">// lock protects all fields in hchan, as well as several</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="c1">// fields in sudogs blocked on this channel.</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="c1">//
-</span></span></span><span class="line"><span class="cl"><span class="c1">    // Do not change another G&#39;s status while holding this lock</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="c1">// (in particular, do not ready a G), as this can deadlock</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="c1">// with stack shrinking.</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">    </span><span class="nx">lock</span><span class="w"> </span><span class="nx">mutex</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="p">}</span><span class="w">
-</span></span></span></code></pre></div><ul>
-<li>qcount：当前channel queue内的element数目，当qcount等于dataqsiz时，表示channel buffer已经满了，send channel会被阻塞；</li>
-<li>dataqsiz：channel的buffer大小，也就是我们在make时设定的值。dataqsiz在channel创建后不会再变动，因此channel的buffer是不会动态扩容的；</li>
-<li>buf：buffered channel缓存elements的内存地址。是一个数组实现的环形队列；</li>
-<li>elemsize：element类型大小；</li>
-<li>closed：channel是否已经被关闭，防止关闭已经关闭的channel；</li>
-<li>elemtype：channel element 类型；</li>
-<li>sendx：buffer中下一个生产的element的index；</li>
-<li>recvx：buffer中下一个消费的element的index；</li>
-<li>recvq：阻塞的接收channel，是一个sudog的链表</li>
-<li>sendq：阻塞的发送channel，是一个sudog的链表</li>
+        <blockquote>
+<p>注：文章由 codex 整理。</p>
+</blockquote>
+<h2 id="背景">背景<a href="#背景" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>本文分析的是 <code>chengzhycn/claude-code</code> 在提交 <code>4b9d30f7953273e567a18eb819f4eddd45fcc877</code> 上的源码实现。</p>
+<p>源码入口：</p>
+<ul>
+<li>仓库：https://github.com/chengzhycn/claude-code/tree/4b9d30f7953273e567a18eb819f4eddd45fcc877</li>
+<li>权限模式定义：<code>src/utils/permissions/PermissionMode.ts</code></li>
+<li>auto-mode 状态切换：<code>src/utils/permissions/permissionSetup.ts</code></li>
+<li>工具权限主流程：<code>src/utils/permissions/permissions.ts</code></li>
+<li>auto-mode classifier：<code>src/utils/permissions/yoloClassifier.ts</code></li>
+<li>Bash 权限判定：<code>src/tools/BashTool/bashPermissions.ts</code></li>
+<li>Bash 只读命令判定：<code>src/tools/BashTool/readOnlyValidation.ts</code></li>
+<li>Bash 注入/语法安全检查：<code>src/tools/BashTool/bashSecurity.ts</code></li>
 </ul>
-<p>当buffer没有满时，send channel发送elements时直接把elements放在buf内，增加sendx和qcount；当buffer满时，send channel被阻塞，并加入到sendq链表内，等待被唤醒；</p>
-<p>当buffer内有elements时，receive channel直接从buffer内去数据，增加recvq，qcount&ndash;；当buffer为空时，receive channel被阻塞，并加入到recvq链表内，等待被唤醒。</p>
-<h2 id="关闭channel">关闭channel<a href="#关闭channel" class="hanchor" ariaLabel="Anchor">#</a> </h2>
-<p>当我们调用<code>close(ch)</code>时，runtime会先释放所有阻塞的receive channel或者send channel（因为不可能同时存在阻塞的receive channel 和 send channel）。</p>
-<p>释放receive channel时，runtime会将sudog内的element置为nil。而释放send channel时，因为此时channel已经closed，send channel从阻塞状态切换成running，继续send element时，就会panic：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl">send channel <span class="m">3</span>
-</span></span><span class="line"><span class="cl">panic: send on closed channel
+<p>核心问题是：Claude Code 怎么在“不每一步都问用户”和“不直接 bypass permissions”之间做折中。源码里的 auto-mode 不是一个简单的全局 allow，而是一套组合机制：</p>
+<ol>
+<li>进入 auto-mode 时先检查 feature gate 和 opt-in。</li>
+<li>临时剥离会绕过 classifier 的危险 allow rule。</li>
+<li>工具调用先走原有本地权限系统。</li>
+<li>对本地系统仍然需要 <code>ask</code> 的动作，再交给 auto-mode classifier 判断 allow/block。</li>
+<li>classifier 不可用、输出不可解析或 transcript 太长时，按场景 fail closed 或回退到人工 permission prompt。</li>
+</ol>
+<h2 id="模型">模型<a href="#模型" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>auto-mode 可以理解成一个“permission prompt 的自动代理”，而不是新的沙箱。它的安全性来自三层：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">工具自己的权限检查
+</span></span><span class="line"><span class="cl">  -&gt; 本地静态安全规则：路径、只读命令、deny/ask/allow rule、shell 注入模式
+</span></span><span class="line"><span class="cl">  -&gt; auto-mode 快速路径：acceptEdits 可允许的操作、安全工具 allowlist
+</span></span><span class="line"><span class="cl">  -&gt; auto-mode classifier：读取 transcript + 当前 action，输出 allow/block
+</span></span></code></pre></div><p>这意味着：</p>
+<ul>
+<li>已经被明确 deny 的操作不会因为 auto-mode 自动放行。</li>
+<li>原本 <code>acceptEdits</code> 可以安全通过的写工作区操作，不需要昂贵 classifier。</li>
+<li>读文件、grep、glob、LSP、任务状态等工具被认为是安全工具，可以跳过 classifier。</li>
+<li>Bash / PowerShell / Agent 这类可扩大影响面的动作，必须被更谨慎地处理。</li>
+</ul>
+<h2 id="permissionmodeauto-是内部模式">PermissionMode：auto 是内部模式<a href="#permissionmodeauto-是内部模式" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p><code>PermissionMode.ts</code> 中，<code>auto</code> 只在 <code>TRANSCRIPT_CLASSIFIER</code> feature 打开时加入模式表。注释还说明 <code>auto</code> 是 ant-only，不属于 external permission mode。也就是说它不是公开 SDK/API 的普通 permission mode，而是受构建 feature 和用户类型约束的内部模式。</p>
+<p><code>auto</code> 的 UI 名称是 <code>Auto mode</code>，外部映射仍然是 <code>default</code>。这点很重要：外部世界看到的可能仍是默认权限模式，但内部权限系统会在 <code>toolPermissionContext.mode === 'auto'</code> 时走 classifier 流程。</p>
+<h2 id="进入-auto-mode先做-gate再剥离危险规则">进入 auto-mode：先做 gate，再剥离危险规则<a href="#进入-auto-mode先做-gate再剥离危险规则" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p><code>permissionSetup.ts</code> 的状态切换由 <code>transitionPermissionMode(fromMode, toMode, context)</code> 统一处理。进入 auto-mode 的关键逻辑是：</p>
+<ol>
+<li>如果目标模式是 <code>auto</code>，先确认 <code>isAutoModeGateEnabled()</code>。</li>
+<li>设置 <code>autoModeActive = true</code>。</li>
+<li>调用 <code>stripDangerousPermissionsForAutoMode(context)</code>。</li>
+<li>离开 auto-mode 时设置 <code>autoModeActive = false</code>，并调用 <code>restoreDangerousPermissions(context)</code>。</li>
+</ol>
+<p>这里最关键的是“剥离危险权限”。源码把危险权限定义为：会让动作在 classifier 之前被 auto-allow，从而绕过 auto-mode 安全评估的 allow rule。</p>
+<h3 id="bash-危险权限">Bash 危险权限<a href="#bash-危险权限" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p><code>isDangerousBashPermission()</code> 会把这些 Bash 规则视为危险：</p>
+<ul>
+<li><code>Bash</code> / <code>Bash(*)</code> / 空 rule content：等价于允许所有 Bash 命令。</li>
+<li><code>*</code>：匹配所有命令。</li>
+<li>解释器和代码执行类命令的 prefix/wildcard：例如 <code>python:*</code>、<code>python*</code>、<code>python *</code>、<code>python -*</code>。</li>
+</ul>
+<p>危险模式来自 <code>DANGEROUS_BASH_PATTERNS</code>，语义上覆盖可以执行任意代码的命令族。设计意图很直接：如果用户之前配置过 <code>Bash(python:*)</code>，普通模式下可以生效，但 auto-mode 下不能让它绕过 classifier。</p>
+<h3 id="powershell-危险权限">PowerShell 危险权限<a href="#powershell-危险权限" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p><code>isDangerousPowerShellPermission()</code> 的逻辑类似，但 PowerShell 是大小写不敏感，还额外检查：</p>
+<ul>
+<li><code>pwsh</code>、<code>powershell</code>、<code>cmd</code>、<code>wsl</code></li>
+<li><code>iex</code> / <code>Invoke-Expression</code></li>
+<li><code>Invoke-Command</code></li>
+<li><code>Start-Process</code> / job / thread job</li>
+<li>session/event 相关执行入口</li>
+<li><code>.NET</code> escape hatch，例如 <code>Add-Type</code>、<code>New-Object</code></li>
+</ul>
+<p>这说明实现并不只看“命令名是否常见危险”，而是按 shell 的执行模型列出能间接执行代码、创建进程或绕过当前解释器限制的入口。</p>
+<h3 id="agent-权限也被视为危险">Agent 权限也被视为危险<a href="#agent-权限也被视为危险" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p><code>isDangerousTaskPermission()</code> 对 Agent 很保守：任何 Agent allow rule 都危险。原因是 sub-agent 的 prompt 本身可能带来委托攻击，如果 Agent 创建在 classifier 之前就被 allow，会绕过 classifier 对 delegation 行为的判断。</p>
+<h3 id="剥离是临时的">剥离是临时的<a href="#剥离是临时的" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p><code>stripDangerousPermissionsForAutoMode()</code> 只改内存中的 <code>ToolPermissionContext</code>，并把被移除的 rule 存进 <code>strippedDangerousRules</code>。离开 auto-mode 时 <code>restoreDangerousPermissions()</code> 会把这些 rule 加回去。</p>
+<p>这个设计避免了两类问题：</p>
+<ul>
+<li>不破坏用户原有配置。</li>
+<li>auto-mode 期间不能被宽泛 allow rule 绕过。</li>
+</ul>
+<h2 id="工具权限主流程auto-mode-只接管-ask-分支">工具权限主流程：auto-mode 只接管 ask 分支<a href="#工具权限主流程auto-mode-只接管-ask-分支" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p><code>permissions.ts</code> 里，auto-mode 逻辑位于工具自身 <code>checkPermissions()</code> 之后。也就是说每个工具仍然先给出自己的 <code>allow</code> / <code>deny</code> / <code>ask</code> 结果。</p>
+<p>当当前模式满足下面条件时，才进入 auto-mode 分支：</p>
+<ul>
+<li><code>toolPermissionContext.mode === 'auto'</code></li>
+<li>或者 <code>mode === 'plan'</code> 且 <code>autoModeActive === true</code></li>
+</ul>
+<p>auto-mode 分支处理顺序如下：</p>
+<ol>
+<li>
+<p><strong>不可 classifier approve 的 safetyCheck 直接保留原结果</strong><br>
+例如某些路径安全检查不是 classifier 可以覆盖的，不能被 acceptEdits fast path、safe-tool allowlist 或 classifier 放行。</p>
+</li>
+<li>
+<p><strong>需要用户交互的工具不自动处理</strong><br>
+<code>tool.requiresUserInteraction?.()</code> 且结果是 <code>ask</code> 时直接返回。</p>
+</li>
+<li>
+<p><strong>PowerShell 默认不进 classifier</strong><br>
+除非 <code>POWERSHELL_AUTO_MODE</code> feature 打开，否则 PowerShell 在 auto-mode 下仍要求显式用户审批。</p>
+</li>
+<li>
+<p><strong>acceptEdits fast path</strong><br>
+对 Agent / REPL 之外的工具，用临时的 <code>mode: acceptEdits</code> 再跑一次 <code>tool.checkPermissions()</code>。如果 acceptEdits 会 allow，则 auto-mode 直接 allow。</p>
+</li>
+<li>
+<p><strong>safe tool allowlist</strong><br>
+如果工具名在 <code>SAFE_YOLO_ALLOWLISTED_TOOLS</code> 中，直接 allow。</p>
+</li>
+<li>
+<p><strong>调用 auto-mode classifier</strong><br>
+只有前面都没有放行，才把当前 action 和 transcript 交给 <code>classifyYoloAction()</code>。</p>
+</li>
+</ol>
+<p>这条链路说明：auto-mode 不会对所有工具调用都发 LLM classifier 请求，而是尽量保留本地确定性判断；classifier 只处理更需要语义判断的剩余动作。</p>
+<h2 id="哪些工具被认为足够安全">哪些工具被认为足够安全<a href="#哪些工具被认为足够安全" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p><code>classifierDecision.ts</code> 的 <code>SAFE_YOLO_ALLOWLISTED_TOOLS</code> 包括：</p>
+<ul>
+<li>文件读取：<code>Read</code></li>
+<li>搜索/只读查询：<code>Grep</code>、<code>Glob</code>、<code>LSP</code>、<code>ToolSearch</code>、<code>ListMcpResources</code>、<code>ReadMcpResourceTool</code></li>
+<li>任务和计划状态：<code>TodoWrite</code>、<code>TaskCreate</code>、<code>TaskGet</code>、<code>TaskUpdate</code>、<code>TaskList</code>、<code>TaskStop</code>、<code>TaskOutput</code></li>
+<li>交互/计划工具：<code>AskUserQuestion</code>、<code>EnterPlanMode</code>、<code>ExitPlanMode</code></li>
+<li>team/swarm 内部协调类工具</li>
+<li><code>Sleep</code></li>
+<li>内部 classifier 工具自身</li>
+</ul>
+<p>源码注释明确说 write/edit tools 不在这个 allowlist，工作区内编辑由 acceptEdits fast path 处理，工作区外或敏感路径则继续走 classifier 或人工审批。</p>
+<h2 id="classifier-怎么判断动作是否安全">classifier 怎么判断动作是否安全<a href="#classifier-怎么判断动作是否安全" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p><code>yoloClassifier.ts</code> 是 auto-mode 的核心。它不是只看当前命令字符串，而是构造一份压缩 transcript：</p>
+<ul>
+<li>用户消息：只保留 text block。</li>
+<li>assistant 消息：只保留 <code>tool_use</code> block，不保留 assistant text。源码注释说明，assistant text 是模型生成的，可能被构造来影响 classifier。</li>
+<li>每个 tool_use 会调用对应工具的 <code>toAutoClassifierInput()</code> 投影成 classifier 需要看的最小信息。</li>
+<li>当前 action 会追加到 transcript 末尾。</li>
+<li>如果启用 JSONL transcript，则序列化成类似 <code>{&quot;Bash&quot;:&quot;ls&quot;}</code>、<code>{&quot;user&quot;:&quot;...&quot;}</code> 的形式，避免 hostile content 通过换行伪造 transcript 行。</li>
+</ul>
+<p>classifier system prompt 由 <code>buildYoloSystemPrompt()</code> 生成。它会把基础 prompt 与 permissions template 拼起来，并合并 <code>settings.autoMode</code> 里的：</p>
+<ul>
+<li><code>allow</code></li>
+<li><code>soft_deny</code></li>
+<li><code>environment</code></li>
+</ul>
+<p>这里有一个关键安全边界：<code>getAutoModeConfig()</code> 只从 <code>userSettings</code>、<code>localSettings</code>、<code>flagSettings</code>、<code>policySettings</code> 读取，明确排除了 <code>projectSettings</code>。源码注释给出的理由是：恶意项目不应该能注入 classifier allow/deny rule，否则会有 RCE 风险。</p>
+<h3 id="classifier-输出">classifier 输出<a href="#classifier-输出" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>旧路径使用 tool schema <code>classify_result</code>，要求模型返回：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-json" data-lang="json"><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nt">&#34;thinking&#34;</span><span class="p">:</span> <span class="s2">&#34;...&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">  <span class="nt">&#34;shouldBlock&#34;</span><span class="p">:</span> <span class="kc">true</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">  <span class="nt">&#34;reason&#34;</span><span class="p">:</span> <span class="s2">&#34;...&#34;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>如果没有 tool use block、schema 无法解析，默认 <code>shouldBlock: true</code>，即 blocking for safety。</p>
+<h3 id="两阶段-xml-classifier">两阶段 XML classifier<a href="#两阶段-xml-classifier" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>如果 <code>twoStageClassifier</code> 打开，<code>classifyYoloActionXml()</code> 会使用两阶段：</p>
+<ol>
+<li>Stage 1 fast：<code>max_tokens=64</code>，快速输出 <code>&lt;block&gt;yes/no&lt;/block&gt;</code>。如果 Stage 1 允许，直接返回 allow。</li>
+<li>Stage 2 thinking：只有 Stage 1 block 或配置要求 thinking 时才进入，用更大 token budget 重新判断，降低误杀。</li>
+</ol>
+<p>两阶段共享 system prompt 和 transcript 前缀，并使用 prompt caching。源码里的注释说这个模式有三种运行方式：<code>both</code>、<code>fast</code>、<code>thinking</code>。</p>
+<h4 id="xml-prompt-是怎么拼出来的">XML prompt 是怎么拼出来的<a href="#xml-prompt-是怎么拼出来的" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<p>两阶段 XML classifier 不是另起一套完整 system prompt。它先调用 <code>buildYoloSystemPrompt(context)</code> 生成普通 auto-mode classifier 的 system prompt，然后用 <code>replaceOutputFormatWithXml()</code> 把末尾的 tool-use 输出要求替换成 XML 输出要求。</p>
+<p>替换后的输出协议可以概括为：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">## Output Format
 </span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl">goroutine <span class="m">6</span> <span class="o">[</span>running<span class="o">]</span>:
-</span></span><span class="line"><span class="cl">main.main.func1<span class="o">(</span>0x0, 0x0<span class="o">)</span>
-</span></span><span class="line"><span class="cl">	/home/ubuntu/workspace/go/just_go/main.go:25 +0x65
-</span></span><span class="line"><span class="cl">created by main.main
-</span></span><span class="line"><span class="cl">	/home/ubuntu/workspace/go/just_go/main.go:23 +0x4c
-</span></span><span class="line"><span class="cl"><span class="nb">exit</span> status <span class="m">2</span>
-</span></span></code></pre></div><p>我们可以利用channel的这一特性，实现多个goroutines的优雅退出。在主goroutine中监听信号，收到退出信号后，关闭channel，这时所有的子goroutines都会被唤醒，进行退出处理。</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kn">package</span><span class="w"> </span><span class="nx">main</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="kn">import</span><span class="w"> </span><span class="p">(</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">	</span><span class="s">&#34;fmt&#34;</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">	</span><span class="s">&#34;sync&#34;</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">	</span><span class="s">&#34;time&#34;</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="p">)</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="kd">func</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">	</span><span class="nx">c1</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nb">make</span><span class="p">(</span><span class="kd">chan</span><span class="w"> </span><span class="kd">struct</span><span class="p">{})</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">	</span><span class="nx">wg</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">sync</span><span class="p">.</span><span class="nx">WaitGroup</span><span class="p">{}</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">	</span><span class="k">for</span><span class="w"> </span><span class="nx">i</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="nx">i</span><span class="w"> </span><span class="p">&lt;</span><span class="w"> </span><span class="mi">4</span><span class="p">;</span><span class="w"> </span><span class="nx">i</span><span class="o">++</span><span class="w"> </span><span class="p">{</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">		</span><span class="nx">wg</span><span class="p">.</span><span class="nf">Add</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">		</span><span class="k">go</span><span class="w"> </span><span class="kd">func</span><span class="p">(</span><span class="nx">i</span><span class="w"> </span><span class="kt">int</span><span class="p">,</span><span class="w"> </span><span class="nx">c</span><span class="w"> </span><span class="o">&lt;-</span><span class="kd">chan</span><span class="w"> </span><span class="kd">struct</span><span class="p">{})</span><span class="w"> </span><span class="p">{</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">			</span><span class="k">defer</span><span class="w"> </span><span class="nx">wg</span><span class="p">.</span><span class="nf">Done</span><span class="p">()</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">			</span><span class="nx">v</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">&lt;-</span><span class="nx">c</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">			</span><span class="nx">fmt</span><span class="p">.</span><span class="nf">Printf</span><span class="p">(</span><span class="s">&#34;recevice channel %d, value %T\n&#34;</span><span class="p">,</span><span class="w"> </span><span class="nx">i</span><span class="p">,</span><span class="w"> </span><span class="nx">v</span><span class="p">)</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">		</span><span class="p">}(</span><span class="nx">i</span><span class="p">,</span><span class="w"> </span><span class="nx">c1</span><span class="p">)</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">	</span><span class="p">}</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">	</span><span class="nx">wg</span><span class="p">.</span><span class="nf">Add</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">	</span><span class="k">go</span><span class="w"> </span><span class="kd">func</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">		</span><span class="k">defer</span><span class="w"> </span><span class="nx">wg</span><span class="p">.</span><span class="nf">Done</span><span class="p">()</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">		</span><span class="nx">time</span><span class="p">.</span><span class="nf">Sleep</span><span class="p">(</span><span class="mi">1</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="nx">time</span><span class="p">.</span><span class="nx">Second</span><span class="p">)</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">		</span><span class="nb">close</span><span class="p">(</span><span class="nx">c1</span><span class="p">)</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">	</span><span class="p">}()</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">	</span><span class="nx">wg</span><span class="p">.</span><span class="nf">Wait</span><span class="p">()</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="p">}</span><span class="w">
-</span></span></span></code></pre></div><p><a href="https://levelup.gitconnected.com/how-does-golang-channel-works-6d66acd54753">How Does Golang Channel Works. Understanding Inner workings of the… | by Jerry An | Aug, 2021 | Level Up Coding (gitconnected.com)</a></p>
-<p><a href="https://youtu.be/KBZlN0izeiY">GopherCon 2017: Kavya Joshi - Understanding Channels</a></p>
+</span></span><span class="line"><span class="cl">If the action should be blocked:
+</span></span><span class="line"><span class="cl">&lt;block&gt;yes&lt;/block&gt;&lt;reason&gt;one short sentence&lt;/reason&gt;
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">If the action should be allowed:
+</span></span><span class="line"><span class="cl">&lt;block&gt;no&lt;/block&gt;
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">Do NOT include a &lt;reason&gt; tag when the action is allowed.
+</span></span><span class="line"><span class="cl">Your ENTIRE response MUST begin with &lt;block&gt;. Do NOT output any analysis, reasoning, or commentary before &lt;block&gt;. No &#34;Looking at...&#34; or similar preamble.
+</span></span></code></pre></div><p>也就是：block 时输出 <code>&lt;block&gt;yes&lt;/block&gt;</code> 和一句 reason；allow 时只输出 <code>&lt;block&gt;no&lt;/block&gt;</code>；并且整个回复必须直接从 <code>&lt;block&gt;</code> 开始。</p>
+<p>这一步的目的，是把原来的 <code>classify_result</code> tool schema 输出，变成更容易低延迟截断的文本 XML 输出。<code>parseXmlBlock()</code> 只关心第一个 <code>&lt;block&gt;yes/no&lt;/block&gt;</code>，并且会先剥掉 <code>&lt;thinking&gt;...&lt;/thinking&gt;</code>，避免 thinking 内容里的标签干扰最终判定。</p>
+<h4 id="stage-1-fast-prompt">Stage 1 fast prompt<a href="#stage-1-fast-prompt" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<p>Stage 1 的 user content 结构是：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">&lt;transcript&gt;
+</span></span><span class="line"><span class="cl">  compacted user text, assistant tool_use history, and current action
+</span></span><span class="line"><span class="cl">&lt;/transcript&gt;
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">Err on the side of blocking. &lt;block&gt; immediately.
+</span></span></code></pre></div><p>这里的关键是最后一行 <code>XML_S1_SUFFIX</code>。它同时表达两个约束：</p>
+<ul>
+<li>保守策略：不确定就 block。</li>
+<li>输出策略：立刻输出 <code>&lt;block&gt;</code>，不要展开 reasoning。</li>
+</ul>
+<p>配套请求参数也服务于这个目标：</p>
+<ul>
+<li><code>max_tokens</code>: <code>both</code> 模式下是 <code>64</code>；<code>fast</code> only 模式下是 <code>256</code>，因为 fast-only 需要可能带上 <code>&lt;reason&gt;</code>。</li>
+<li><code>temperature</code>: <code>0</code>。</li>
+<li><code>thinking</code>: 默认禁用；如果模型是 always-on thinking，则只增加 token headroom。</li>
+<li><code>stop_sequences</code>: <code>both</code> 模式下设置为 <code>&lt;/block&gt;</code>，让模型输出完 <code>&lt;block&gt;</code> 就停；<code>fast</code> only 不设置，因为它可能需要输出 <code>&lt;reason&gt;</code>。</li>
+</ul>
+<p>因此 Stage 1 的 prompt 不是“让模型完整解释为什么安全”，而是把问题压缩成一个二分类闸门：先用很短输出判断能不能直接放行。</p>
+<h4 id="stage-2-thinking-prompt">Stage 2 thinking prompt<a href="#stage-2-thinking-prompt" class="hanchor" ariaLabel="Anchor">#</a> </h4>
+<p>Stage 2 复用同样的 XML system prompt 和同样的 <code>&lt;transcript&gt;...&lt;/transcript&gt;</code> 包裹方式，但追加的是 <code>XML_S2_SUFFIX</code>：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">Review the classification process and follow it carefully, making sure you deny actions that should be blocked. As a reminder, explicit (not suggestive or implicit) user confirmation is required to override blocks. Use &lt;thinking&gt; before responding with &lt;block&gt;.
+</span></span></code></pre></div><p>它的语义是：</p>
+<ul>
+<li>重新审查 classification process。</li>
+<li>仔细执行安全分类规则。</li>
+<li>对应该 block 的动作保持 block。</li>
+<li>只有用户显式确认时，才能覆盖 block；暗示性或间接表达不算。</li>
+<li>在输出 <code>&lt;block&gt;</code> 前先使用 <code>&lt;thinking&gt;</code>。</li>
+</ul>
+<p>Stage 2 的请求参数明显更偏“稳”：</p>
+<ul>
+<li><code>max_tokens</code>: <code>4096</code> 加可能的 thinking padding。</li>
+<li><code>temperature</code>: <code>0</code>。</li>
+<li>不设置 <code>stop_sequences</code>，允许模型先输出 <code>&lt;thinking&gt;</code>，再输出 <code>&lt;block&gt;</code> 和 <code>&lt;reason&gt;</code>。</li>
+</ul>
+<p>两阶段模式里的实际路径是：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">Stage 1 fast
+</span></span><span class="line"><span class="cl">  -&gt; &lt;block&gt;no&lt;/block&gt;  =&gt; 立即 allow，reason = &#34;Allowed by fast classifier&#34;
+</span></span><span class="line"><span class="cl">  -&gt; &lt;block&gt;yes&lt;/block&gt; =&gt; 进入 Stage 2 thinking 复核
+</span></span><span class="line"><span class="cl">  -&gt; 无法解析          =&gt; fast-only 下 block；both 模式下继续 Stage 2
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">Stage 2 thinking
+</span></span><span class="line"><span class="cl">  -&gt; 解析 &lt;block&gt;yes/no&lt;/block&gt;
+</span></span><span class="line"><span class="cl">  -&gt; 解析 &lt;reason&gt;...&lt;/reason&gt;
+</span></span><span class="line"><span class="cl">  -&gt; 如果仍无法解析，block for safety
+</span></span></code></pre></div><p>这个设计的取舍是：<strong>允许路径要快，拒绝路径要稳</strong>。大部分显然安全的动作在 Stage 1 就通过；一旦 Stage 1 倾向 block，就用更长上下文预算和显式 thinking 再看一遍，减少误拒。</p>
+<h2 id="classifier-失败时怎么处理">classifier 失败时怎么处理<a href="#classifier-失败时怎么处理" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>auto-mode 对失败场景的策略并不是单一的：</p>
+<ul>
+<li>classifier 输出不可解析：block for safety。</li>
+<li>classifier 请求被用户 abort：视为 unavailable。</li>
+<li>transcript 超过上下文窗口：
+<ul>
+<li>headless / no prompt 场景：直接 abort。</li>
+<li>交互场景：回退到正常 permission prompt，让用户手动审批。</li>
+</ul>
+</li>
+<li>classifier API 不可用：
+<ul>
+<li>如果 <code>tengu_iron_gate_closed</code> 为 true：fail closed，直接 deny 并提示 classifier unavailable。</li>
+<li>否则 fail open 到正常 permission handling，而不是自动 allow。</li>
+</ul>
+</li>
+<li>classifier 明确 block：返回 <code>deny</code>，reason 类型是 <code>classifier: auto-mode</code>。</li>
+</ul>
+<p>还有 denial tracking：连续或总拒绝次数过多时，会触发 <code>handleDenialLimitExceeded()</code>，回退到提示用户审查，而不是让 agent 无限重试。</p>
+<h2 id="bash-命令安全判定">Bash 命令安全判定<a href="#bash-命令安全判定" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>Bash 是 auto-mode 最重要的风险面。源码里的 Bash 权限检查可以分为四层。</p>
+<h3 id="1-ast--parser-安全层">1. AST / parser 安全层<a href="#1-ast--parser-安全层" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p><code>bashToolHasPermission()</code> 首先尝试 tree-sitter Bash 解析。成功时得到 <code>SimpleCommand[]</code>、重定向、subcommand span 等结构；如果发现过于复杂的结构，例如命令替换、扩展、控制流或 parser differential，就返回 <code>ask</code>。</p>
+<p>如果 tree-sitter 不可用，则走 legacy <code>shell-quote</code> 路径。解析失败时也返回 <code>ask</code>。</p>
+<p>这个策略的本质是：<strong>能证明结构简单才继续细分判断；不能证明就不要自动 allow。</strong></p>
+<h3 id="2-shell-注入和语法绕过检查">2. shell 注入和语法绕过检查<a href="#2-shell-注入和语法绕过检查" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p><code>bashSecurity.ts</code> 会检查大量容易绕过静态规则的模式，例如：</p>
+<ul>
+<li>process substitution：<code>&lt;()</code>、<code>&gt;()</code>、zsh <code>=()</code></li>
+<li>command substitution：<code>$()</code>、反引号</li>
+<li><code>${}</code>、<code>$[]</code></li>
+<li>zsh glob qualifier、<code>always</code> block</li>
+<li>PowerShell comment syntax 作为防御性检查</li>
+<li>zsh 危险命令：<code>zmodload</code>、<code>emulate</code>、<code>sysopen</code>、<code>ztcp</code> 等</li>
+<li>unsafe redirection patterns</li>
+<li>IFS injection、控制字符、Unicode whitespace、brace expansion 等</li>
+</ul>
+<p>这些检查的目的不是判断命令“业务上是否危险”，而是判断“静态权限匹配是否可信”。一旦发现可能导致解析结果和运行时行为不一致，就要求审批或进入 classifier。</p>
+<h3 id="3-只读命令-allowlist">3. 只读命令 allowlist<a href="#3-只读命令-allowlist" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p><code>readOnlyValidation.ts</code> 用 <code>COMMAND_ALLOWLIST</code> 和 <code>isCommandSafeViaFlagParsing()</code> 判断某个简单命令是否是只读安全命令。</p>
+<p>判断流程包括：</p>
+<ol>
+<li>用 shell parser 拆 token。</li>
+<li>如果包含 pipe、redirect 等 operator，在这个函数内直接返回 false，交给上游分段处理。</li>
+<li>匹配 allowlist，优先支持多词命令，例如 <code>git diff</code>。</li>
+<li>针对 <code>git ls-remote</code> 特判，拒绝 URL、SSH remote、变量引用，避免数据外发。</li>
+<li>拒绝任何参数 token 中含 <code>$</code>，因为运行时变量展开会改变真实参数。</li>
+<li>拒绝带 <code>{}</code> 且有 <code>,</code> 或 <code>..</code> 的 token，防 brace expansion 绕过。</li>
+<li>校验 flags，只允许声明过的安全 flag。</li>
+<li>没有专用 regex 时，拒绝反引号、grep/rg pattern 中的换行等。</li>
+</ol>
+<p>也就是说，<code>ls</code>、<code>cat</code>、<code>git diff</code> 这类命令不是靠名字直接 allow，而是“命令 + 参数 + flag + shell token 行为”一起满足只读约束才算安全。</p>
+<h3 id="4-路径和复合命令约束">4. 路径和复合命令约束<a href="#4-路径和复合命令约束" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p><code>bashPermissions.ts</code> 还会处理复合命令：</p>
+<ul>
+<li><code>checkCommandOperatorPermissions()</code> 对 pipe 分段递归检查。</li>
+<li>如果 pipe segment 被 allow，还会回到原始命令检查重定向目标，避免 <code>&gt;&gt; /tmp/file</code> 被分段时丢失。</li>
+<li>命令拆分数量超过 <code>MAX_SUBCOMMANDS_FOR_SECURITY_CHECK=50</code> 时返回 <code>ask</code>，避免 ReDoS 或过度复杂的安全检查。</li>
+<li>多个 <code>cd</code> 要求审批。</li>
+<li><code>cd</code> 和 <code>git</code> 出现在同一个 compound command 中要求审批，防止 bare repo 的 <code>core.fsmonitor</code> 等攻击。</li>
+<li><code>checkPathConstraints()</code> 会验证 <code>cd</code>、<code>ls</code>、<code>find</code>、<code>rm</code>、<code>mv</code>、<code>cat</code>、<code>grep</code>、<code>rg</code>、<code>git</code> 等命令里的路径参数。</li>
+<li><code>rm</code> / <code>rmdir</code> 针对 <code>/</code>、home、Windows drive root 等危险删除路径会强制 <code>ask</code>，并且不给保存规则建议。</li>
+</ul>
+<p>最终，如果所有 subcommand 都被 allow，且没有潜在 command injection，Bash 才返回 <code>allow</code>。否则会返回 <code>ask</code>，并在 <code>BASH_CLASSIFIER</code> feature 打开时附带 <code>pendingClassifierCheck</code>。</p>
+<h2 id="auto-mode-下-bash-的整体决策链">auto-mode 下 Bash 的整体决策链<a href="#auto-mode-下-bash-的整体决策链" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>把 Bash 串起来看，执行一个命令时大致是：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">BashTool.checkPermissions
+</span></span><span class="line"><span class="cl">  -&gt; bashToolHasPermission
+</span></span><span class="line"><span class="cl">     -&gt; tree-sitter / legacy parser 检查
+</span></span><span class="line"><span class="cl">     -&gt; sandbox auto-allow 检查
+</span></span><span class="line"><span class="cl">     -&gt; exact deny/allow
+</span></span><span class="line"><span class="cl">     -&gt; prompt deny/ask rules（auto-mode 下跳过，由 auto classifier 接管）
+</span></span><span class="line"><span class="cl">     -&gt; pipe / compound command 处理
+</span></span><span class="line"><span class="cl">     -&gt; shell 注入检查
+</span></span><span class="line"><span class="cl">     -&gt; subcommand 权限检查
+</span></span><span class="line"><span class="cl">     -&gt; path constraints
+</span></span><span class="line"><span class="cl">     -&gt; read-only command allowlist
+</span></span><span class="line"><span class="cl">     -&gt; allow / ask / deny
+</span></span><span class="line"><span class="cl">  -&gt; permissions.ts auto-mode 分支
+</span></span><span class="line"><span class="cl">     -&gt; acceptEdits fast path
+</span></span><span class="line"><span class="cl">     -&gt; safe-tool allowlist
+</span></span><span class="line"><span class="cl">     -&gt; classifyYoloAction(transcript + current Bash action)
+</span></span><span class="line"><span class="cl">     -&gt; allow / deny / fallback to prompt
+</span></span></code></pre></div><p>这解释了“如何判定命令是否安全”：本地层判断的是可静态证明的安全性，例如只读命令、路径边界、无 shell 注入、无危险重定向；auto-mode classifier 判断的是语义层安全性，例如用户意图、上下文、当前 action 是否符合任务和安全策略。</p>
+<h2 id="设计边界">设计边界<a href="#设计边界" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>从源码看，auto-mode 的边界也很清楚：</p>
+<ul>
+<li>它不是 sandbox，本身不能阻止已经被 shell 执行的系统调用；真正限制执行环境还要依赖 SandboxManager 或外部隔离。</li>
+<li>它主要接管 permission decision，不替代工具内部的路径/语法检查。</li>
+<li>它依赖 transcript projection。工具如果 <code>toAutoClassifierInput()</code> 投影不足，classifier 看到的信息就可能不完整。</li>
+<li>它有明确 fast path：acceptEdits 和 safe-tool allowlist 会跳过 classifier。因此安全性依赖这些 fast path 的边界定义是否准确。</li>
+<li>它有配置注入防护：autoMode config 不读 projectSettings，但 user/local/flag/policy 仍然能影响 classifier。</li>
+<li>对 PowerShell 的支持默认更保守，只有 feature 打开后才像 Bash 一样进入 auto classifier。</li>
+</ul>
+<h2 id="总结">总结<a href="#总结" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>Claude Code 的 auto-mode 是一套“本地确定性权限系统 + LLM 安全 classifier”的混合权限网关。它不是让 agent 自动拥有更大权限，而是在原有 permission prompt 位置增加一个自动判断器。</p>
+<p>最值得借鉴的设计有三点：</p>
+<ol>
+<li><strong>进入 auto-mode 前剥离危险 allow rule</strong>：否则用户已有的 <code>Bash(*)</code>、<code>Bash(python:*)</code> 会直接绕过 classifier。</li>
+<li><strong>静态安全和语义安全分层</strong>：Bash 的路径、flag、shell expansion、pipe/redirection 先由本地代码判定；剩余语义问题再交给 classifier。</li>
+<li><strong>失败不等于自动放行</strong>：不可解析、classifier error、transcript overflow 都有 fail closed 或回退人工审批的路径。</li>
+</ol>
+<p>这个实现的核心判断是：agentic coding 的权限系统不能只靠 allowlist，也不能只靠模型判断。可形式化的部分应该尽量本地确定性处理；需要理解上下文和用户意图的部分，才交给 classifier。</p>
 
       </div></div>
 

@@ -207,6 +207,58 @@
     
       <article class="post on-list">
         <h1 class="post-title">
+          <a href="https://blog.jinzhi.site/posts/2025-11/%E7%BD%91%E5%85%B3%E7%9A%84%E9%99%90%E6%B5%81%E6%96%B9%E6%A1%88/">网关的限流方案</a>
+        </h1>
+        <div class="post-meta"><time class="post-date">2025-11-16</time></div>
+
+        
+          <span class="post-tags">
+            
+            #<a href="https://blog.jinzhi.site/tags/l7gateway/">L7Gateway</a>&nbsp;
+            
+            #<a href="https://blog.jinzhi.site/tags/apisix/">apisix</a>&nbsp;
+            
+          </span>
+        
+
+        
+
+
+        <div class="post-content">
+          
+            <p><strong>Note：本文由 Google Gemini DeepResearch 生成。</strong></p>
+<h2 id="1网关限流服务的战略必要性与流量控制架构">1.网关限流服务的战略必要性与流量控制架构</h2>
+<h3 id="11-网关在流量管理中的控制点角色与核心必要性">1.1. 网关在流量管理中的控制点角色与核心必要性</h3>
+<p>API 网关在现代微服务架构中扮演着至关重要的流量控制点角色，负责管理北向（Ingress）和南向（Egress）的流量。对流量实施限制（即限流）是保障上游服务稳定性、维持系统可用性和实现资源公平分配的核心防御机制。</p>
+<p>限流服务的战略必要性主要体现在以下几个方面：</p>
+<p>首先，限流是防止系统过载和雪崩效应的关键。当面临突发流量高峰时，如不加限制，后台服务器可能因资源耗尽而被压垮。通过限制客户端在指定时间窗内的请求次数，网关可以有效地保护应用编程接口（API）及其背后的微服务。其次，限流是抵御恶意攻击的有效手段，尤其是分布式拒绝服务攻击（DDoS）或防止未受限制的网络爬虫过度消耗计算资源。如果任由客户端无限制地访问上游服务，系统的可用性将受到负面影响。</p>
+<p>从架构设计的角度看，网关作为请求进入系统的唯一入口，是实施全局限流策略的最佳位置，可以根据 IP、API 密钥、特定消费者（Consumer）或其他定制标准来应用限流规则。</p>
+<h3 id="12-限流策略的粒度层次结构与定制化响应">1.2. 限流策略的粒度、层次结构与定制化响应</h3>
+<p>在实际应用中，灵活的限流服务需要支持精细的粒度和层次化配置模型，以满足不同业务和资源保护的需求。这种配置的优先级机制体现了一种 <strong>“微观精确控制”优于“宏观默认保护”</strong> 的设计哲学。</p>
+<p>网关通常支持多层次的限流配置，包括：</p>
+<ol>
+<li><strong>特定 API 或消费者限流：</strong> 这是优先级最高的限流配置。例如，用户可以对单个关键 API 进行限流设置，或者对特定的消费者群体施加限制。这种配置会覆盖所有默认设置。这意味着在限流值冲突时，系统优先执行最明确定义或最严格的限制，确保关键资源的防护级别不受宏观策略的稀释。</li>
+<li><strong>API 默认限流：</strong> 作用于应用下大部分 API 的通用配置。当没有针对单个 API 配置限流值时，将采用此默认值。</li>
+<li><strong>应用总限流 (App Total Limit)：</strong> 这是对当前应用下所有 API 请求的总和设置的上限。应用总限流是防止资源被“虹吸”的最后防线。即使单个 API 的限流都没有达到，一旦应用的总请求量超出限流总和值，所有请求都将被限制。这种设计解决了在微服务架构中，攻击者通过对大量低 QPS API 进行频繁调用，最终耗尽整个应用共享资源预算的“长尾攻击”问题。</li>
+</ol>
+<p>网关在触发限流时，必须向客户端返回明确的、用户友好的响应。例如，默认的限流响应可能包含 <code>{&quot;resultStatus&quot;:1002, &quot;tips&quot;:&quot;顾客太多，客官请稍候&quot;}</code> 。为了实现友好的降级体验，网关需要支持定制化的响应格式，允许用户配置 JSON 格式的返回内容，如通过 <code>resultStatus</code> 字段（例如，1002 表示限流）和 <code>tips</code> 字段向用户提供定制化的限流提示。</p>
+<h2 id="2-常见限流算法的原理适用性与分布式性能剖析">2. 常见限流算法的原理、适用性与分布式性能剖析</h2>
+<p>选择合适的限流算法是构建高性能网关服务的基石。不同的算法在精确度、突发处理能力和分布式系统中的扩展性方面存在显著差异。</p>
+<h3 id="21-固定窗口计数器-fixed-window-counter-fwc">2.1. 固定窗口计数器 (Fixed Window Counter, FWC)</h3>
+<p>固定窗口计数器是最简单、资源消耗最低的限流算法。它在一个固定的时间周期内（例如每 60 秒）累积请求计数，当周期结束时，计数器重置。</p>
+<p><strong>优势与局限性：</strong> FWC 的实现非常简单，查询和递增操作计算复杂度为 $O(1)$，因此延迟极低。然而，其主要局限在于<strong>边界突发问题</strong>。如果客户端在窗口结束前的一刻发出大量请求，并在下一个窗口开始后的第一时间再次发出同等量的请求，系统在短时间内实际放行的请求量可能高达阈值的两倍。这使得 FWC 难以应对流量的瞬间爆发，可能导致上游服务过载。</p>
+          
+        </div>
+
+        
+          <div>
+            <a class="read-more button inline" href="/posts/2025-11/%E7%BD%91%E5%85%B3%E7%9A%84%E9%99%90%E6%B5%81%E6%96%B9%E6%A1%88/">[Read more]</a>
+          </div>
+        
+      </article>
+    
+      <article class="post on-list">
+        <h1 class="post-title">
           <a href="https://blog.jinzhi.site/posts/2025-11/%E5%B8%B8%E8%A7%81%E7%9A%84%E5%A4%A7%E6%A8%A1%E5%9E%8B-openapi-%E8%A7%84%E8%8C%83/">常见的大模型 OpenAPI 规范</a>
         </h1>
         <div class="post-meta"><time class="post-date">2025-11-05</time></div>
@@ -507,94 +559,6 @@
         
       </article>
     
-      <article class="post on-list">
-        <h1 class="post-title">
-          <a href="https://blog.jinzhi.site/posts/2025-09/go-%E6%B1%87%E7%BC%96%E5%88%86%E6%9E%90/">Go 汇编分析</a>
-        </h1>
-        <div class="post-meta"><time class="post-date">2025-09-17</time></div>
-
-        
-          <span class="post-tags">
-            
-            #<a href="https://blog.jinzhi.site/tags/go/">Go</a>&nbsp;
-            
-          </span>
-        
-
-        
-
-
-        <div class="post-content">
-          
-            <p>Go的汇编不是像 C/C++ 一样，对机器码的直接描述，而是兼容跨平台需求实现的半抽象化的指令集。</p>
-<p><a href="https://go.dev/doc/asm">https://go.dev/doc/asm</a></p>
-<h2 id="汇编分析go-117">汇编分析（Go 1.17）</h2>
-<p>我们用一个简单的例子来开始汇编分析：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-go" data-lang="go"><span class="line"><span class="cl"><span class="kn">package</span><span class="w"> </span><span class="nx">main</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="kd">func</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">	</span><span class="nf">add</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">)</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="p">}</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="kd">func</span><span class="w"> </span><span class="nf">add</span><span class="p">(</span><span class="nx">i</span><span class="p">,</span><span class="w"> </span><span class="nx">j</span><span class="w"> </span><span class="kt">int</span><span class="p">)</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="p">{</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="w">	</span><span class="k">return</span><span class="w"> </span><span class="nx">i</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">j</span><span class="w">
-</span></span></span><span class="line"><span class="cl"><span class="p">}</span><span class="w">
-</span></span></span></code></pre></div><p>汇编结果，删去了一些无关的输出：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-shell" data-lang="shell"><span class="line"><span class="cl"><span class="c1"># go tool compile -S -l -N main.go</span>
-</span></span><span class="line"><span class="cl"><span class="s2">&#34;&#34;</span>.main STEXT <span class="nv">size</span><span class="o">=</span><span class="m">54</span> <span class="nv">args</span><span class="o">=</span>0x0 <span class="nv">locals</span><span class="o">=</span>0x18 <span class="nv">funcid</span><span class="o">=</span>0x0
-</span></span><span class="line"><span class="cl">        0x0000 <span class="m">00000</span> <span class="o">(</span>main.go:3<span class="o">)</span>        TEXT    <span class="s2">&#34;&#34;</span>.main<span class="o">(</span>SB<span class="o">)</span>, ABIInternal, <span class="nv">$24</span>-0
-</span></span><span class="line"><span class="cl">        0x0000 <span class="m">00000</span> <span class="o">(</span>main.go:3<span class="o">)</span>        CMPQ    SP, 16<span class="o">(</span>R14<span class="o">)</span>
-</span></span><span class="line"><span class="cl">        0x0004 <span class="m">00004</span> <span class="o">(</span>main.go:3<span class="o">)</span>        PCDATA  <span class="nv">$0</span>, <span class="nv">$-</span><span class="m">2</span>
-</span></span><span class="line"><span class="cl">        0x0004 <span class="m">00004</span> <span class="o">(</span>main.go:3<span class="o">)</span>        JLS     <span class="m">47</span>
-</span></span><span class="line"><span class="cl">        0x0006 <span class="m">00006</span> <span class="o">(</span>main.go:3<span class="o">)</span>        PCDATA  <span class="nv">$0</span>, <span class="nv">$-</span><span class="m">1</span>
-</span></span><span class="line"><span class="cl">        0x0006 <span class="m">00006</span> <span class="o">(</span>main.go:3<span class="o">)</span>        SUBQ    <span class="nv">$24</span>, SP
-</span></span><span class="line"><span class="cl">        0x000a <span class="m">00010</span> <span class="o">(</span>main.go:3<span class="o">)</span>        MOVQ    BP, 16<span class="o">(</span>SP<span class="o">)</span>
-</span></span><span class="line"><span class="cl">        0x000f <span class="m">00015</span> <span class="o">(</span>main.go:3<span class="o">)</span>        LEAQ    16<span class="o">(</span>SP<span class="o">)</span>, BP
-</span></span><span class="line"><span class="cl">        0x0014 <span class="m">00020</span> <span class="o">(</span>main.go:3<span class="o">)</span>        FUNCDATA        <span class="nv">$0</span>, gclocals·33cdeccccebe80329f1fdbee7f5874cb<span class="o">(</span>SB<span class="o">)</span>
-</span></span><span class="line"><span class="cl">        0x0014 <span class="m">00020</span> <span class="o">(</span>main.go:3<span class="o">)</span>        FUNCDATA        <span class="nv">$1</span>, gclocals·33cdeccccebe80329f1fdbee7f5874cb<span class="o">(</span>SB<span class="o">)</span>
-</span></span><span class="line"><span class="cl">        0x0014 <span class="m">00020</span> <span class="o">(</span>main.go:4<span class="o">)</span>        MOVL    <span class="nv">$1</span>, AX
-</span></span><span class="line"><span class="cl">        0x0019 <span class="m">00025</span> <span class="o">(</span>main.go:4<span class="o">)</span>        MOVL    <span class="nv">$3</span>, BX
-</span></span><span class="line"><span class="cl">        0x001e <span class="m">00030</span> <span class="o">(</span>main.go:4<span class="o">)</span>        PCDATA  <span class="nv">$1</span>, <span class="nv">$0</span>
-</span></span><span class="line"><span class="cl">        0x001e <span class="m">00030</span> <span class="o">(</span>main.go:4<span class="o">)</span>        NOP
-</span></span><span class="line"><span class="cl">        0x0020 <span class="m">00032</span> <span class="o">(</span>main.go:4<span class="o">)</span>        CALL    <span class="s2">&#34;&#34;</span>.add<span class="o">(</span>SB<span class="o">)</span>
-</span></span><span class="line"><span class="cl">        0x0025 <span class="m">00037</span> <span class="o">(</span>main.go:5<span class="o">)</span>        MOVQ    16<span class="o">(</span>SP<span class="o">)</span>, BP
-</span></span><span class="line"><span class="cl">        0x002a <span class="m">00042</span> <span class="o">(</span>main.go:5<span class="o">)</span>        ADDQ    <span class="nv">$24</span>, SP
-</span></span><span class="line"><span class="cl">        0x002e <span class="m">00046</span> <span class="o">(</span>main.go:5<span class="o">)</span>        RET
-</span></span><span class="line"><span class="cl">        0x002f <span class="m">00047</span> <span class="o">(</span>main.go:5<span class="o">)</span>        NOP
-</span></span><span class="line"><span class="cl">        0x002f <span class="m">00047</span> <span class="o">(</span>main.go:3<span class="o">)</span>        PCDATA  <span class="nv">$1</span>, <span class="nv">$-</span><span class="m">1</span>
-</span></span><span class="line"><span class="cl">        0x002f <span class="m">00047</span> <span class="o">(</span>main.go:3<span class="o">)</span>        PCDATA  <span class="nv">$0</span>, <span class="nv">$-</span><span class="m">2</span>
-</span></span><span class="line"><span class="cl">        0x002f <span class="m">00047</span> <span class="o">(</span>main.go:3<span class="o">)</span>        CALL    runtime.morestack_noctxt<span class="o">(</span>SB<span class="o">)</span>
-</span></span><span class="line"><span class="cl">        0x0034 <span class="m">00052</span> <span class="o">(</span>main.go:3<span class="o">)</span>        PCDATA  <span class="nv">$0</span>, <span class="nv">$-</span><span class="m">1</span>
-</span></span><span class="line"><span class="cl">        0x0034 <span class="m">00052</span> <span class="o">(</span>main.go:3<span class="o">)</span>        JMP     <span class="m">0</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl"><span class="s2">&#34;&#34;</span>.add STEXT nosplit <span class="nv">size</span><span class="o">=</span><span class="m">56</span> <span class="nv">args</span><span class="o">=</span>0x10 <span class="nv">locals</span><span class="o">=</span>0x10 <span class="nv">funcid</span><span class="o">=</span>0x0
-</span></span><span class="line"><span class="cl">        0x0000 <span class="m">00000</span> <span class="o">(</span>main.go:7<span class="o">)</span>        TEXT    <span class="s2">&#34;&#34;</span>.add<span class="o">(</span>SB<span class="o">)</span>, NOSPLIT<span class="p">|</span>ABIInternal, <span class="nv">$16</span>-16
-</span></span><span class="line"><span class="cl">        0x0000 <span class="m">00000</span> <span class="o">(</span>main.go:7<span class="o">)</span>        SUBQ    <span class="nv">$16</span>, SP
-</span></span><span class="line"><span class="cl">        0x0004 <span class="m">00004</span> <span class="o">(</span>main.go:7<span class="o">)</span>        MOVQ    BP, 8<span class="o">(</span>SP<span class="o">)</span>
-</span></span><span class="line"><span class="cl">        0x0009 <span class="m">00009</span> <span class="o">(</span>main.go:7<span class="o">)</span>        LEAQ    8<span class="o">(</span>SP<span class="o">)</span>, BP
-</span></span><span class="line"><span class="cl">        0x000e <span class="m">00014</span> <span class="o">(</span>main.go:7<span class="o">)</span>        FUNCDATA        <span class="nv">$0</span>, gclocals·33cdeccccebe80329f1fdbee7f5874cb<span class="o">(</span>SB<span class="o">)</span>
-</span></span><span class="line"><span class="cl">        0x000e <span class="m">00014</span> <span class="o">(</span>main.go:7<span class="o">)</span>        FUNCDATA        <span class="nv">$1</span>, gclocals·33cdeccccebe80329f1fdbee7f5874cb<span class="o">(</span>SB<span class="o">)</span>
-</span></span><span class="line"><span class="cl">        0x000e <span class="m">00014</span> <span class="o">(</span>main.go:7<span class="o">)</span>        FUNCDATA        <span class="nv">$5</span>, <span class="s2">&#34;&#34;</span>.add.arginfo1<span class="o">(</span>SB<span class="o">)</span>
-</span></span><span class="line"><span class="cl">        0x000e <span class="m">00014</span> <span class="o">(</span>main.go:7<span class="o">)</span>        MOVQ    AX, <span class="s2">&#34;&#34;</span>.i+24<span class="o">(</span>SP<span class="o">)</span>
-</span></span><span class="line"><span class="cl">        0x0013 <span class="m">00019</span> <span class="o">(</span>main.go:7<span class="o">)</span>        MOVQ    BX, <span class="s2">&#34;&#34;</span>.j+32<span class="o">(</span>SP<span class="o">)</span>
-</span></span><span class="line"><span class="cl">        0x0018 <span class="m">00024</span> <span class="o">(</span>main.go:7<span class="o">)</span>        MOVQ    <span class="nv">$0</span>, <span class="s2">&#34;&#34;</span>.~r2<span class="o">(</span>SP<span class="o">)</span>
-</span></span><span class="line"><span class="cl">        0x0020 <span class="m">00032</span> <span class="o">(</span>main.go:8<span class="o">)</span>        MOVQ    <span class="s2">&#34;&#34;</span>.i+24<span class="o">(</span>SP<span class="o">)</span>, AX
-</span></span><span class="line"><span class="cl">        0x0025 <span class="m">00037</span> <span class="o">(</span>main.go:8<span class="o">)</span>        ADDQ    <span class="s2">&#34;&#34;</span>.j+32<span class="o">(</span>SP<span class="o">)</span>, AX
-</span></span><span class="line"><span class="cl">        0x002a <span class="m">00042</span> <span class="o">(</span>main.go:8<span class="o">)</span>        MOVQ    AX, <span class="s2">&#34;&#34;</span>.~r2<span class="o">(</span>SP<span class="o">)</span>
-</span></span><span class="line"><span class="cl">        0x002e <span class="m">00046</span> <span class="o">(</span>main.go:8<span class="o">)</span>        MOVQ    8<span class="o">(</span>SP<span class="o">)</span>, BP
-</span></span><span class="line"><span class="cl">        0x0033 <span class="m">00051</span> <span class="o">(</span>main.go:8<span class="o">)</span>        ADDQ    <span class="nv">$16</span>, SP
-</span></span><span class="line"><span class="cl">        0x0037 <span class="m">00055</span> <span class="o">(</span>main.go:8<span class="o">)</span>        RET
-</span></span></code></pre></div><p><code>FUNCDATA</code>和<code>PCDATA</code>是由编译器引入的，主要包含垃圾回收时使用的信息，这里略过。</p>
-          
-        </div>
-
-        
-          <div>
-            <a class="read-more button inline" href="/posts/2025-09/go-%E6%B1%87%E7%BC%96%E5%88%86%E6%9E%90/">[Read more]</a>
-          </div>
-        
-      </article>
-    
 
     <div class="pagination">
   <div class="pagination__buttons">
@@ -878,10 +842,42 @@
       
       
     
+      
+      
+      
+    
 
     
     
 
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2026-07/" class="archive-link">
+          <span class="archive-date">2026-07</span>
+          <span class="archive-month-name">Jul</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
     
       
       
@@ -1602,22 +1598,6 @@
       
         
       
-        
-      
-    
-      
-        
-      
-        
-      
-    
-      
-        
-      
-        
-      
-        
-      
     
       
         
@@ -1635,14 +1615,6 @@
     
       
         
-      
-    
-      
-        
-      
-        
-      
-    
       
         
       
@@ -1670,6 +1642,36 @@
       
         
       
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
     
       
         
@@ -1689,22 +1691,6 @@
         
       
     
-      
-        
-      
-    
-      
-        
-      
-        
-      
-        
-      
-    
-      
-        
-      
-        
       
         
       
@@ -1744,38 +1730,6 @@
       
         
       
-    
-      
-        
-      
-    
-      
-        
-      
-        
-      
-    
-      
-        
-      
-    
-      
-        
-      
-    
-      
-    
-      
-        
-      
-    
-      
-        
-      
-    
-      
-        
-      
         
       
         
@@ -1785,14 +1739,6 @@
         
       
         
-      
-    
-      
-        
-      
-        
-      
-    
       
         
       
@@ -1820,8 +1766,6 @@
       
     
       
-        
-      
     
       
         
@@ -1835,6 +1779,26 @@
         
       
         
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
       
         
       
@@ -1872,6 +1836,44 @@
       
         
       
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
     
       
         
@@ -1880,6 +1882,12 @@
     
     
     
+    
+      
+      
+    
+      
+      
     
       
       
@@ -2386,9 +2394,9 @@
         <a href="https://blog.jinzhi.site/tags/agent/" 
            class="tag-item" 
            style="font-size: 0.9em;"
-           title="1 article">
+           title="2 articles">
           Agent
-          <span class="tag-count">(1)</span>
+          <span class="tag-count">(2)</span>
         </a>
       
     
@@ -2405,9 +2413,9 @@
         <a href="https://blog.jinzhi.site/tags/ai/" 
            class="tag-item" 
            style="font-size: 0.9em;"
-           title="2 articles">
+           title="3 articles">
           AI
-          <span class="tag-count">(2)</span>
+          <span class="tag-count">(3)</span>
         </a>
       
     

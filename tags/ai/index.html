@@ -207,6 +207,68 @@
     
       <article class="post on-list">
         <h1 class="post-title">
+          <a href="https://blog.jinzhi.site/posts/2026-07/claude-code-auto-mode-%E5%AE%9E%E7%8E%B0%E5%88%86%E6%9E%90/">Claude Code auto-mode 实现分析</a>
+        </h1>
+        <div class="post-meta"><time class="post-date">2026-07-03</time></div>
+
+        
+          <span class="post-tags">
+            
+            #<a href="https://blog.jinzhi.site/tags/ai/">AI</a>&nbsp;
+            
+            #<a href="https://blog.jinzhi.site/tags/agent/">Agent</a>&nbsp;
+            
+          </span>
+        
+
+        
+
+
+        <div class="post-content">
+          
+            <blockquote>
+<p>注：文章由 codex 整理。</p>
+</blockquote>
+<h2 id="背景">背景</h2>
+<p>本文分析的是 <code>chengzhycn/claude-code</code> 在提交 <code>4b9d30f7953273e567a18eb819f4eddd45fcc877</code> 上的源码实现。</p>
+<p>源码入口：</p>
+<ul>
+<li>仓库：https://github.com/chengzhycn/claude-code/tree/4b9d30f7953273e567a18eb819f4eddd45fcc877</li>
+<li>权限模式定义：<code>src/utils/permissions/PermissionMode.ts</code></li>
+<li>auto-mode 状态切换：<code>src/utils/permissions/permissionSetup.ts</code></li>
+<li>工具权限主流程：<code>src/utils/permissions/permissions.ts</code></li>
+<li>auto-mode classifier：<code>src/utils/permissions/yoloClassifier.ts</code></li>
+<li>Bash 权限判定：<code>src/tools/BashTool/bashPermissions.ts</code></li>
+<li>Bash 只读命令判定：<code>src/tools/BashTool/readOnlyValidation.ts</code></li>
+<li>Bash 注入/语法安全检查：<code>src/tools/BashTool/bashSecurity.ts</code></li>
+</ul>
+<p>核心问题是：Claude Code 怎么在“不每一步都问用户”和“不直接 bypass permissions”之间做折中。源码里的 auto-mode 不是一个简单的全局 allow，而是一套组合机制：</p>
+<ol>
+<li>进入 auto-mode 时先检查 feature gate 和 opt-in。</li>
+<li>临时剥离会绕过 classifier 的危险 allow rule。</li>
+<li>工具调用先走原有本地权限系统。</li>
+<li>对本地系统仍然需要 <code>ask</code> 的动作，再交给 auto-mode classifier 判断 allow/block。</li>
+<li>classifier 不可用、输出不可解析或 transcript 太长时，按场景 fail closed 或回退到人工 permission prompt。</li>
+</ol>
+<h2 id="模型">模型</h2>
+<p>auto-mode 可以理解成一个“permission prompt 的自动代理”，而不是新的沙箱。它的安全性来自三层：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">工具自己的权限检查
+</span></span><span class="line"><span class="cl">  -&gt; 本地静态安全规则：路径、只读命令、deny/ask/allow rule、shell 注入模式
+</span></span><span class="line"><span class="cl">  -&gt; auto-mode 快速路径：acceptEdits 可允许的操作、安全工具 allowlist
+</span></span><span class="line"><span class="cl">  -&gt; auto-mode classifier：读取 transcript + 当前 action，输出 allow/block
+</span></span></code></pre></div><p>这意味着：</p>
+          
+        </div>
+
+        
+          <div>
+            <a class="read-more button inline" href="/posts/2026-07/claude-code-auto-mode-%E5%AE%9E%E7%8E%B0%E5%88%86%E6%9E%90/">[Read more]</a>
+          </div>
+        
+      </article>
+    
+      <article class="post on-list">
+        <h1 class="post-title">
           <a href="https://blog.jinzhi.site/posts/2026-06/%E7%AE%97%E5%8A%9B%E7%94%B5%E5%8A%9B%E7%AE%97%E7%94%B5%E5%8D%8F%E5%90%8C%E7%9A%84%E5%95%86%E4%B8%9A%E6%A8%A1%E5%BC%8F%E4%B8%8E%E6%8A%95%E8%B5%84%E9%80%BB%E8%BE%91/">算力×电力：算电协同的商业模式与投资逻辑</a>
         </h1>
         <div class="post-meta"><time class="post-date">2026-06-08</time></div>
@@ -635,10 +697,42 @@
       
       
     
+      
+      
+      
+    
 
     
     
 
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2026-07/" class="archive-link">
+          <span class="archive-date">2026-07</span>
+          <span class="archive-month-name">Jul</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
     
       
       
@@ -1359,22 +1453,6 @@
       
         
       
-        
-      
-    
-      
-        
-      
-        
-      
-    
-      
-        
-      
-        
-      
-        
-      
     
       
         
@@ -1392,14 +1470,6 @@
     
       
         
-      
-    
-      
-        
-      
-        
-      
-    
       
         
       
@@ -1427,6 +1497,36 @@
       
         
       
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
     
       
         
@@ -1446,22 +1546,6 @@
         
       
     
-      
-        
-      
-    
-      
-        
-      
-        
-      
-        
-      
-    
-      
-        
-      
-        
       
         
       
@@ -1501,38 +1585,6 @@
       
         
       
-    
-      
-        
-      
-    
-      
-        
-      
-        
-      
-    
-      
-        
-      
-    
-      
-        
-      
-    
-      
-    
-      
-        
-      
-    
-      
-        
-      
-    
-      
-        
-      
         
       
         
@@ -1542,14 +1594,6 @@
         
       
         
-      
-    
-      
-        
-      
-        
-      
-    
       
         
       
@@ -1577,8 +1621,6 @@
       
     
       
-        
-      
     
       
         
@@ -1592,6 +1634,26 @@
         
       
         
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
       
         
       
@@ -1629,6 +1691,44 @@
       
         
       
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
     
       
         
@@ -1637,6 +1737,12 @@
     
     
     
+    
+      
+      
+    
+      
+      
     
       
       
@@ -2143,9 +2249,9 @@
         <a href="https://blog.jinzhi.site/tags/agent/" 
            class="tag-item" 
            style="font-size: 0.9em;"
-           title="1 article">
+           title="2 articles">
           Agent
-          <span class="tag-count">(1)</span>
+          <span class="tag-count">(2)</span>
         </a>
       
     
@@ -2162,9 +2268,9 @@
         <a href="https://blog.jinzhi.site/tags/ai/" 
            class="tag-item" 
            style="font-size: 0.9em;"
-           title="2 articles">
+           title="3 articles">
           AI
-          <span class="tag-count">(2)</span>
+          <span class="tag-count">(3)</span>
         </a>
       
     
