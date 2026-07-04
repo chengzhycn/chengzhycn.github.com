@@ -1,0 +1,3664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  
+    <title>oh-my-pi memory 系统实现分析 :: chengzhycn&#39;s blog</title>
+  
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content=" 注：文章由 codex 整理。
+背景 oh-my-pi 的 memory 系统不是一个单一模块，而是一层 MemoryBackend 抽象下面挂了几种不同的实现。它要解决的问题是：Agent 的上下文窗口是短期的，但用户偏好、项目约定、设计决策、踩坑经验应该跨 session 保留下来，并能在未来对话中重新进入模型上下文。
+从实现上看，oh-my-pi 把 memory 拆成三个问题：
+记忆写到哪里：本地 Markdown 摘要、本地 SQLite、还是远端 Hindsight 服务。 什么时候写入：工具显式 retain，还是每 N 轮自动保留 transcript。 什么时候读出：启动时注入摘要，首轮 prompt 前自动 recall，或者由模型主动调用 recall / reflect。 总体架构 memory backend 的公共接口定义在：
+packages/coding-agent/src/memory-backend/types.ts packages/coding-agent/src/memory-backend/resolve.ts resolveMemoryBackend(settings) 根据 memory.backend 选择具体实现：
+memory.backend = off -&gt; offBackend memory.backend = local -&gt; localBackend memory.backend = hindsight -&gt; hindsightBackend memory.backend = mnemopi -&gt; mnemopiBackend MemoryBackend 的关键 hook 是：
+start()：session 启动时建立运行时状态、订阅 session event。 buildDeveloperInstructions()：构造要注入系统提示词的 memory 文本。 beforeAgentStartPrompt()：在当前 turn 生成前追加一次性 recall 结果，保证首轮就能吃到记忆。 enqueue()：强制触发 retain / consolidation。 clear()：清理当前 backend 的持久化状态。 status() / search() / save() / stats() / diagnose()：给 UI、slash command、extension 使用。 三种真实 backend 的定位不同：
+" />
+<meta name="keywords" content="" />
+
+  <meta name="robots" content="noodp" />
+
+<link rel="canonical" href="https://blog.jinzhi.site/posts/2026-07/oh-my-pi-memory-%E7%B3%BB%E7%BB%9F%E5%AE%9E%E7%8E%B0%E5%88%86%E6%9E%90/" />
+
+
+
+
+
+  
+  <link rel="stylesheet" href="https://blog.jinzhi.site/css/buttons.min.86f6b4c106b6c6eb690ae5203d36b442c1f66f718ff4e8164fa86cf6c61ad641.css">
+
+  
+  <link rel="stylesheet" href="https://blog.jinzhi.site/css/code.min.c4581949edab7810737609fc5568852bcd908945f14561e366dcd2300a370545.css">
+
+  
+  <link rel="stylesheet" href="https://blog.jinzhi.site/css/fonts.min.5bb7ed13e1d00d8ff39ea84af26737007eb5051b157b86fc24487c94f3dc8bbe.css">
+
+  
+  <link rel="stylesheet" href="https://blog.jinzhi.site/css/footer.min.eb8dfc2c6a7eafa36cd3ba92d63e69e849e2200e0002a228d137f236b09ecd75.css">
+
+  
+  <link rel="stylesheet" href="https://blog.jinzhi.site/css/gist.min.a751e8b0abe1ba8bc53ced52a38b19d8950fe78ca29454ea8c2595cf26aad5c0.css">
+
+  
+  <link rel="stylesheet" href="https://blog.jinzhi.site/css/header.min.75c7eb0e2872d95ff48109c6647d0223a38db52e2561dd87966eb5fc7c6bdac6.css">
+
+  
+  <link rel="stylesheet" href="https://blog.jinzhi.site/css/main.min.7984a754b43b7469d389c539410e90dff2870263de16b008dfc7e8170fcd0f5b.css">
+
+  
+  <link rel="stylesheet" href="https://blog.jinzhi.site/css/menu.min.3c17467ebeb3d38663dce68f71f519901124fa5cbb4519b2fb0667a21e9aca39.css">
+
+  
+  <link rel="stylesheet" href="https://blog.jinzhi.site/css/pagination.min.bbb986dbce00a5ce5aca0504b7925fc1c581992a4bf57f163e5d69cc1db7d836.css">
+
+  
+  <link rel="stylesheet" href="https://blog.jinzhi.site/css/post.min.e6dddd258e64c83e05cec0cd49c05216742d42fc8ecbfbe6b67083412b609bd3.css">
+
+  
+  <link rel="stylesheet" href="https://blog.jinzhi.site/css/syntax.min.a2cc694a9b481f15d41722bffc2cc54eea4c4f74fd9072b0b33253604c22606e.css">
+
+  
+  <link rel="stylesheet" href="https://blog.jinzhi.site/css/terminal.min.e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.css">
+
+  
+  <link rel="stylesheet" href="https://blog.jinzhi.site/css/terms.min.b81791663c3790e738e571cdbf802312390d30e4b1d8dc9d814a5b5454d0ac11.css">
+
+
+
+
+
+
+
+<link rel="shortcut icon" href="https://blog.jinzhi.site/favicon.png">
+<link rel="apple-touch-icon" href="https://blog.jinzhi.site/apple-touch-icon.png">
+
+
+<meta name="twitter:card" content="summary" />
+
+  
+    <meta name="twitter:site" content="" />
+  
+    <meta name="twitter:creator" content="" />
+
+
+
+<meta property="og:locale" content="en" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="oh-my-pi memory 系统实现分析">
+<meta property="og:description" content=" 注：文章由 codex 整理。
+背景 oh-my-pi 的 memory 系统不是一个单一模块，而是一层 MemoryBackend 抽象下面挂了几种不同的实现。它要解决的问题是：Agent 的上下文窗口是短期的，但用户偏好、项目约定、设计决策、踩坑经验应该跨 session 保留下来，并能在未来对话中重新进入模型上下文。
+从实现上看，oh-my-pi 把 memory 拆成三个问题：
+记忆写到哪里：本地 Markdown 摘要、本地 SQLite、还是远端 Hindsight 服务。 什么时候写入：工具显式 retain，还是每 N 轮自动保留 transcript。 什么时候读出：启动时注入摘要，首轮 prompt 前自动 recall，或者由模型主动调用 recall / reflect。 总体架构 memory backend 的公共接口定义在：
+packages/coding-agent/src/memory-backend/types.ts packages/coding-agent/src/memory-backend/resolve.ts resolveMemoryBackend(settings) 根据 memory.backend 选择具体实现：
+memory.backend = off -&gt; offBackend memory.backend = local -&gt; localBackend memory.backend = hindsight -&gt; hindsightBackend memory.backend = mnemopi -&gt; mnemopiBackend MemoryBackend 的关键 hook 是：
+start()：session 启动时建立运行时状态、订阅 session event。 buildDeveloperInstructions()：构造要注入系统提示词的 memory 文本。 beforeAgentStartPrompt()：在当前 turn 生成前追加一次性 recall 结果，保证首轮就能吃到记忆。 enqueue()：强制触发 retain / consolidation。 clear()：清理当前 backend 的持久化状态。 status() / search() / save() / stats() / diagnose()：给 UI、slash command、extension 使用。 三种真实 backend 的定位不同：
+" />
+<meta property="og:url" content="https://blog.jinzhi.site/posts/2026-07/oh-my-pi-memory-%E7%B3%BB%E7%BB%9F%E5%AE%9E%E7%8E%B0%E5%88%86%E6%9E%90/" />
+<meta property="og:site_name" content="chengzhycn&#39;s blog" />
+
+  <meta property="og:image" content="https://blog.jinzhi.site/og-image.png">
+
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="627">
+
+  <meta property="article:section" content="Learning" />
+
+
+  <meta property="article:published_time" content="2026-07-04 11:39:09 &#43;0800 &#43;0800" />
+
+
+
+
+
+
+
+
+
+<html>
+<head>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-screen-web/style.css" />
+  <style>
+    body {
+      font-family: "LXGW WenKai Screen";
+      font-weight: normal;
+    }
+  </style>
+</head>
+<body>
+
+</body>
+</html>
+
+
+</head>
+<body>
+
+
+<div class="page-wrapper">
+  <div class="container center">
+
+  <header class="header">
+  <div class="header__inner">
+    <div class="header__logo">
+      <a href="/">
+  <div class="logo">
+    chengzhycn&#39;s blog
+  </div>
+</a>
+
+    </div>
+    
+      <ul class="menu menu--mobile">
+  <li class="menu__trigger">Menu&nbsp;▾</li>
+  <li>
+    <ul class="menu__dropdown">
+      
+        
+          <li><a href="/">Home</a></li>
+        
+      
+        
+          <li><a href="/about">About</a></li>
+        
+      
+        
+          <li><a href="/categories/">Categories</a></li>
+        
+      
+        
+          <li><a href="/tags/">Tags</a></li>
+        
+      
+        
+          <li><a href="/archives/">Archives</a></li>
+        
+      
+      
+    </ul>
+  </li>
+</ul>
+
+    
+    
+  </div>
+  
+    <nav class="navigation-menu">
+  <ul class="navigation-menu__inner menu--desktop">
+    
+      
+        
+          <li><a href="/" >Home</a></li>
+        
+      
+        
+          <li><a href="/about" >About</a></li>
+        
+      
+        
+          <li><a href="/categories/" >Categories</a></li>
+        
+      
+        
+          <li><a href="/tags/" >Tags</a></li>
+        
+      
+        
+          <li><a href="/archives/" >Archives</a></li>
+        
+      
+      
+    
+  </ul>
+</nav>
+
+  
+</header>
+
+
+  <div class="content">
+    
+<article class="post">
+  <h1 class="post-title">
+    <a href="https://blog.jinzhi.site/posts/2026-07/oh-my-pi-memory-%E7%B3%BB%E7%BB%9F%E5%AE%9E%E7%8E%B0%E5%88%86%E6%9E%90/">oh-my-pi memory 系统实现分析</a>
+  </h1>
+  <div class="post-meta"><time class="post-date">2026-07-04</time><span class="post-reading-time">8 min read (1561 words)</span></div>
+
+  
+    <span class="post-tags">
+      
+      #<a href="https://blog.jinzhi.site/tags/ai/">AI</a>&nbsp;
+      
+      #<a href="https://blog.jinzhi.site/tags/agent/">Agent</a>&nbsp;
+      
+    </span>
+  
+  
+
+
+  
+    <div class="table-of-contents">
+      <h2>
+        Table of Contents
+      </h2>
+      <nav id="TableOfContents">
+  <ul>
+    <li><a href="#背景">背景</a></li>
+    <li><a href="#总体架构">总体架构</a></li>
+    <li><a href="#三种-backend-的差异">三种 backend 的差异</a>
+      <ul>
+        <li><a href="#local把历史会话压缩成长期提示词">local：把历史会话压缩成长期提示词</a></li>
+        <li><a href="#hindsight远端托管记忆">hindsight：远端托管记忆</a></li>
+        <li><a href="#mnemopi本地可检索记忆库">mnemopi：本地可检索记忆库</a></li>
+      </ul>
+    </li>
+    <li><a href="#mnemopi-的分层">mnemopi 的分层</a></li>
+    <li><a href="#mnemopi-的生命周期">mnemopi 的生命周期</a>
+      <ul>
+        <li><a href="#启动">启动</a></li>
+        <li><a href="#首轮-recall">首轮 recall</a></li>
+        <li><a href="#自动-retain">自动 retain</a></li>
+        <li><a href="#session-收尾与记忆固化">Session 收尾与记忆固化</a></li>
+      </ul>
+    </li>
+    <li><a href="#记忆库的隔离策略">记忆库的隔离策略</a></li>
+    <li><a href="#sqlite-数据模型">SQLite 数据模型</a>
+      <ul>
+        <li><a href="#working_memory">working_memory</a></li>
+        <li><a href="#episodic_memory">episodic_memory</a></li>
+        <li><a href="#fts-和-embeddings">FTS 和 embeddings</a></li>
+        <li><a href="#facts--annotations--graph">facts / annotations / graph</a></li>
+      </ul>
+    </li>
+    <li><a href="#写入流程">写入流程</a></li>
+    <li><a href="#召回流程">召回流程</a></li>
+    <li><a href="#consolidation从-working-到-episodic">consolidation：从 working 到 episodic</a></li>
+    <li><a href="#memory-的调用方式">memory 的调用方式</a>
+      <ul>
+        <li><a href="#slash-command用户管理-memory">Slash command：用户管理 memory</a></li>
+        <li><a href="#model-tool模型主动读写记忆">Model tool：模型主动读写记忆</a></li>
+        <li><a href="#自动流程不需要模型显式调用">自动流程：不需要模型显式调用</a></li>
+      </ul>
+    </li>
+    <li><a href="#工具接口">工具接口</a>
+      <ul>
+        <li><a href="#retain">retain</a></li>
+        <li><a href="#recall">recall</a></li>
+        <li><a href="#reflect">reflect</a></li>
+      </ul>
+    </li>
+    <li><a href="#配置要点">配置要点</a></li>
+    <li><a href="#设计取舍">设计取舍</a>
+      <ul>
+        <li><a href="#为什么不是只用-markdown-摘要">为什么不是只用 Markdown 摘要</a></li>
+        <li><a href="#为什么不是只用向量库">为什么不是只用向量库</a></li>
+        <li><a href="#为什么分-working-和-episodic">为什么分 working 和 episodic</a></li>
+        <li><a href="#为什么-per-project-tagged-在-mnemopi-里不是-tag">为什么 per-project-tagged 在 mnemopi 里不是 tag</a></li>
+      </ul>
+    </li>
+    <li><a href="#风险和待验证问题">风险和待验证问题</a></li>
+    <li><a href="#总结">总结</a></li>
+    <li><a href="#源码索引">源码索引</a></li>
+  </ul>
+</nav>
+    </div>
+  
+
+  <div class="post-content"><div>
+        <blockquote>
+<p>注：文章由 codex 整理。</p>
+</blockquote>
+<h2 id="背景">背景<a href="#背景" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p><code>oh-my-pi</code> 的 memory 系统不是一个单一模块，而是一层 <code>MemoryBackend</code> 抽象下面挂了几种不同的实现。它要解决的问题是：Agent 的上下文窗口是短期的，但用户偏好、项目约定、设计决策、踩坑经验应该跨 session 保留下来，并能在未来对话中重新进入模型上下文。</p>
+<p>从实现上看，<code>oh-my-pi</code> 把 memory 拆成三个问题：</p>
+<ol>
+<li><strong>记忆写到哪里</strong>：本地 Markdown 摘要、本地 SQLite、还是远端 Hindsight 服务。</li>
+<li><strong>什么时候写入</strong>：工具显式 <code>retain</code>，还是每 N 轮自动保留 transcript。</li>
+<li><strong>什么时候读出</strong>：启动时注入摘要，首轮 prompt 前自动 recall，或者由模型主动调用 <code>recall</code> / <code>reflect</code>。</li>
+</ol>
+<h2 id="总体架构">总体架构<a href="#总体架构" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>memory backend 的公共接口定义在：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">packages/coding-agent/src/memory-backend/types.ts
+</span></span><span class="line"><span class="cl">packages/coding-agent/src/memory-backend/resolve.ts
+</span></span></code></pre></div><p><code>resolveMemoryBackend(settings)</code> 根据 <code>memory.backend</code> 选择具体实现：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">memory.backend = off        -&gt; offBackend
+</span></span><span class="line"><span class="cl">memory.backend = local      -&gt; localBackend
+</span></span><span class="line"><span class="cl">memory.backend = hindsight  -&gt; hindsightBackend
+</span></span><span class="line"><span class="cl">memory.backend = mnemopi    -&gt; mnemopiBackend
+</span></span></code></pre></div><p><code>MemoryBackend</code> 的关键 hook 是：</p>
+<ul>
+<li><code>start()</code>：session 启动时建立运行时状态、订阅 session event。</li>
+<li><code>buildDeveloperInstructions()</code>：构造要注入系统提示词的 memory 文本。</li>
+<li><code>beforeAgentStartPrompt()</code>：在当前 turn 生成前追加一次性 recall 结果，保证首轮就能吃到记忆。</li>
+<li><code>enqueue()</code>：强制触发 retain / consolidation。</li>
+<li><code>clear()</code>：清理当前 backend 的持久化状态。</li>
+<li><code>status()</code> / <code>search()</code> / <code>save()</code> / <code>stats()</code> / <code>diagnose()</code>：给 UI、slash command、extension 使用。</li>
+</ul>
+<p>三种真实 backend 的定位不同：</p>
+<table>
+	<thead>
+			<tr>
+					<th>Backend</th>
+					<th>定位</th>
+					<th>主要存储</th>
+					<th>查询能力</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td><code>local</code></td>
+					<td>历史 session 摘要管线</td>
+					<td><code>memory_summary.md</code>、<code>MEMORY.md</code>、<code>skills/</code>、<code>learned.md</code></td>
+					<td>无结构化 search，只做提示词注入</td>
+			</tr>
+			<tr>
+					<td><code>hindsight</code></td>
+					<td>远端托管 memory 服务</td>
+					<td>Hindsight server-side bank</td>
+					<td>服务端 <code>retain</code> / <code>recall</code> / <code>reflect</code></td>
+			</tr>
+			<tr>
+					<td><code>mnemopi</code></td>
+					<td>本地 SQLite memory engine</td>
+					<td>SQLite bank，含 working / episodic / FTS / embedding / facts</td>
+					<td>本地混合检索，可编辑、可诊断</td>
+			</tr>
+	</tbody>
+</table>
+<p>用数据流表示：</p>
+<pre class="mermaid">flowchart TD
+    A[&#34;AgentSession&#34;] --&gt; B[&#34;resolveMemoryBackend(settings)&#34;]
+    B --&gt; C[&#34;local backend&#34;]
+    B --&gt; D[&#34;hindsight backend&#34;]
+    B --&gt; E[&#34;mnemopi backend&#34;]
+
+    C --&gt; C1[&#34;rollout summaries&#34;]
+    C1 --&gt; C2[&#34;memory_summary.md / MEMORY.md&#34;]
+    C2 --&gt; F[&#34;developer instructions&#34;]
+
+    D --&gt; D1[&#34;Hindsight HTTP API&#34;]
+    D1 --&gt; D2[&#34;remote bank / mental models&#34;]
+    D2 --&gt; F
+
+    E --&gt; E1[&#34;MnemopiSessionState&#34;]
+    E1 --&gt; E2[&#34;Mnemopi facade&#34;]
+    E2 --&gt; E3[&#34;BeamMemory&#34;]
+    E3 --&gt; E4[&#34;SQLite: working, episodic, FTS, embeddings, facts&#34;]
+    E4 --&gt; F</pre><h2 id="三种-backend-的差异">三种 backend 的差异<a href="#三种-backend-的差异" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<h3 id="local把历史会话压缩成长期提示词">local：把历史会话压缩成长期提示词<a href="#local把历史会话压缩成长期提示词" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p><code>localBackend</code> 包装的是 <code>packages/coding-agent/src/memories/</code> 目录下的旧管线。它启动时扫描过去的 session jsonl，做两阶段 LLM 处理：</p>
+<ol>
+<li><strong>Stage 1</strong>：逐个 session 提取 durable signal，例如技术决策、约束、踩坑、工作流。</li>
+<li><strong>Stage 2</strong>：把多个 session 的提取结果合并成 <code>MEMORY.md</code>、<code>memory_summary.md</code> 和 generated skills。</li>
+</ol>
+<p><code>local</code> 的优点是简单、可读、可审计。最终注入的东西是一个稳定的摘要块，而不是每次都跑检索。缺点是它没有结构化 search，不能针对当前问题精确召回某条记忆，更像“启动时读一本项目笔记”。</p>
+<h3 id="hindsight远端托管记忆">hindsight：远端托管记忆<a href="#hindsight远端托管记忆" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p><code>hindsightBackend</code> 通过 <code>HindsightApi</code> 调用远端 HTTP API，agent 侧只负责：</p>
+<ul>
+<li>计算 bank scope。</li>
+<li>首轮或压缩前 recall。</li>
+<li>每 N 轮 retain transcript。</li>
+<li>加载 mental models 并注入 <code>&lt;mental_models&gt;</code>。</li>
+<li>暴露 <code>retain</code> / <code>recall</code> / <code>reflect</code> 工具。</li>
+</ul>
+<p>它的优势是服务端可以持续演进，天然适合跨设备、跨团队共享。缺点是依赖远端服务，涉及 API token、隐私、网络可用性和服务端可观测性。</p>
+<h3 id="mnemopi本地可检索记忆库">mnemopi：本地可检索记忆库<a href="#mnemopi本地可检索记忆库" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p><code>mnemopi</code> 是最完整的本地实现。它不是简单把文本 append 到文件，而是把 memory 存成 SQLite bank，并同时维护：</p>
+<ul>
+<li>短期原始记忆：<code>working_memory</code></li>
+<li>长期情节记忆：<code>episodic_memory</code></li>
+<li>全文检索索引：<code>fts_working</code> / <code>fts_episodes</code></li>
+<li>向量索引：<code>memory_embeddings</code>，以及可选 <code>sqlite-vec</code> 相关表</li>
+<li>结构化事实：<code>memoria_facts</code>、<code>facts</code></li>
+<li>关系和标注：<code>triples</code>、<code>annotations</code></li>
+<li>临时便签：<code>scratchpad</code></li>
+</ul>
+<p>它的优势是本地、可搜索、可编辑、可诊断；即使 embedding 或 LLM fact extraction 不可用，也能靠 FTS / lexical fallback 降级。缺点是复杂度明显更高：要管理 SQLite schema、embedding model、后台 extraction、consolidation，以及不同 bank 的隔离策略。</p>
+<h2 id="mnemopi-的分层">mnemopi 的分层<a href="#mnemopi-的分层" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p><code>mnemopi</code> 在 <code>coding-agent</code> 和 <code>pi-mnemopi</code> 两个 package 之间分层：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">packages/coding-agent/src/mnemopi/backend.ts
+</span></span><span class="line"><span class="cl">packages/coding-agent/src/mnemopi/state.ts
+</span></span><span class="line"><span class="cl">packages/coding-agent/src/mnemopi/config.ts
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">packages/mnemopi/src/core/memory.ts
+</span></span><span class="line"><span class="cl">packages/mnemopi/src/core/beam/index.ts
+</span></span><span class="line"><span class="cl">packages/mnemopi/src/core/beam/schema.ts
+</span></span><span class="line"><span class="cl">packages/mnemopi/src/core/beam/store.ts
+</span></span><span class="line"><span class="cl">packages/mnemopi/src/core/beam/recall.ts
+</span></span><span class="line"><span class="cl">packages/mnemopi/src/core/beam/consolidate.ts
+</span></span></code></pre></div><p>可以理解为三层：</p>
+<ol>
+<li><strong>Agent 集成层</strong>：<code>mnemopiBackend</code> 和 <code>MnemopiSessionState</code>，负责 session 生命周期、提示词注入、工具接入、记忆库隔离策略。</li>
+<li><strong>Facade 层</strong>：<code>Mnemopi</code> class，提供 <code>remember</code>、<code>recall</code>、<code>recallEnhanced</code>、<code>sleep</code>、<code>getStats</code> 等稳定 API。</li>
+<li><strong>Beam 存储/检索层</strong>：<code>BeamMemory</code>，直接操作 SQLite、FTS、embedding、fact extraction、consolidation。</li>
+</ol>
+<h2 id="mnemopi-的生命周期">mnemopi 的生命周期<a href="#mnemopi-的生命周期" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<h3 id="启动">启动<a href="#启动" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p><code>mnemopiBackend.start()</code> 在 session 启动时运行：</p>
+<ol>
+<li>读取配置：<code>loadMnemopiConfig(settings, agentDir)</code>。</li>
+<li>lazy load <code>@oh-my-pi/pi-mnemopi</code> 和 <code>@oh-my-pi/pi-mnemopi/core</code>。</li>
+<li>构造 <code>MnemopiSessionState</code>。</li>
+<li>订阅 <code>AgentSession</code> event。</li>
+</ol>
+<p>它特意 lazy load mnemopi，因为 mnemopi 会引入 embedding stack。源码里还把 fastembed 初始化路由到专门的 embedding subprocess，避免 <code>onnxruntime-node</code> 直接进入 agent 主进程地址空间。</p>
+<h3 id="首轮-recall">首轮 recall<a href="#首轮-recall" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p><code>MnemopiSessionState.beforeAgentStartPrompt()</code> 和 <code>maybeRecallOnAgentStart()</code> 都会在首轮生成前尝试 recall：</p>
+<ol>
+<li>取最新用户输入。</li>
+<li>加上最近几轮上下文，调用 <code>composeRecallQuery()</code>。</li>
+<li>按 <code>mnemopi.recallMaxQueryChars</code> 截断。</li>
+<li>调用 <code>recallForContext()</code>。</li>
+<li>把结果格式化为 <code>&lt;memories&gt;...&lt;/memories&gt;</code>。</li>
+<li>刷新 base system prompt。</li>
+</ol>
+<p>这里复用了 <code>hindsight/content.ts</code> 的工具函数。一个重要细节是：retention 之前会剥掉 <code>&lt;memories&gt;</code> 和 <code>&lt;mental_models&gt;</code>，避免 recall 出来的记忆再次被 retain，形成自我强化的污染循环。</p>
+<h3 id="自动-retain">自动 retain<a href="#自动-retain" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>每次 <code>agent_end</code> 时，<code>maybeRetainOnAgentEnd()</code> 检查是否达到 <code>mnemopi.retainEveryNTurns</code>。默认 schema 里是 4，也就是每 4 个 user turn 自动保存一次 transcript。</p>
+<p>保存时会：</p>
+<ol>
+<li>从 session manager 提取 user/assistant 消息。</li>
+<li>调用 <code>prepareRetentionTranscript(messages, true)</code> 生成带 role marker 的 transcript。</li>
+<li>另外生成只包含 user-authored turns 的 <code>extractText</code>，用于事实/实体抽取。</li>
+<li>调用 <code>rememberInScope()</code> 写入当前 retain bank。</li>
+</ol>
+<p>自动 retain 写入的记忆参数大致是：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">source: coding-agent-transcript
+</span></span><span class="line"><span class="cl">importance: 0.65
+</span></span><span class="line"><span class="cl">scope: bank
+</span></span><span class="line"><span class="cl">extract: true
+</span></span><span class="line"><span class="cl">extractEntities: true
+</span></span><span class="line"><span class="cl">veracity: unknown
+</span></span><span class="line"><span class="cl">memoryType: episode
+</span></span><span class="line"><span class="cl">metadata: session_id, source_id, message_count, cwd
+</span></span></code></pre></div><p>显式 <code>retain</code> 工具写入的参数更像事实：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">source: coding-agent-retain
+</span></span><span class="line"><span class="cl">importance: 0.75
+</span></span><span class="line"><span class="cl">scope: bank
+</span></span><span class="line"><span class="cl">extract: true
+</span></span><span class="line"><span class="cl">extractEntities: true
+</span></span><span class="line"><span class="cl">veracity: tool
+</span></span><span class="line"><span class="cl">memoryType: fact
+</span></span><span class="line"><span class="cl">metadata: session_id, cwd, context, tool
+</span></span></code></pre></div><h3 id="session-收尾与记忆固化">Session 收尾与记忆固化<a href="#session-收尾与记忆固化" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p><code>MnemopiSessionState.dispose()</code> 默认会先 <code>consolidate()</code> 再关闭 SQLite handle。<code>consolidate()</code> 做两件事：</p>
+<ol>
+<li><code>forceRetainCurrentSession()</code>：把当前 session 再保存一次。</li>
+<li>对所有 owned bank 执行：
+<ul>
+<li><code>flushExtractions()</code>：等待后台 fact extraction 完成。</li>
+<li><code>sleepAllSessions(false)</code>：把 eligible working memory consolidate 到 episodic memory。</li>
+</ul>
+</li>
+</ol>
+<p><code>sleep</code> 是 mnemopi 的长期化动作：把 <code>working_memory</code> 中尚未 consolidated 的内容聚合、摘要、写入 <code>episodic_memory</code>，并标记原始 working rows 的 <code>consolidated_at</code>。</p>
+<h2 id="记忆库的隔离策略">记忆库的隔离策略<a href="#记忆库的隔离策略" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p><code>mnemopi</code> 的记忆库隔离逻辑在 <code>packages/coding-agent/src/mnemopi/config.ts</code> 和 <code>state.ts</code>。</p>
+<p>支持三种 scoping：</p>
+<table>
+	<thead>
+			<tr>
+					<th>模式</th>
+					<th>写入 bank</th>
+					<th>召回 bank</th>
+					<th>语义</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td><code>global</code></td>
+					<td>shared bank</td>
+					<td>shared bank</td>
+					<td>所有项目共享</td>
+			</tr>
+			<tr>
+					<td><code>per-project</code></td>
+					<td>project bank</td>
+					<td>project bank</td>
+					<td>项目硬隔离</td>
+			</tr>
+			<tr>
+					<td><code>per-project-tagged</code></td>
+					<td>project bank</td>
+					<td>project bank + shared bank</td>
+					<td>项目记忆隔离写入，同时召回全局偏好</td>
+			</tr>
+	</tbody>
+</table>
+<p>注意：<code>hindsight</code> 的 <code>per-project-tagged</code> 是“同一个 bank + project tag”；但 <code>mnemopi</code> 没有 tag-filtered recall，所以它用“项目 bank + 共享 bank”的方式模拟：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">retain -&gt; project bank
+</span></span><span class="line"><span class="cl">recall -&gt; project bank + global bank
+</span></span></code></pre></div><p>project bank 的名字来自 <code>cwd</code> 的绝对路径和 <code>Bun.hash()</code>，而不是 git root。源码注释说这是为了避免 <code>.git</code> 出现/消失导致 bank id 变化，从而把同一个项目的记忆打散。</p>
+<h2 id="sqlite-数据模型">SQLite 数据模型<a href="#sqlite-数据模型" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p><code>BeamMemory</code> 打开数据库时调用 <code>initBeam(db)</code> 初始化 schema。数据库打开逻辑在 <code>packages/mnemopi/src/db.ts</code>：</p>
+<ul>
+<li>自动创建父目录。</li>
+<li>开启 <code>PRAGMA foreign_keys=ON</code>。</li>
+<li>设置 <code>busy_timeout=5000</code>。</li>
+<li>非内存 DB 开启 <code>journal_mode=WAL</code>。</li>
+</ul>
+<p>核心表如下：</p>
+<h3 id="working_memory">working_memory<a href="#working_memory" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p><code>working_memory</code> 是新写入记忆的主表。字段包括：</p>
+<ul>
+<li><code>id</code></li>
+<li><code>content</code></li>
+<li><code>source</code></li>
+<li><code>timestamp</code></li>
+<li><code>session_id</code></li>
+<li><code>importance</code></li>
+<li><code>metadata_json</code></li>
+<li><code>veracity</code></li>
+<li><code>memory_type</code></li>
+<li><code>consolidated_at</code></li>
+<li><code>recall_count</code></li>
+<li><code>last_recalled</code></li>
+<li><code>valid_until</code></li>
+<li><code>superseded_by</code></li>
+<li><code>scope</code></li>
+<li><code>author_id</code> / <code>author_type</code> / <code>channel_id</code></li>
+<li><code>trust_tier</code></li>
+<li>temporal fields</li>
+</ul>
+<p>它承担“近期、原始、还没被长期化”的角色。</p>
+<h3 id="episodic_memory">episodic_memory<a href="#episodic_memory" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p><code>episodic_memory</code> 是长期化后的情节记忆。它和 <code>working_memory</code> 字段相似，但多了：</p>
+<ul>
+<li><code>rowid</code></li>
+<li><code>summary_of</code></li>
+<li><code>tier</code></li>
+<li><code>degraded_at</code></li>
+<li><code>binary_vector</code></li>
+</ul>
+<p><code>tier</code> 和 <code>degraded_at</code> 支持后续的降级压缩：老的 episodic memory 可以再被摘要，减少体积。</p>
+<h3 id="fts-和-embeddings">FTS 和 embeddings<a href="#fts-和-embeddings" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>全文检索由 SQLite FTS5 支持：</p>
+<ul>
+<li><code>fts_working</code></li>
+<li><code>fts_episodes</code></li>
+</ul>
+<p>触发器会在 insert / delete / update 时同步 FTS 表。</p>
+<p>向量相关表是：</p>
+<ul>
+<li><code>memory_embeddings(memory_id, embedding_json, model, created_at)</code></li>
+<li><code>episodic_memory.binary_vector</code></li>
+<li>可选 <code>sqlite-vec</code> 的 <code>vec_episodes</code></li>
+</ul>
+<p><code>reconcileEmbeddingModel()</code> 会检查 <code>memory_embeddings.model</code> 是否和当前 embedding model 一致。如果模型变了，会清空旧 embedding 并后台重建，避免不同维度/不同模型的向量混在一起比较。</p>
+<h3 id="facts--annotations--graph">facts / annotations / graph<a href="#facts--annotations--graph" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>mnemopi 不只存文本，还会尽量抽结构化信息：</p>
+<ul>
+<li><code>memoria_facts</code></li>
+<li><code>facts</code></li>
+<li><code>memoria_timelines</code></li>
+<li><code>memoria_instructions</code></li>
+<li><code>memoria_preferences</code></li>
+<li><code>memoria_kg</code></li>
+<li><code>annotations</code></li>
+<li><code>triples</code></li>
+</ul>
+<p>这部分用于增强 recall，尤其是用户偏好、时间线、实体关系、指令类记忆。</p>
+<h2 id="写入流程">写入流程<a href="#写入流程" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p><code>Mnemopi.remember()</code> 最终进入 <code>BeamMemory.remember()</code>，再进入 <code>store.ts</code> 的 <code>remember()</code>。</p>
+<p>核心流程：</p>
+<pre class="mermaid">sequenceDiagram
+    participant Tool as retain / auto retain
+    participant State as MnemopiSessionState
+    participant Facade as Mnemopi
+    participant Beam as BeamMemory
+    participant DB as SQLite
+    participant BG as Background jobs
+
+    Tool-&gt;&gt;State: rememberScoped(content, options)
+    State-&gt;&gt;Facade: remember(content, options)
+    Facade-&gt;&gt;Beam: beam.remember()
+    Beam-&gt;&gt;DB: insert/update working_memory
+    Beam-&gt;&gt;DB: FTS trigger updates fts_working
+    Beam-&gt;&gt;BG: scheduleEmbedding(memoryId, content)
+    Beam-&gt;&gt;BG: scheduleFactExtraction(extractText)
+    Beam-&gt;&gt;BG: proactive graph linking</pre><p>具体机制：</p>
+<ol>
+<li>根据 content + timestamp 生成 memory id。</li>
+<li>如果同一 session 下 content 重复，则更新已有 row 的 importance、timestamp、source 等，而不是插入重复行。</li>
+<li>新 memory 写入 <code>working_memory</code>。</li>
+<li>添加 temporal annotations，例如 <code>occurred_on</code>。</li>
+<li>触发 FTS 同步。</li>
+<li>调度 embedding。</li>
+<li>如果 <code>extract: true</code>，后台运行 LLM fact extraction。</li>
+<li>如果启用 proactive linking，写入 episodic graph。</li>
+<li>清理 query cache。</li>
+</ol>
+<p>这个设计的关键是：<code>remember()</code> 本身是同步可返回的，embedding 和 fact extraction 都是 best-effort 后台任务，不阻塞 durable write。</p>
+<h2 id="召回流程">召回流程<a href="#召回流程" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>召回入口有三个：</p>
+<ul>
+<li>自动 recall：首轮 prompt 前注入 <code>&lt;memories&gt;</code>。</li>
+<li><code>recall</code> tool：模型主动搜索记忆。</li>
+<li><code>reflect</code> tool：在 mnemopi 里其实是先 recall，再把结果格式化为“Based on recalled memories”。</li>
+</ul>
+<p><code>mnemopi</code> 的召回不是单一路径，而是混合检索。<code>recall.ts</code> 里主要有：</p>
+<ul>
+<li>query tokenize / normalize</li>
+<li>synonym expansion</li>
+<li>FTS query</li>
+<li>embedding query</li>
+<li>lexical fallback</li>
+<li>temporal parser</li>
+<li>intent-based weight adjustment</li>
+<li>MMR rerank</li>
+<li>fact recall</li>
+</ul>
+<p>候选来源可以概括为：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">query
+</span></span><span class="line"><span class="cl">  -&gt; FTS candidates
+</span></span><span class="line"><span class="cl">  -&gt; vector candidates
+</span></span><span class="line"><span class="cl">  -&gt; lexical fallback candidates
+</span></span><span class="line"><span class="cl">  -&gt; facts candidates
+</span></span><span class="line"><span class="cl">  -&gt; score / dedupe / rerank
+</span></span></code></pre></div><p>评分公式不是单一 cosine similarity。候选分数会综合：</p>
+<ul>
+<li><code>dense_score</code>：向量相似度。</li>
+<li><code>fts_score</code>：FTS 匹配强度。</li>
+<li><code>keyword_score</code>：词面匹配。</li>
+<li><code>importance_score</code>：写入时的重要性。</li>
+<li><code>recency_score</code>：时间衰减。</li>
+<li><code>temporal_score</code>：时间型 query 的额外加权。</li>
+<li><code>veracityWeight</code>：可信度权重。</li>
+<li><code>currentContentAdjustment</code>：当 query 询问 current/latest 时，提升 current/active 记忆，压低 stale/legacy 记忆。</li>
+<li><code>tierWeight</code>：working / episodic 层级权重。</li>
+</ul>
+<p>源码里的主要配置权重来自：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">vecWeight
+</span></span><span class="line"><span class="cl">ftsWeight
+</span></span><span class="line"><span class="cl">importanceWeight
+</span></span><span class="line"><span class="cl">temporalWeight
+</span></span><span class="line"><span class="cl">temporalHalflife
+</span></span></code></pre></div><p>最终结果会排序、去重、可选 MMR，然后更新 recall count / last recalled。</p>
+<h2 id="consolidation从-working-到-episodic">consolidation：从 working 到 episodic<a href="#consolidation从-working-到-episodic" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p><code>mnemopi</code> 里 <code>sleep()</code> 是把短期记忆固化成长时记忆的动作。它会找出 eligible 的 <code>working_memory</code>，生成 summary，然后调用 <code>consolidateToEpisodic()</code> 写入 <code>episodic_memory</code>。</p>
+<p>简化流程：</p>
+<pre class="mermaid">flowchart TD
+    A[&#34;working_memory: unconsolidated rows&#34;] --&gt; B[&#34;sleep / sleepAllSessions&#34;]
+    B --&gt; C[&#34;select eligible rows by session&#34;]
+    C --&gt; D[&#34;summarize / consolidate&#34;]
+    D --&gt; E[&#34;insert episodic_memory&#34;]
+    E --&gt; F[&#34;extract facts from summary&#34;]
+    E --&gt; G[&#34;schedule embedding&#34;]
+    D --&gt; H[&#34;mark working_memory.consolidated_at&#34;]</pre><p>这样做的意义是分离两种记忆：</p>
+<ul>
+<li><code>working_memory</code> 保留近期原始对话细节，适合短期精确召回。</li>
+<li><code>episodic_memory</code> 保留压缩后的长期经验，适合跨 session 延续。</li>
+</ul>
+<p>这比简单“所有历史都塞进向量库”更像人类记忆模型：近期细节和长期摘要有不同保真度、不同生命周期。</p>
+<h2 id="memory-的调用方式">memory 的调用方式<a href="#memory-的调用方式" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p><code>oh-my-pi</code> 里的 memory 调用要区分三类入口：</p>
+<table>
+	<thead>
+			<tr>
+					<th>类型</th>
+					<th>入口</th>
+					<th>谁触发</th>
+					<th>作用</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>Slash command</td>
+					<td><code>/memory ...</code></td>
+					<td>用户</td>
+					<td>查看、诊断、清理、强制整理 memory backend</td>
+			</tr>
+			<tr>
+					<td>Model tool</td>
+					<td><code>retain</code> / <code>recall</code> / <code>reflect</code></td>
+					<td>模型</td>
+					<td>写入、搜索、基于记忆汇总</td>
+			</tr>
+			<tr>
+					<td>自动流程</td>
+					<td>auto recall / auto retain / consolidation</td>
+					<td>Session lifecycle</td>
+					<td>首轮注入记忆、定期保存 transcript、结束时固化记忆</td>
+			</tr>
+	</tbody>
+</table>
+<h3 id="slash-command用户管理-memory">Slash command：用户管理 memory<a href="#slash-command用户管理-memory" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>用户在输入框里按 <code>/</code> 能找到的是 slash command。memory 相关的用户入口是 <code>/memory</code>，而不是 <code>/retain</code>、<code>/recall</code>、<code>/reflect</code>。</p>
+<p>常见子命令包括：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">/memory view
+</span></span><span class="line"><span class="cl">/memory stats
+</span></span><span class="line"><span class="cl">/memory diagnose
+</span></span><span class="line"><span class="cl">/memory clear
+</span></span><span class="line"><span class="cl">/memory enqueue
+</span></span></code></pre></div><p>这些命令面向“管理 memory 系统”：</p>
+<ul>
+<li><code>view</code>：查看当前 backend 注入的 memory 内容。</li>
+<li><code>stats</code>：查看 backend 统计信息。</li>
+<li><code>diagnose</code>：查看诊断结果。</li>
+<li><code>clear</code> / <code>reset</code>：清理当前 backend 的 memory 数据。</li>
+<li><code>enqueue</code> / <code>rebuild</code>：强制触发 consolidation / retain 工作。</li>
+</ul>
+<h3 id="model-tool模型主动读写记忆">Model tool：模型主动读写记忆<a href="#model-tool模型主动读写记忆" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p><code>retain</code> / <code>recall</code> / <code>reflect</code> 是 <strong>model-facing tools</strong>，不是用户可直接输入的 <code>/retain</code> 斜杠命令。</p>
+<p>这意味着：</p>
+<ol>
+<li>用户在 <code>/</code> 菜单里找不到 <code>/retain</code> 是正常的。</li>
+<li>用户可以用自然语言要求模型记住某件事。</li>
+<li>模型判断需要写入时，才会调用 <code>retain</code> tool。</li>
+</ol>
+<p>例如用户说：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">请记住：我希望技术笔记都用中文，先讲机制再讲配置。
+</span></span></code></pre></div><p>在 <code>memory.backend = mnemopi</code> 或 <code>memory.backend = hindsight</code> 时，模型可以调用 <code>retain</code> 把这条信息写入长期记忆。</p>
+<p>同理，模型遇到这些问题时可以主动调用 <code>recall</code>：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">我们上次对这个 repo 的发布流程是怎么约定的？
+</span></span><span class="line"><span class="cl">我之前说过这类笔记要怎么写吗？
+</span></span><span class="line"><span class="cl">这个项目之前踩过什么坑？
+</span></span></code></pre></div><p><code>reflect</code> 则用于“基于记忆做综合回答”。不过要注意：<code>hindsight</code> 的 <code>reflect</code> 是远端服务端 synthesis，而 <code>mnemopi</code> 当前更像 recall 结果的格式化汇总。</p>
+<h3 id="自动流程不需要模型显式调用">自动流程：不需要模型显式调用<a href="#自动流程不需要模型显式调用" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>除了工具调用，memory backend 还会挂在 session 生命周期上自动运行：</p>
+<ol>
+<li>
+<p><strong>auto recall</strong><br>
+首轮 prompt 前，根据当前用户问题检索相关记忆，并注入 <code>&lt;memories&gt;</code>。</p>
+</li>
+<li>
+<p><strong>auto retain</strong><br>
+每 N 个 user turn，把当前 transcript 保存到 memory。<code>mnemopi</code> 默认 <code>retainEveryNTurns = 4</code>。</p>
+</li>
+<li>
+<p><strong>consolidation / sleep</strong><br>
+session 收尾时，把 <code>working_memory</code> 中的近期原始记忆整理成 <code>episodic_memory</code>。</p>
+</li>
+</ol>
+<p>这三类入口解决的是不同问题：slash command 是用户管理面，model tool 是模型主动记忆读写面，自动流程是后台生命周期面。</p>
+<h2 id="工具接口">工具接口<a href="#工具接口" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p><code>retain</code> / <code>recall</code> / <code>reflect</code> 工具只在 <code>memory.backend</code> 为 <code>hindsight</code> 或 <code>mnemopi</code> 时启用。</p>
+<h3 id="retain">retain<a href="#retain" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p><code>retain</code> 对 <code>mnemopi</code> 是同步写入本地 SQLite：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">state.rememberScoped(item.content, {
+</span></span><span class="line"><span class="cl">  source: &#34;coding-agent-retain&#34;,
+</span></span><span class="line"><span class="cl">  importance: 0.75,
+</span></span><span class="line"><span class="cl">  scope: &#34;bank&#34;,
+</span></span><span class="line"><span class="cl">  extract: true,
+</span></span><span class="line"><span class="cl">  extractEntities: true,
+</span></span><span class="line"><span class="cl">  veracity: &#34;tool&#34;,
+</span></span><span class="line"><span class="cl">  memoryType: &#34;fact&#34;
+</span></span><span class="line"><span class="cl">})
+</span></span></code></pre></div><p>对 <code>hindsight</code> 则是进入 session-owned queue，后续 batch flush 到远端。</p>
+<h3 id="recall">recall<a href="#recall" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p><code>recall</code> 对 <code>mnemopi</code> 调用：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">state.recallResultsScoped(query)
+</span></span><span class="line"><span class="cl">state.formatScopedRecallWithIds(results)
+</span></span></code></pre></div><p>返回结果带 memory id，方便后续 <code>memory-edit</code> 做 update / forget / invalidate。</p>
+<h3 id="reflect">reflect<a href="#reflect" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p><code>reflect</code> 在 <code>hindsight</code> 里调用服务端 <code>reflect()</code>，由服务端综合记忆回答。<br>
+但在 <code>mnemopi</code> 里，它只是：</p>
+<ol>
+<li>用 query + optional context 做 recall。</li>
+<li>把召回结果格式化为上下文。</li>
+<li>返回 <code>Based on recalled memories: ...</code>。</li>
+</ol>
+<p>所以 mnemopi 的 <code>reflect</code> 当前更像“召回结果汇总”，不是一个额外 LLM synthesis pass。</p>
+<h2 id="配置要点">配置要点<a href="#配置要点" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>主要配置项在 <code>packages/coding-agent/src/config/settings-schema.ts</code> 和 <code>packages/coding-agent/src/mnemopi/config.ts</code>。</p>
+<p>常用项：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-yaml" data-lang="yaml"><span class="line"><span class="cl"><span class="nt">memory</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">backend</span><span class="p">:</span><span class="w"> </span><span class="l">mnemopi</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="nt">mnemopi</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">scoping</span><span class="p">:</span><span class="w"> </span><span class="l">per-project</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">autoRecall</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">autoRetain</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">retainEveryNTurns</span><span class="p">:</span><span class="w"> </span><span class="m">4</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">recallLimit</span><span class="p">:</span><span class="w"> </span><span class="m">8</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">recallContextTurns</span><span class="p">:</span><span class="w"> </span><span class="m">3</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">recallMaxQueryChars</span><span class="p">:</span><span class="w"> </span><span class="m">4000</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">injectionTokenLimit</span><span class="p">:</span><span class="w"> </span><span class="m">5000</span><span class="w">
+</span></span></span></code></pre></div><p>embedding 相关：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-yaml" data-lang="yaml"><span class="line"><span class="cl"><span class="nt">mnemopi</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">embeddingVariant</span><span class="p">:</span><span class="w"> </span><span class="l">default       </span><span class="w"> </span><span class="c"># BAAI/bge-base-en-v1.5</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">embeddingVariant</span><span class="p">:</span><span class="w"> </span><span class="l">multilingual  </span><span class="w"> </span><span class="c"># intfloat/multilingual-e5-large</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">noEmbeddings</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="w">
+</span></span></span></code></pre></div><p>显式模型优先级：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">mnemopi.embeddingModel
+</span></span><span class="line"><span class="cl">&gt; MNEMOPI_EMBEDDING_MODEL
+</span></span><span class="line"><span class="cl">&gt; mnemopi.embeddingVariant derived default
+</span></span></code></pre></div><p>LLM fact extraction 相关：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-yaml" data-lang="yaml"><span class="line"><span class="cl"><span class="nt">mnemopi</span><span class="p">:</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">llmMode</span><span class="p">:</span><span class="w"> </span><span class="l">none | smol | remote</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">llmBaseUrl</span><span class="p">:</span><span class="w"> </span><span class="l">...</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">llmApiKey</span><span class="p">:</span><span class="w"> </span><span class="l">...</span><span class="w">
+</span></span></span><span class="line"><span class="cl"><span class="w">  </span><span class="nt">llmModel</span><span class="p">:</span><span class="w"> </span><span class="l">...</span><span class="w">
+</span></span></span></code></pre></div><p>当前 <code>loadMnemopiConfig()</code> 中只有 <code>llmMode === &quot;remote&quot;</code> 会把 remote LLM options 传入 providerOptions；否则传 <code>llm: false</code>。<code>smol</code> 模式在 backend 加载配置时还有额外处理，需要结合 <code>loadMnemopiConfigWithProviders()</code> 看完整模型解析。</p>
+<h2 id="设计取舍">设计取舍<a href="#设计取舍" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<h3 id="为什么不是只用-markdown-摘要">为什么不是只用 Markdown 摘要<a href="#为什么不是只用-markdown-摘要" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>Markdown 摘要适合保存“长期准则”，但不适合回答“上次那条具体决策是什么”。<code>mnemopi</code> 的 SQLite + FTS + embedding 可以做动态 query-time recall，这是 <code>local</code> backend 不具备的。</p>
+<h3 id="为什么不是只用向量库">为什么不是只用向量库<a href="#为什么不是只用向量库" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>源码明显没有把 embedding 当成唯一真相。召回同时使用 FTS、关键词、重要性、时间、可信度和 current-sensitive 调整。这是更稳的工程选择，因为：</p>
+<ul>
+<li>embedding 模型可能未安装或失败。</li>
+<li>中文/英文混合 query 可能影响向量质量。</li>
+<li>用户问“最新/current”时，时间和 stale 信号比语义相似度更重要。</li>
+<li>精确字段、文件名、配置名常常需要 FTS/lexical 命中。</li>
+</ul>
+<h3 id="为什么分-working-和-episodic">为什么分 working 和 episodic<a href="#为什么分-working-和-episodic" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>working memory 解决“近期高保真”，episodic memory 解决“长期低成本”。如果所有对话都长期保留原文，召回会越来越噪；如果只保留摘要，又容易丢掉近期细节。</p>
+<h3 id="为什么-per-project-tagged-在-mnemopi-里不是-tag">为什么 per-project-tagged 在 mnemopi 里不是 tag<a href="#为什么-per-project-tagged-在-mnemopi-里不是-tag" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p><code>hindsight</code> 后端支持服务端 tag filtering，所以可以单 bank + project tag。<code>mnemopi</code> 当前没有 tag-filtered recall，于是用 project bank + global bank 的组合达到类似效果。这是实现约束下的折中。</p>
+<h2 id="风险和待验证问题">风险和待验证问题<a href="#风险和待验证问题" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<ol>
+<li>
+<p><strong>fact extraction 的质量边界</strong><br>
+自动抽取 facts 依赖 LLM 输出质量。如果模型把一次性上下文误抽成长期偏好，会污染未来 recall。</p>
+</li>
+<li>
+<p><strong>自动 retain 的粒度</strong><br>
+默认每 4 个 user turn 保存 transcript。长任务里这很有用，但在探索性对话中可能保存过多临时判断。<code>retainEveryNTurns</code> 和 <code>memoryType</code> 的策略需要结合真实使用数据调。</p>
+</li>
+<li>
+<p><strong>reflect 的语义不一致</strong><br>
+<code>hindsight</code> 的 <code>reflect</code> 是服务端 synthesis；<code>mnemopi</code> 的 <code>reflect</code> 更接近 recall formatting。如果用户以为两者能力一致，可能会高估 mnemopi reflect 的推理深度。</p>
+</li>
+<li>
+<p><strong>embedding 模型迁移成本</strong><br>
+<code>reconcileEmbeddingModel()</code> 会在模型变化时清空旧 embedding 并后台重建。大库场景下需要关注重建时间、失败恢复和召回降级表现。</p>
+</li>
+<li>
+<p><strong>bank 命名与迁移</strong><br>
+mnemopi 已经为旧 bank derivation 做了 legacy bank rescue，但项目路径变化仍可能影响 bank id。长期使用时，bank 管理和迁移工具会变重要。</p>
+</li>
+</ol>
+<h2 id="总结">总结<a href="#总结" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p><code>oh-my-pi</code> 的 memory 系统可以理解成三种层次：</p>
+<ul>
+<li><code>local</code>：把历史经验变成启动时的项目手册。</li>
+<li><code>hindsight</code>：把 memory 能力交给远端服务，并支持 mental models。</li>
+<li><code>mnemopi</code>：在本地实现一个可检索、可编辑、可固化的长期记忆库。</li>
+</ul>
+<p><code>mnemopi</code> 的核心价值不在“存了文本”，而在它把 agent memory 做成了一个本地数据系统：SQLite 负责可靠持久化，FTS 负责精确检索，embedding 负责语义召回，facts/graph 负责结构化信息，working/episodic 分层负责生命周期管理。</p>
+<p>如果要借鉴这个实现，最值得学的是两个点：</p>
+<ol>
+<li><strong>memory 要能降级</strong>：向量失败时还有 FTS，LLM extraction 失败时原文仍然 durable。</li>
+<li><strong>memory 要有生命周期</strong>：近期原文、长期摘要、用户显式事实、自动抽取 facts，应该是不同层次，而不是混进同一个无类型向量库。</li>
+</ol>
+<h2 id="源码索引">源码索引<a href="#源码索引" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<ul>
+<li><code>packages/coding-agent/src/memory-backend/types.ts</code>：backend 抽象。</li>
+<li><code>packages/coding-agent/src/memory-backend/resolve.ts</code>：backend 选择。</li>
+<li><code>packages/coding-agent/src/memory-backend/local-backend.ts</code>：local summary pipeline wrapper。</li>
+<li><code>packages/coding-agent/src/hindsight/backend.ts</code>：Hindsight agent 集成。</li>
+<li><code>packages/coding-agent/src/hindsight/state.ts</code>：Hindsight session state、auto recall/retain。</li>
+<li><code>packages/coding-agent/src/hindsight/client.ts</code>：Hindsight HTTP API client。</li>
+<li><code>packages/coding-agent/src/mnemopi/backend.ts</code>：Mnemopi backend 集成。</li>
+<li><code>packages/coding-agent/src/mnemopi/state.ts</code>：Mnemopi session state、记忆库隔离策略、auto recall/retain/consolidate。</li>
+<li><code>packages/coding-agent/src/mnemopi/config.ts</code>：Mnemopi 配置、bank scope、embedding/LLM provider options。</li>
+<li><code>packages/mnemopi/src/core/memory.ts</code>：Mnemopi facade。</li>
+<li><code>packages/mnemopi/src/core/beam/index.ts</code>：BeamMemory class。</li>
+<li><code>packages/mnemopi/src/core/beam/schema.ts</code>：SQLite schema。</li>
+<li><code>packages/mnemopi/src/core/beam/store.ts</code>：remember、update、forget、scratchpad、embedding/extraction 调度。</li>
+<li><code>packages/mnemopi/src/core/beam/recall.ts</code>：混合检索和评分。</li>
+<li><code>packages/mnemopi/src/core/beam/consolidate.ts</code>：sleep、consolidateToEpisodic、fact extraction。</li>
+</ul>
+
+      </div></div>
+
+  
+    
+<div class="pagination">
+  <div class="pagination__title">
+    <span class="pagination__title-h">Read other posts</span>
+    <hr />
+  </div>
+  <div class="pagination__buttons">
+    
+    
+    
+      <a href="https://blog.jinzhi.site/posts/2026-07/claude-code-auto-mode-%E5%AE%9E%E7%8E%B0%E5%88%86%E6%9E%90/" class="button inline next">
+         [<span class="button__text">Claude Code auto-mode 实现分析</span>] &gt;
+      </a>
+    
+  </div>
+</div>
+
+
+  
+
+  
+    
+
+  
+</article>
+
+  </div>
+
+  
+    <footer class="footer">
+  <div class="footer__inner">
+    
+      <div class="copyright">
+        <span>© 2026 Powered by <a href="https://gohugo.io">Hugo</a></span>
+    
+      <span>:: <a href="https://github.com/panr/hugo-theme-terminal" target="_blank">Theme</a> made by <a href="https://github.com/panr" target="_blank">panr</a></span>
+      </div>
+  </div>
+</footer>
+
+
+
+
+
+
+<script type="text/javascript" src="/bundle.min.js"></script>
+
+
+
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'dark'
+    });
+  </script>
+
+
+  
+  </div>
+
+  <aside class="floating-sidebar">
+    
+<div class="sidebar time-archive">
+  <h3>Time Archives</h3>
+  <div class="archive-list">
+    
+    
+
+    
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+
+    
+    
+
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2026-07/" class="archive-link">
+          <span class="archive-date">2026-07</span>
+          <span class="archive-month-name">Jul</span>
+          <span class="archive-count">(2)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2026-06/" class="archive-link">
+          <span class="archive-date">2026-06</span>
+          <span class="archive-month-name">Jun</span>
+          <span class="archive-count">(5)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2026-05/" class="archive-link">
+          <span class="archive-date">2026-05</span>
+          <span class="archive-month-name">May</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2026-04/" class="archive-link">
+          <span class="archive-date">2026-04</span>
+          <span class="archive-month-name">Apr</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2026-01/" class="archive-link">
+          <span class="archive-date">2026-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(2)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-11/" class="archive-link">
+          <span class="archive-date">2025-11</span>
+          <span class="archive-month-name">Nov</span>
+          <span class="archive-count">(3)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-10/" class="archive-link">
+          <span class="archive-date">2025-10</span>
+          <span class="archive-month-name">Oct</span>
+          <span class="archive-count">(4)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-09/" class="archive-link">
+          <span class="archive-date">2025-09</span>
+          <span class="archive-month-name">Sep</span>
+          <span class="archive-count">(3)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-08/" class="archive-link">
+          <span class="archive-date">2025-08</span>
+          <span class="archive-month-name">Aug</span>
+          <span class="archive-count">(9)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-06/" class="archive-link">
+          <span class="archive-date">2025-06</span>
+          <span class="archive-month-name">Jun</span>
+          <span class="archive-count">(2)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-04/" class="archive-link">
+          <span class="archive-date">2025-04</span>
+          <span class="archive-month-name">Apr</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-03/" class="archive-link">
+          <span class="archive-date">2025-03</span>
+          <span class="archive-month-name">Mar</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2024-01/" class="archive-link">
+          <span class="archive-date">2024-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(2)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-10/" class="archive-link">
+          <span class="archive-date">2022-10</span>
+          <span class="archive-month-name">Oct</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-07/" class="archive-link">
+          <span class="archive-date">2022-07</span>
+          <span class="archive-month-name">Jul</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-06/" class="archive-link">
+          <span class="archive-date">2022-06</span>
+          <span class="archive-month-name">Jun</span>
+          <span class="archive-count">(4)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-05/" class="archive-link">
+          <span class="archive-date">2022-05</span>
+          <span class="archive-month-name">May</span>
+          <span class="archive-count">(4)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-03/" class="archive-link">
+          <span class="archive-date">2022-03</span>
+          <span class="archive-month-name">Mar</span>
+          <span class="archive-count">(4)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-01/" class="archive-link">
+          <span class="archive-date">2022-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-11/" class="archive-link">
+          <span class="archive-date">2021-11</span>
+          <span class="archive-month-name">Nov</span>
+          <span class="archive-count">(2)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-09/" class="archive-link">
+          <span class="archive-date">2021-09</span>
+          <span class="archive-month-name">Sep</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-06/" class="archive-link">
+          <span class="archive-date">2021-06</span>
+          <span class="archive-month-name">Jun</span>
+          <span class="archive-count">(3)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-01/" class="archive-link">
+          <span class="archive-date">2021-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+  </div>
+</div>
+
+<style>
+.sidebar.time-archive {
+  background: rgba(26, 23, 15, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--accent, #FFA86B);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+  max-width: var(--sidebar-component-width, 240px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.sidebar.time-archive h3 {
+  margin: 0 0 1rem 0;
+  color: var(--accent, #FFA86B);
+  font-size: 1.2rem;
+  border-bottom: 1px solid var(--accent-alpha-70, rgba(255, 168, 107, 0.7));
+  padding-bottom: 0.5rem;
+}
+
+
+.archive-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.archive-item {
+  display: block;
+}
+
+.archive-link {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  text-decoration: none;
+  color: var(--color, inherit);
+  padding: 0.5rem;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+}
+
+.archive-link:hover {
+  background-color: var(--accent-alpha-20, rgba(255, 168, 107, 0.2));
+  color: var(--accent, #FFA86B);
+}
+
+.archive-date {
+  font-family: var(--code-font-family, 'Fira Code', monospace);
+  font-weight: bold;
+  min-width: 60px;
+}
+
+.archive-month-name {
+  flex: 1;
+  margin-left: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.archive-count {
+  color: var(--accent, #FFA86B);
+  font-weight: bold;
+  font-size: 0.9rem;
+}
+
+ 
+</style>
+
+    
+<div class="sidebar tags-cloud">
+  <h3>Tags Cloud</h3>
+  <div class="tags-container">
+    
+    
+    
+    
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+    
+    
+    
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+    
+    
+    
+    
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+    
+    
+    
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+    
+    
+    
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/agent/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="3 articles">
+          Agent
+          <span class="tag-count">(3)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/ai/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="4 articles">
+          AI
+          <span class="tag-count">(4)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/apisix/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="3 articles">
+          apisix
+          <span class="tag-count">(3)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/behavioral-finance/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          behavioral-finance
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/biography/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          biography
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/cloudnative/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          CloudNative
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/compile/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          compile
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/concurrency/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="7 articles">
+          Concurrency
+          <span class="tag-count">(7)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/csi/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          csi
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/debug/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          debug
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/dns/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          dns
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/ebpf/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          ebpf
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/elf/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          ELF
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/envoy/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Envoy
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/financial-analysis/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          financial-analysis
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/go/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          Go
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/http/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          HTTP
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/inference/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Inference
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/investing/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="5 articles">
+          investing
+          <span class="tag-count">(5)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/kaist-cs431/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="7 articles">
+          KAIST-CS431
+          <span class="tag-count">(7)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/kernel/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Kernel
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/kubecon/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          KubeCon
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/kubernetes/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          kubernetes
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/l7gateway/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="4 articles">
+          L7Gateway
+          <span class="tag-count">(4)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/linux/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="3 articles">
+          Linux
+          <span class="tag-count">(3)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/llm/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          LLM
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/lua/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="3 articles">
+          Lua
+          <span class="tag-count">(3)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/makefile/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          makefile
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/market-analysis/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          market-analysis
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/mindfulness/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          mindfulness
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/network/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="4 articles">
+          Network
+          <span class="tag-count">(4)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/nonfiction/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="6 articles">
+          nonfiction
+          <span class="tag-count">(6)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/operatingsystem/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          OperatingSystem
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/philosophy/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          philosophy
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/rust/" 
+           class="tag-item" 
+           style="font-size: 1.5em;"
+           title="10 articles">
+          Rust
+          <span class="tag-count">(10)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/schedule/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Schedule
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/science/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          science
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/softwareengineering/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          SoftwareEngineering
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/stocks/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          stocks
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/wasm/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          wasm
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+  </div>
+</div>
+
+<style>
+.sidebar.tags-cloud {
+  background: rgba(26, 23, 15, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--accent, #FFA86B);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+  max-width: var(--sidebar-component-width, 240px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.sidebar.tags-cloud h3 {
+  margin: 0 0 1rem 0;
+  color: var(--accent, #FFA86B);
+  font-size: 1.2rem;
+  border-bottom: 1px solid var(--accent-alpha-70, rgba(255, 168, 107, 0.7));
+  padding-bottom: 0.5rem;
+}
+
+.tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  line-height: 1.6;
+}
+
+.tag-item {
+  display: inline-flex;
+  align-items: baseline;
+  text-decoration: none;
+  color: var(--color, inherit);
+  padding: 0.3rem 0.6rem;
+  border-radius: 16px;
+  background: rgba(255, 168, 107, 0.1);
+  border: 1px solid transparent;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.tag-item:hover {
+  background: rgba(255, 168, 107, 0.25);
+  border-color: var(--accent-alpha-50, rgba(255, 168, 107, 0.5));
+  color: var(--accent, #FFA86B);
+  transform: translateY(-1px);
+}
+
+.tag-count {
+  font-size: 0.75em;
+  margin-left: 0.3rem;
+  opacity: 0.7;
+  font-weight: normal;
+}
+
+.tag-item:hover .tag-count {
+  opacity: 1;
+}
+
+ 
+
+ 
+.tag-item {
+  font-weight: 400;
+}
+
+ 
+.tag-item[style*="1.5"], 
+.tag-item[style*="1.4"],
+.tag-item[style*="1.3"] {
+  font-weight: 600;
+}
+
+ 
+.tag-item[style*="1.2"],
+.tag-item[style*="1.1"] {
+  font-weight: 500;
+}
+
+ 
+.tag-item[style*="1.5"]:hover,
+.tag-item[style*="1.4"]:hover,
+.tag-item[style*="1.3"]:hover {
+  box-shadow: 0 3px 10px rgba(255, 168, 107, 0.4);
+  transform: translateY(-2px);
+}
+
+</style>
+
+  </aside>
+</div>
+
+<style>
+ 
+.page-wrapper {
+  position: relative;
+  width: 100%;
+  max-width: none;
+  --sidebar-top-offset: 150px;  
+  --sidebar-component-width: 240px;  
+}
+
+   
+.floating-sidebar {
+  position: absolute;
+   
+  top: var(--sidebar-top-offset, 175px);
+   
+  right: max(20px, calc((100vw - 864px) / 2 - 330px));
+  width: 300px;
+  z-index: 100;
+  opacity: 0.96;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+ 
+.floating-sidebar:hover {
+  opacity: 1;
+  transform: translateX(-5px);
+}
+
+ 
+.floating-sidebar {
+  display: none;
+}
+
+ 
+@media (min-width: 1524px) {
+  .floating-sidebar {
+    display: block;
+    position: absolute;
+    right: max(20px, calc((100vw - 864px) / 2 - 330px));
+  }
+}
+
+ 
+@media (max-width: 1523px) {
+  .floating-sidebar {
+    display: none !important;
+  }
+}
+
+</style>
+
+</body>
+</html>

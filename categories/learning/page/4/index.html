@@ -207,6 +207,112 @@
     
       <article class="post on-list">
         <h1 class="post-title">
+          <a href="https://blog.jinzhi.site/posts/2025-08/wasm-internals-stack-machine/">Wasm Internals: Stack Machine</a>
+        </h1>
+        <div class="post-meta"><time class="post-date">2025-08-20</time></div>
+
+        
+          <span class="post-tags">
+            
+            #<a href="https://blog.jinzhi.site/tags/wasm/">wasm</a>&nbsp;
+            
+          </span>
+        
+
+        
+
+
+        <div class="post-content">
+          
+            <p>Wasm 中的“栈机”（Stack Machine），这正是其核心执行模型之一。Wasm 是一种基于栈的虚拟机，这意味着它的所有操作都通过从一个操作数栈中弹出值、执行操作并将结果压回栈中来完成。它没有传统的“寄存器”概念。</p>
+<h2 id="什么是栈机">什么是栈机？</h2>
+<p>在计算机科学中，栈机是一种计算模型，其中指令操作数被隐含地从一个被称为“操作数栈”的内存区域中获取，并且结果被隐含地压回这个栈。这种模型与基于寄存器或基于累加器的模型形成对比。</p>
+<h2 id="wasm-栈机的工作原理">Wasm 栈机的工作原理</h2>
+<p>Wasm 模块中的函数是由一系列指令组成的。这些指令会操作一个中央的操作数栈。</p>
+<ol>
+<li>
+<p><strong>操作数栈（Operand Stack）</strong>：</p>
+<ul>
+<li>这是 Wasm 执行函数时最核心的数据结构。</li>
+<li>所有的操作数（如整数、浮点数）和操作结果都临时存储在这个栈上。</li>
+<li>指令不会像在注册机中那样直接指定操作数的位置（如“将 R1 的值加到 R2”）。相反，它们会假定操作数已经在栈的顶部。</li>
+</ul>
+</li>
+<li>
+<p><strong>局部变量（Local Variables）</strong>：</p>
+<ul>
+<li>除了操作数栈，每个函数调用还有一个独立的“局部变量”区域。</li>
+<li>局部变量是命名的存储位置，可以在函数的整个执行过程中被访问和修改。</li>
+<li>虽然局部变量不是栈的一部分，但有很多指令允许你将局部变量的值压入栈中，或者将栈顶部的值存储到局部变量中。</li>
+</ul>
+</li>
+<li>
+<p><strong>参数（Parameters）</strong>：</p>
+<ul>
+<li>函数的参数在函数被调用时，会被初始化为局部变量的一部分（通常是前几个局部变量）。</li>
+<li>它们也可以被认为是函数执行上下文的一部分。</li>
+</ul>
+</li>
+<li>
+<p><strong>指令的操作</strong>：</p>
+<ul>
+<li><strong>压栈（Push）</strong>：很多指令会将值压入栈中。例如：
+<ul>
+<li><code>i32.const 42</code>：将整数常量 <code>42</code> 压入栈。</li>
+<li><code>local.get &lt;idx&gt;</code>：获取索引为 <code>&lt;idx&gt;</code> 的局部变量的值并压入栈。</li>
+</ul>
+</li>
+<li><strong>弹栈（Pop）</strong>：大多数操作指令会从栈顶弹出所需数量的操作数。例如：
+<ul>
+<li><code>i32.add</code>：弹出栈顶的两个 <code>i32</code> 整数，将它们相加，然后将结果压回栈。</li>
+<li><code>if</code>/<code>else</code>/<code>loop</code> 等控制流指令的条件值也会从栈中弹出。</li>
+</ul>
+</li>
+<li><strong>复合操作</strong>：一些指令可能弹出一个值，执行一些副作用（如内存写入），而不压入任何新值。例如：
+<ul>
+<li><code>i32.store</code>：弹出内存地址和要存储的值，将值写入内存。</li>
+</ul>
+</li>
+</ul>
+</li>
+</ol>
+<h2 id="栈机模型的优势与特点">栈机模型的优势与特点</h2>
+<ol>
+<li>
+<p><strong>紧凑性（Compactness）</strong>：</p>
+<ul>
+<li>指令更短，因为它们不需要编码操作数的位置。例如，一个加法操作，在寄存器机中可能需要指定两个源寄存器和一个目标寄存器；在栈机中，它只是一个简单的 <code>add</code> 指令。</li>
+<li>这有助于生成更小的二进制代码，对于 Web 环境中的快速下载和解析非常有利。</li>
+</ul>
+</li>
+<li>
+<p><strong>简化编译器后端（Simplified Compiler Backends）</strong>：</p>
+<ul>
+<li>IR（中间表示）到指令的映射通常更直接。许多高级语言的语义本身就可以很容易地映射到栈操作。</li>
+<li>这使得将 C/C++/Rust 等语言编译到 Wasm 变得相对容易。</li>
+</ul>
+</li>
+<li>
+<p><strong>易于验证（Easy to Validate）</strong>：</p>
+<ul>
+<li>Wasm 在加载时会进行严格的类型检查和结构验证。栈机模型使得验证其类型安全变得相对容易。例如，当检查 <code>i32.add</code> 指令时，验证器只需确保栈顶有两个 <code>i32</code> 类型的值。</li>
+<li>这对于沙盒环境中的安全性至关重要。</li>
+</ul>
+</li>
+<li>
+<p><strong>独立于目标架构（Architecture-Independent）</strong>：</p>
+          
+        </div>
+
+        
+          <div>
+            <a class="read-more button inline" href="/posts/2025-08/wasm-internals-stack-machine/">[Read more]</a>
+          </div>
+        
+      </article>
+    
+      <article class="post on-list">
+        <h1 class="post-title">
           <a href="https://blog.jinzhi.site/posts/2025-06/kubernetes-csi-%E7%AE%80%E4%BB%8B/">Kubernetes CSI 简介</a>
         </h1>
         <div class="post-meta"><time class="post-date">2025-06-24</time></div>
@@ -491,103 +597,6 @@ Key to Flags:
         
           <div>
             <a class="read-more button inline" href="/posts/2024-01/ebpf-%E5%85%A8%E5%B1%80%E5%8F%98%E9%87%8F%E7%9A%84%E5%AE%9E%E7%8E%B0/">[Read more]</a>
-          </div>
-        
-      </article>
-    
-      <article class="post on-list">
-        <h1 class="post-title">
-          <a href="https://blog.jinzhi.site/posts/2022-10/linux-%E6%94%B6%E5%8C%85%E5%92%8C%E5%8F%91%E5%8C%85%E6%B5%81%E7%A8%8B/">Linux 收包和发包流程</a>
-        </h1>
-        <div class="post-meta"><time class="post-date">2022-10-13</time></div>
-
-        
-          <span class="post-tags">
-            
-            #<a href="https://blog.jinzhi.site/tags/linux/">Linux</a>&nbsp;
-            
-            #<a href="https://blog.jinzhi.site/tags/network/">Network</a>&nbsp;
-            
-            #<a href="https://blog.jinzhi.site/tags/kernel/">Kernel</a>&nbsp;
-            
-          </span>
-        
-
-        
-
-
-        <div class="post-content">
-          
-            <h2 id="流程图">流程图</h2>
-<p>From 《Understanding Linux Network Internals》</p>
-<p><img src="/images/notes/linux-%E6%94%B6%E5%8C%85%E5%92%8C%E5%8F%91%E5%8C%85%E6%B5%81%E7%A8%8B/image-20220128172744059.png" alt="image-20220128172744059"></p>
-<p><img src="/images/notes/linux-%E6%94%B6%E5%8C%85%E5%92%8C%E5%8F%91%E5%8C%85%E6%B5%81%E7%A8%8B/image-20220129171450456.png" alt="image-20220129171450456"></p>
-<h2 id="收包流程">收包流程</h2>
-<p>TL; DR</p>
-<p><img src="/images/notes/linux-%E6%94%B6%E5%8C%85%E5%92%8C%E5%8F%91%E5%8C%85%E6%B5%81%E7%A8%8B/Linux_Packet_Receive_Flow.png" alt="image-20220129171450456"></p>
-<ul>
-<li><strong>收包<code>NET_RX_SOFTRQ</code>的软中断处理函数是<code>net_rx_action</code></strong></li>
-<li><strong><code>net_rx_action</code>中会调用网卡驱动注册的poll回调函数处理</strong></li>
-<li><strong>poll回调函数将数据帧从网卡ring buffer中取出，构造skb：</strong>
-<ul>
-<li><strong>运行xdpdrv上的bpf program，得到action result</strong></li>
-<li><strong>如果是XDP_PASS，构造skb，并初始化skb中一些metadata字段</strong></li>
-</ul>
-</li>
-<li><strong>调用内核的GRO和RPS处理流程</strong></li>
-<li><strong>进入<code>__netif_receive_skb_core</code>，处理skb：</strong>
-<ul>
-<li><strong>运行xdpgeneric上的bpf program，得到action result</strong></li>
-<li><strong>如果是XDP_PASS，遍历<code>ptype_all</code>和<code>dev-&gt;ptype_all</code>，进行抓包处理</strong></li>
-<li><strong>tc ingress 处理<code>sch_handle_ingress</code></strong></li>
-<li><strong>查找<code>ptype_base</code>和<code>dev-&gt;ptype_specific</code>，交由对应的三层协议栈回调函数处理</strong></li>
-</ul>
-</li>
-</ul>
-<h3 id="napi">NAPI</h3>
-<p>**NAPI的思想是从完全的中断收包模型，改用中断和polling混合。**如果内核在处理旧的数据帧时，收到了新的数据帧，网卡设备没有必要再触发一个中断。内核继续处理设备input queue里的数据（该设备的interrupt禁止了），在队列为空时重新使能中断。</p>
-<p>从内核的角度，NAPI有如下的优势：</p>
-<ul>
-<li>降低CPU的负载（更少的中断）</li>
-<li>更多的设备处理公平性</li>
-</ul>
-<p>以ixgbe网卡为例，描述下NAPI处理流程。</p>
-<h4 id="注册">注册</h4>
-<p>ixgbe驱动在初始化中断向量时会调用<code>netif_napi_add</code>初始化NAPI，==<strong>将<code>ixgbe_poll</code>函数注册到napi结构体，并将napi加入到设备的napi_list内</strong>==：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="cm">/**
-</span></span></span><span class="line"><span class="cl"><span class="cm"> * ixgbe_alloc_q_vector - Allocate memory for a single interrupt vector
-</span></span></span><span class="line"><span class="cl"><span class="cm"> * @adapter: board private structure to initialize
-</span></span></span><span class="line"><span class="cl"><span class="cm"> * @v_count: q_vectors allocated on adapter, used for ring interleaving
-</span></span></span><span class="line"><span class="cl"><span class="cm"> * @v_idx: index of vector in adapter struct
-</span></span></span><span class="line"><span class="cl"><span class="cm"> * @txr_count: total number of Tx rings to allocate
-</span></span></span><span class="line"><span class="cl"><span class="cm"> * @txr_idx: index of first Tx ring to allocate
-</span></span></span><span class="line"><span class="cl"><span class="cm"> * @xdp_count: total number of XDP rings to allocate
-</span></span></span><span class="line"><span class="cl"><span class="cm"> * @xdp_idx: index of first XDP ring to allocate
-</span></span></span><span class="line"><span class="cl"><span class="cm"> * @rxr_count: total number of Rx rings to allocate
-</span></span></span><span class="line"><span class="cl"><span class="cm"> * @rxr_idx: index of first Rx ring to allocate
-</span></span></span><span class="line"><span class="cl"><span class="cm"> *
-</span></span></span><span class="line"><span class="cl"><span class="cm"> * We allocate one q_vector.  If allocation fails we return -ENOMEM.
-</span></span></span><span class="line"><span class="cl"><span class="cm"> **/</span>
-</span></span><span class="line"><span class="cl"><span class="k">static</span> <span class="kt">int</span> <span class="nf">ixgbe_alloc_q_vector</span><span class="p">(</span><span class="k">struct</span> <span class="n">ixgbe_adapter</span> <span class="o">*</span><span class="n">adapter</span><span class="p">,</span>
-</span></span><span class="line"><span class="cl">                <span class="kt">int</span> <span class="n">v_count</span><span class="p">,</span> <span class="kt">int</span> <span class="n">v_idx</span><span class="p">,</span>
-</span></span><span class="line"><span class="cl">                <span class="kt">int</span> <span class="n">txr_count</span><span class="p">,</span> <span class="kt">int</span> <span class="n">txr_idx</span><span class="p">,</span>
-</span></span><span class="line"><span class="cl">                <span class="kt">int</span> <span class="n">xdp_count</span><span class="p">,</span> <span class="kt">int</span> <span class="n">xdp_idx</span><span class="p">,</span>
-</span></span><span class="line"><span class="cl">                <span class="kt">int</span> <span class="n">rxr_count</span><span class="p">,</span> <span class="kt">int</span> <span class="n">rxr_idx</span><span class="p">)</span>
-</span></span><span class="line"><span class="cl"><span class="p">{</span>
-</span></span><span class="line"><span class="cl">	<span class="cm">/* ... */</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl">    <span class="cm">/* initialize NAPI */</span>
-</span></span><span class="line"><span class="cl">    <span class="nf">netif_napi_add</span><span class="p">(</span><span class="n">adapter</span><span class="o">-&gt;</span><span class="n">netdev</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">q_vector</span><span class="o">-&gt;</span><span class="n">napi</span><span class="p">,</span>
-</span></span><span class="line"><span class="cl">               <span class="n">ixgbe_poll</span><span class="p">,</span> <span class="mi">64</span><span class="p">);</span>
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span></code></pre></div><h4 id="中断处理函数">中断处理函数</h4>
-<p>ixgbe驱动收到中断后，会调用<code>ixgbe_msix_clean_rings</code></p>
-          
-        </div>
-
-        
-          <div>
-            <a class="read-more button inline" href="/posts/2022-10/linux-%E6%94%B6%E5%8C%85%E5%92%8C%E5%8F%91%E5%8C%85%E6%B5%81%E7%A8%8B/">[Read more]</a>
           </div>
         
       </article>
@@ -879,6 +888,10 @@ Key to Flags:
       
       
     
+      
+      
+      
+    
 
     
     
@@ -908,7 +921,7 @@ Key to Flags:
         <a href="/posts/2026-07/" class="archive-link">
           <span class="archive-date">2026-07</span>
           <span class="archive-month-name">Jul</span>
-          <span class="archive-count">(1)</span>
+          <span class="archive-count">(2)</span>
         </a>
       </div>
     
@@ -1637,22 +1650,6 @@ Key to Flags:
       
         
       
-        
-      
-    
-      
-        
-      
-        
-      
-    
-      
-        
-      
-        
-      
-        
-      
     
       
         
@@ -1670,14 +1667,6 @@ Key to Flags:
     
       
         
-      
-    
-      
-        
-      
-        
-      
-    
       
         
       
@@ -1705,6 +1694,36 @@ Key to Flags:
       
         
       
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
     
       
         
@@ -1724,22 +1743,6 @@ Key to Flags:
         
       
     
-      
-        
-      
-    
-      
-        
-      
-        
-      
-        
-      
-    
-      
-        
-      
-        
       
         
       
@@ -1779,38 +1782,6 @@ Key to Flags:
       
         
       
-    
-      
-        
-      
-    
-      
-        
-      
-        
-      
-    
-      
-        
-      
-    
-      
-        
-      
-    
-      
-    
-      
-        
-      
-    
-      
-        
-      
-    
-      
-        
-      
         
       
         
@@ -1820,14 +1791,6 @@ Key to Flags:
         
       
         
-      
-    
-      
-        
-      
-        
-      
-    
       
         
       
@@ -1855,8 +1818,6 @@ Key to Flags:
       
     
       
-        
-      
     
       
         
@@ -1870,6 +1831,26 @@ Key to Flags:
         
       
         
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
       
         
       
@@ -1907,6 +1888,44 @@ Key to Flags:
       
         
       
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
     
       
         
@@ -1915,6 +1934,12 @@ Key to Flags:
     
     
     
+    
+      
+      
+    
+      
+      
     
       
       
@@ -2427,9 +2452,9 @@ Key to Flags:
         <a href="https://blog.jinzhi.site/tags/agent/" 
            class="tag-item" 
            style="font-size: 0.9em;"
-           title="2 articles">
+           title="3 articles">
           Agent
-          <span class="tag-count">(2)</span>
+          <span class="tag-count">(3)</span>
         </a>
       
     
@@ -2446,9 +2471,9 @@ Key to Flags:
         <a href="https://blog.jinzhi.site/tags/ai/" 
            class="tag-item" 
            style="font-size: 0.9em;"
-           title="3 articles">
+           title="4 articles">
           AI
-          <span class="tag-count">(3)</span>
+          <span class="tag-count">(4)</span>
         </a>
       
     
