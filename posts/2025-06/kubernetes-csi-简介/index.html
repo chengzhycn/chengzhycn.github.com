@@ -506,7 +506,7 @@
 </ul>
 <p>虽然 CSI 做了这个功能划分，在实操中也不一定完全按照这种方式去部署。从 SPEC 中的 Figure 1 到 Figure 4 也可以看出 Controller-Plugin 和 Node-Plugin 既可以严格按照上面的方式部署，也可以合并成一个组件部署。本质上，只要符合 CSI 定义的交互方式，能正确地给 Pod 提供 PV 和后端存储即可。</p>
 <h3 id="23-交互流程">2.3. 交互流程<a href="#23-交互流程" class="hanchor" ariaLabel="Anchor">#</a> </h3>
-<pre tabindex="0"><code class="language-mermaid" data-lang="mermaid">sequenceDiagram
+<pre class="mermaid">sequenceDiagram
     participant User as 用户
     participant K8s_API as Kubernetes API Server
     participant K8s_Scheduler as K8s 调度器
@@ -572,8 +572,7 @@
 
     Note over User: 8. Pod 运行，使用持久卷
     User-&gt;&gt;K8s_API: 查看 Pod 状态
-    Pod-&gt;&gt;Underlying_Storage: 读写数据
-</code></pre><p><img src="/images/notes/kubernetes-csi-%E7%AE%80%E4%BB%8B/08dad402a2667853736930063c59ff8f_MD5.jpeg" alt="08dad402a2667853736930063c59ff8f_MD5"></p>
+    Pod-&gt;&gt;Underlying_Storage: 读写数据</pre><p><img src="/images/notes/kubernetes-csi-%E7%AE%80%E4%BB%8B/08dad402a2667853736930063c59ff8f_MD5.jpeg" alt="08dad402a2667853736930063c59ff8f_MD5"></p>
 <p><strong>图例说明：</strong></p>
 <ul>
 <li><strong>User (用户):</strong> 操作 Kubernetes 的最终用户或管理员。</li>
@@ -833,6 +832,14 @@ I0623 14:46:03.489487       1 main.go:108] &#34;Received NotifyRegistrationStatu
 
 
 
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'dark'
+    });
+  </script>
 
 
   
