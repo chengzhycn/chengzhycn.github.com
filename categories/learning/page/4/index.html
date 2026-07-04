@@ -207,6 +207,63 @@
     
       <article class="post on-list">
         <h1 class="post-title">
+          <a href="https://blog.jinzhi.site/posts/2025-08/lua-an-overview/">Lua - An Overview</a>
+        </h1>
+        <div class="post-meta"><time class="post-date">2025-08-31</time></div>
+
+        
+          <span class="post-tags">
+            
+            #<a href="https://blog.jinzhi.site/tags/lua/">Lua</a>&nbsp;
+            
+          </span>
+        
+
+        
+
+
+        <div class="post-content">
+          
+            <h2 id="lua-和-luajit">Lua 和 LuaJIT</h2>
+<h3 id="lua">Lua</h3>
+<p>Lua 是一个开源项目，由巴西里约热内卢天主教大学的 Roberto Ierusalimschy、Luiz Henrique de Figueiredo 和 Waldemar Celes 创建。它的版本控制相对简单明了。</p>
+<h4 id="lua-的版本体系">Lua 的版本体系</h4>
+<p>Lua 的版本号通常是 <code>X.Y</code> 的形式，例如 <code>5.1</code>, <code>5.2</code>, <code>5.3</code>, <code>5.4</code>。</p>
+<ul>
+<li><strong><code>X</code> (主版本号/Major Version):</strong> 表示一个<strong>重大更新</strong>，通常会引入不兼容的更改（breaking changes），新的核心特性，或者对虚拟机架构的显著改进。从 <code>5.x</code> 到 <code>5.y</code>，<code>y</code> 增加通常意味着语法、API 或语义的更改，可能需要修改现有代码。
+<ul>
+<li><strong>例子:</strong>
+<ul>
+<li><strong>Lua 5.0:</strong> 引入了协程 (coroutines)。</li>
+<li><strong>Lua 5.1:</strong> 引入了模块系统 (module system)、<code>vararg</code> 参数的改进。</li>
+<li><strong>Lua 5.2:</strong> 引入了 <code>goto</code> 语句、环境 (environments) 的重新设计、新的 <code>_ENV</code> 上值。</li>
+<li><strong>Lua 5.3:</strong> 引入了整数类型、位操作 (bitwise operations)、UTF-8 支持。</li>
+<li><strong>Lua 5.4:</strong> 引入了新的垃圾回收器、弱表 (weak tables) 的改进。</li>
+</ul>
+</li>
+</ul>
+</li>
+<li><strong><code>Y</code> (次版本号/Minor Version) 或补丁版本 (Patch Version):</strong> 在主版本中，通常用于表示错误修复、性能优化或次要的功能增强。这些更改通常是<strong>向后兼容</strong>的（backward compatible），不会破坏现有代码运行。有时候，一个版本号会是 <code>X.Y.Z</code> 的形式，<code>Z</code> 就代表补丁版本。
+<ul>
+<li><strong>例子:</strong> <code>Lua 5.3.1</code>, <code>Lua 5.3.2</code>, <code>Lua 5.3.3</code> 等等。这些通常是修复 bug。</li>
+</ul>
+</li>
+</ul>
+<hr>
+<h3 id="luajit">LuaJIT</h3>
+<p><a href="https://github.com/LuaJIT/LuaJIT">https://github.com/LuaJIT/LuaJIT</a></p>
+          
+        </div>
+
+        
+          <div>
+            <a class="read-more button inline" href="/posts/2025-08/lua-an-overview/">[Read more]</a>
+          </div>
+        
+      </article>
+    
+      <article class="post on-list">
+        <h1 class="post-title">
           <a href="https://blog.jinzhi.site/posts/2025-08/wasm-internals-stack-machine/">Wasm Internals: Stack Machine</a>
         </h1>
         <div class="post-meta"><time class="post-date">2025-08-20</time></div>
@@ -524,83 +581,6 @@ R0 - R5是临时寄存器，eBPF程序在函数调用时如需使用需要将它
         
       </article>
     
-      <article class="post on-list">
-        <h1 class="post-title">
-          <a href="https://blog.jinzhi.site/posts/2024-01/ebpf-%E5%85%A8%E5%B1%80%E5%8F%98%E9%87%8F%E7%9A%84%E5%AE%9E%E7%8E%B0/">eBPF 全局变量的实现</a>
-        </h1>
-        <div class="post-meta"><time class="post-date">2024-01-02</time></div>
-
-        
-          <span class="post-tags">
-            
-            #<a href="https://blog.jinzhi.site/tags/ebpf/">ebpf</a>&nbsp;
-            
-          </span>
-        
-
-        
-
-
-        <div class="post-content">
-          
-            <p>Linux内核在v5.2支持了eBPF全局变量（见<a href="https://www.yuque.com/chengzhycn/hx665b/cmbgkdheaf0wyqht#vVcxE">v5.2</a>）。</p>
-<p>全局变量会被Clang编译器放入<code>.bss</code>, <code>.data</code>, <code>.rodata</code> sections。那么支持全局变量即如何把这些sections中的数据加载进内核，并且在relocation时，给访问这些变量的指令正确的地址。</p>
-<h2 id="早期-workaround">早期 workaround</h2>
-<p>关于 eBPF 静态变量支持的讨论在<a href="https://lpc.events/event/2/contributions/115/">Linux Plumbers Conference 2018</a> 由Cilium提出。早期的 workaround 如下：</p>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-c" data-lang="c"><span class="line"><span class="cl"><span class="cp">#include</span> <span class="cpf">&lt;linux/bpf.h&gt;</span><span class="cp">
-</span></span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl"><span class="k">typedef</span> <span class="kt">unsigned</span> <span class="kt">int</span> <span class="n">__u32</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl"><span class="k">typedef</span> <span class="kt">long</span> <span class="kt">long</span> <span class="kt">unsigned</span> <span class="kt">int</span> <span class="n">__64</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl"><span class="cp">#ifndef __section
-</span></span></span><span class="line"><span class="cl"><span class="cp"># define __section(NAME)				\
-</span></span></span><span class="line"><span class="cl"><span class="cp">	__attribute__((section(NAME), used))
-</span></span></span><span class="line"><span class="cl"><span class="cp">#endif
-</span></span></span><span class="line"><span class="cl"><span class="cp">#ifndef __fetch
-</span></span></span><span class="line"><span class="cl"><span class="cp"># define __fetch(x) (__u32)(__u64)(&amp;(x))
-</span></span></span><span class="line"><span class="cl"><span class="cp">#endif
-</span></span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl"><span class="n">__u32</span> <span class="n">foo</span> <span class="o">=</span> <span class="mi">42</span><span class="p">;</span> 			<span class="c1">// .data section
-</span></span></span><span class="line"><span class="cl"><span class="c1">// __u32 foo;   			// .bss section
-</span></span></span><span class="line"><span class="cl"><span class="c1">// const __u32 foo = 42; 	// .rodata section
-</span></span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl"><span class="kt">int</span> <span class="nf">__main</span><span class="p">(</span><span class="k">struct</span> <span class="n">__sk_buff</span> <span class="o">*</span><span class="n">skb</span><span class="p">)</span>
-</span></span><span class="line"><span class="cl"><span class="p">{</span>
-</span></span><span class="line"><span class="cl">    <span class="n">skb</span><span class="o">-&gt;</span><span class="n">mark</span> <span class="o">=</span> <span class="nf">__fetch</span><span class="p">(</span><span class="n">foo</span><span class="p">);</span>
-</span></span><span class="line"><span class="cl">    <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span><span class="line"><span class="cl">
-</span></span><span class="line"><span class="cl"><span class="kt">char</span> <span class="n">__license</span><span class="p">[]</span> <span class="nf">__section</span><span class="p">(</span><span class="s">&#34;license&#34;</span><span class="p">)</span> <span class="o">=</span> <span class="s">&#34;&#34;</span><span class="p">;</span>
-</span></span></code></pre></div><p>编译后，foo变量存储在<code>.data</code> section内。</p>
-<pre tabindex="0"><code># llvm-readelf -S test.o
-There are 8 section headers, starting at offset 0x148:
-
-Section Headers:
-  [Nr] Name              Type            Address          Off    Size   ES Flg Lk Inf Al
-  [ 0]                   NULL            0000000000000000 000000 000000 00      0   0  0
-  [ 1] .strtab           STRTAB          0000000000000000 0000fa 00004b 00      0   0  1
-  [ 2] .text             PROGBITS        0000000000000000 000040 000028 00  AX  0   0  8
-  [ 3] .rel.text         REL             0000000000000000 0000e8 000010 10      7   2  8
-  [ 4] .data             PROGBITS        0000000000000000 000068 000004 00  WA  0   0  4
-  [ 5] license           PROGBITS        0000000000000000 00006c 000001 00  WA  0   0  1
-  [ 6] .llvm_addrsig     LLVM_ADDRSIG    0000000000000000 0000f8 000002 00   E  7   0  1
-  [ 7] .symtab           SYMTAB          0000000000000000 000070 000078 18      1   2  8
-Key to Flags:
-  W (write), A (alloc), X (execute), M (merge), S (strings), I (info),
-  L (link order), O (extra OS processing required), G (group), T (TLS),
-  C (compressed), x (unknown), o (OS specific), E (exclude),
-  p (processor specific)
-</code></pre><p><code>.rel.text</code> section中也存在foo变量的relocation信息：</p>
-          
-        </div>
-
-        
-          <div>
-            <a class="read-more button inline" href="/posts/2024-01/ebpf-%E5%85%A8%E5%B1%80%E5%8F%98%E9%87%8F%E7%9A%84%E5%AE%9E%E7%8E%B0/">[Read more]</a>
-          </div>
-        
-      </article>
-    
 
     <div class="pagination">
   <div class="pagination__buttons">
@@ -892,6 +872,10 @@ Key to Flags:
       
       
     
+      
+      
+      
+    
 
     
     
@@ -921,7 +905,7 @@ Key to Flags:
         <a href="/posts/2026-07/" class="archive-link">
           <span class="archive-date">2026-07</span>
           <span class="archive-month-name">Jul</span>
-          <span class="archive-count">(2)</span>
+          <span class="archive-count">(3)</span>
         </a>
       </div>
     
@@ -1656,22 +1640,6 @@ Key to Flags:
       
         
       
-        
-      
-    
-      
-        
-      
-        
-      
-    
-      
-        
-      
-        
-      
-        
-      
     
       
         
@@ -1689,14 +1657,6 @@ Key to Flags:
     
       
         
-      
-    
-      
-        
-      
-        
-      
-    
       
         
       
@@ -1724,6 +1684,36 @@ Key to Flags:
       
         
       
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
     
       
         
@@ -1743,22 +1733,6 @@ Key to Flags:
         
       
     
-      
-        
-      
-    
-      
-        
-      
-        
-      
-        
-      
-    
-      
-        
-      
-        
       
         
       
@@ -1798,38 +1772,6 @@ Key to Flags:
       
         
       
-    
-      
-        
-      
-    
-      
-        
-      
-        
-      
-    
-      
-        
-      
-    
-      
-        
-      
-    
-      
-    
-      
-        
-      
-    
-      
-        
-      
-    
-      
-        
-      
         
       
         
@@ -1839,14 +1781,6 @@ Key to Flags:
         
       
         
-      
-    
-      
-        
-      
-        
-      
-    
       
         
       
@@ -1874,8 +1808,6 @@ Key to Flags:
       
     
       
-        
-      
     
       
         
@@ -1889,6 +1821,26 @@ Key to Flags:
         
       
         
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
       
         
       
@@ -1926,6 +1878,44 @@ Key to Flags:
       
         
       
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
     
       
         
@@ -1934,6 +1924,12 @@ Key to Flags:
     
     
     
+    
+      
+      
+    
+      
+      
     
       
       
@@ -2452,9 +2448,9 @@ Key to Flags:
         <a href="https://blog.jinzhi.site/tags/agent/" 
            class="tag-item" 
            style="font-size: 0.9em;"
-           title="3 articles">
+           title="4 articles">
           Agent
-          <span class="tag-count">(3)</span>
+          <span class="tag-count">(4)</span>
         </a>
       
     
@@ -2471,9 +2467,9 @@ Key to Flags:
         <a href="https://blog.jinzhi.site/tags/ai/" 
            class="tag-item" 
            style="font-size: 0.9em;"
-           title="4 articles">
+           title="5 articles">
           AI
-          <span class="tag-count">(4)</span>
+          <span class="tag-count">(5)</span>
         </a>
       
     

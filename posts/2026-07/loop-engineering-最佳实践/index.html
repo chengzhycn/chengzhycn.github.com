@@ -1,0 +1,3638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  
+    <title>Loop Engineering 最佳实践 :: chengzhycn&#39;s blog</title>
+  
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="背景 注：文章由 codex 整理。
+Loop engineering 讨论的不是普通代码里的 for/while，也不是 agent harness 内部已经存在的 observe -&gt; act -&gt; observe 工具调用循环，而是人类交给 agent harness 的外部循环规格（loop specification）。
+arXiv 论文 Stop Hand-Holding Your Coding Agent: Engineering the Loops that Replace Step-by-Step Prompting 给出的核心定义是：loop specification 是一个有边界、可复用的 artifact，包含 trigger、goal、verification、stopping rule 和 memory，由人类交给 Claude Code、Codex 等 agent harness，让 agent 在无需人类逐步提示的情况下追踪目标、执行、检查并停止。
+这篇论文的价值在于把社区里比较口号化的说法收束成一个工程问题：
+prompt engineering 问的是：这一轮怎么问？ context engineering 问的是：agent 应该知道什么？ harness engineering 问的是：agent 能在什么环境里行动？ loop engineering 问的是：如何设计一个系统，让 agent 能发现工作、执行工作、验证结果、记录状态，并知道什么时候停？ 所以它不是“prompt engineering 已死”，而是 prompt 之外多了一层控制系统。一个 loop 的底层仍然会使用 prompt，但关键杠杆从“写一句更聪明的话”变成“设计一个带反馈、验证和刹车的闭环”。
+" />
+<meta name="keywords" content="" />
+
+  <meta name="robots" content="noodp" />
+
+<link rel="canonical" href="https://blog.jinzhi.site/posts/2026-07/loop-engineering-%E6%9C%80%E4%BD%B3%E5%AE%9E%E8%B7%B5/" />
+
+
+
+
+
+  
+  <link rel="stylesheet" href="https://blog.jinzhi.site/css/buttons.min.86f6b4c106b6c6eb690ae5203d36b442c1f66f718ff4e8164fa86cf6c61ad641.css">
+
+  
+  <link rel="stylesheet" href="https://blog.jinzhi.site/css/code.min.c4581949edab7810737609fc5568852bcd908945f14561e366dcd2300a370545.css">
+
+  
+  <link rel="stylesheet" href="https://blog.jinzhi.site/css/fonts.min.5bb7ed13e1d00d8ff39ea84af26737007eb5051b157b86fc24487c94f3dc8bbe.css">
+
+  
+  <link rel="stylesheet" href="https://blog.jinzhi.site/css/footer.min.eb8dfc2c6a7eafa36cd3ba92d63e69e849e2200e0002a228d137f236b09ecd75.css">
+
+  
+  <link rel="stylesheet" href="https://blog.jinzhi.site/css/gist.min.a751e8b0abe1ba8bc53ced52a38b19d8950fe78ca29454ea8c2595cf26aad5c0.css">
+
+  
+  <link rel="stylesheet" href="https://blog.jinzhi.site/css/header.min.75c7eb0e2872d95ff48109c6647d0223a38db52e2561dd87966eb5fc7c6bdac6.css">
+
+  
+  <link rel="stylesheet" href="https://blog.jinzhi.site/css/main.min.7984a754b43b7469d389c539410e90dff2870263de16b008dfc7e8170fcd0f5b.css">
+
+  
+  <link rel="stylesheet" href="https://blog.jinzhi.site/css/menu.min.3c17467ebeb3d38663dce68f71f519901124fa5cbb4519b2fb0667a21e9aca39.css">
+
+  
+  <link rel="stylesheet" href="https://blog.jinzhi.site/css/pagination.min.bbb986dbce00a5ce5aca0504b7925fc1c581992a4bf57f163e5d69cc1db7d836.css">
+
+  
+  <link rel="stylesheet" href="https://blog.jinzhi.site/css/post.min.e6dddd258e64c83e05cec0cd49c05216742d42fc8ecbfbe6b67083412b609bd3.css">
+
+  
+  <link rel="stylesheet" href="https://blog.jinzhi.site/css/syntax.min.a2cc694a9b481f15d41722bffc2cc54eea4c4f74fd9072b0b33253604c22606e.css">
+
+  
+  <link rel="stylesheet" href="https://blog.jinzhi.site/css/terminal.min.e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.css">
+
+  
+  <link rel="stylesheet" href="https://blog.jinzhi.site/css/terms.min.b81791663c3790e738e571cdbf802312390d30e4b1d8dc9d814a5b5454d0ac11.css">
+
+
+
+
+
+
+
+<link rel="shortcut icon" href="https://blog.jinzhi.site/favicon.png">
+<link rel="apple-touch-icon" href="https://blog.jinzhi.site/apple-touch-icon.png">
+
+
+<meta name="twitter:card" content="summary" />
+
+  
+    <meta name="twitter:site" content="" />
+  
+    <meta name="twitter:creator" content="" />
+
+
+
+<meta property="og:locale" content="en" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="Loop Engineering 最佳实践">
+<meta property="og:description" content="背景 注：文章由 codex 整理。
+Loop engineering 讨论的不是普通代码里的 for/while，也不是 agent harness 内部已经存在的 observe -&gt; act -&gt; observe 工具调用循环，而是人类交给 agent harness 的外部循环规格（loop specification）。
+arXiv 论文 Stop Hand-Holding Your Coding Agent: Engineering the Loops that Replace Step-by-Step Prompting 给出的核心定义是：loop specification 是一个有边界、可复用的 artifact，包含 trigger、goal、verification、stopping rule 和 memory，由人类交给 Claude Code、Codex 等 agent harness，让 agent 在无需人类逐步提示的情况下追踪目标、执行、检查并停止。
+这篇论文的价值在于把社区里比较口号化的说法收束成一个工程问题：
+prompt engineering 问的是：这一轮怎么问？ context engineering 问的是：agent 应该知道什么？ harness engineering 问的是：agent 能在什么环境里行动？ loop engineering 问的是：如何设计一个系统，让 agent 能发现工作、执行工作、验证结果、记录状态，并知道什么时候停？ 所以它不是“prompt engineering 已死”，而是 prompt 之外多了一层控制系统。一个 loop 的底层仍然会使用 prompt，但关键杠杆从“写一句更聪明的话”变成“设计一个带反馈、验证和刹车的闭环”。
+" />
+<meta property="og:url" content="https://blog.jinzhi.site/posts/2026-07/loop-engineering-%E6%9C%80%E4%BD%B3%E5%AE%9E%E8%B7%B5/" />
+<meta property="og:site_name" content="chengzhycn&#39;s blog" />
+
+  <meta property="og:image" content="https://blog.jinzhi.site/og-image.png">
+
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="627">
+
+  <meta property="article:section" content="Learning" />
+
+
+  <meta property="article:published_time" content="2026-07-04 21:27:28 &#43;0800 &#43;0800" />
+
+
+
+
+
+
+
+
+
+<html>
+<head>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-screen-web/style.css" />
+  <style>
+    body {
+      font-family: "LXGW WenKai Screen";
+      font-weight: normal;
+    }
+  </style>
+</head>
+<body>
+
+</body>
+</html>
+
+
+</head>
+<body>
+
+
+<div class="page-wrapper">
+  <div class="container center">
+
+  <header class="header">
+  <div class="header__inner">
+    <div class="header__logo">
+      <a href="/">
+  <div class="logo">
+    chengzhycn&#39;s blog
+  </div>
+</a>
+
+    </div>
+    
+      <ul class="menu menu--mobile">
+  <li class="menu__trigger">Menu&nbsp;▾</li>
+  <li>
+    <ul class="menu__dropdown">
+      
+        
+          <li><a href="/">Home</a></li>
+        
+      
+        
+          <li><a href="/about">About</a></li>
+        
+      
+        
+          <li><a href="/categories/">Categories</a></li>
+        
+      
+        
+          <li><a href="/tags/">Tags</a></li>
+        
+      
+        
+          <li><a href="/archives/">Archives</a></li>
+        
+      
+      
+    </ul>
+  </li>
+</ul>
+
+    
+    
+  </div>
+  
+    <nav class="navigation-menu">
+  <ul class="navigation-menu__inner menu--desktop">
+    
+      
+        
+          <li><a href="/" >Home</a></li>
+        
+      
+        
+          <li><a href="/about" >About</a></li>
+        
+      
+        
+          <li><a href="/categories/" >Categories</a></li>
+        
+      
+        
+          <li><a href="/tags/" >Tags</a></li>
+        
+      
+        
+          <li><a href="/archives/" >Archives</a></li>
+        
+      
+      
+    
+  </ul>
+</nav>
+
+  
+</header>
+
+
+  <div class="content">
+    
+<article class="post">
+  <h1 class="post-title">
+    <a href="https://blog.jinzhi.site/posts/2026-07/loop-engineering-%E6%9C%80%E4%BD%B3%E5%AE%9E%E8%B7%B5/">Loop Engineering 最佳实践</a>
+  </h1>
+  <div class="post-meta"><time class="post-date">2026-07-04</time><span class="post-reading-time">9 min read (1754 words)</span></div>
+
+  
+    <span class="post-tags">
+      
+      #<a href="https://blog.jinzhi.site/tags/ai/">AI</a>&nbsp;
+      
+      #<a href="https://blog.jinzhi.site/tags/agent/">Agent</a>&nbsp;
+      
+    </span>
+  
+  
+
+
+  
+    <div class="table-of-contents">
+      <h2>
+        Table of Contents
+      </h2>
+      <nav id="TableOfContents">
+  <ul>
+    <li><a href="#背景">背景</a></li>
+    <li><a href="#基本概念">基本概念</a>
+      <ul>
+        <li><a href="#loop-specification-和-harness-的边界">Loop specification 和 harness 的边界</a></li>
+        <li><a href="#一个真正-loop-的最小结构">一个真正 loop 的最小结构</a></li>
+      </ul>
+    </li>
+    <li><a href="#verification-ladder">Verification Ladder</a></li>
+    <li><a href="#最佳实践">最佳实践</a>
+      <ul>
+        <li><a href="#1-先定义-done再定义-prompt">1. 先定义 done，再定义 prompt</a></li>
+        <li><a href="#2-让每轮反馈改变下一轮动作">2. 让每轮反馈改变下一轮动作</a></li>
+        <li><a href="#3-每轮只移动一个主要变量">3. 每轮只移动一个主要变量</a></li>
+        <li><a href="#4-maker-和-checker-分离">4. Maker 和 checker 分离</a></li>
+        <li><a href="#5-状态必须外部化">5. 状态必须外部化</a></li>
+        <li><a href="#6-用-skills-固化可重复能力">6. 用 skills 固化可重复能力</a></li>
+        <li><a href="#7-自动化之前先手动跑通">7. 自动化之前先手动跑通</a></li>
+      </ul>
+    </li>
+    <li><a href="#ralph-loop">Ralph Loop</a></li>
+    <li><a href="#openai--codex-实践">OpenAI / Codex 实践</a>
+      <ul>
+        <li><a href="#goal"><code>/goal</code></a></li>
+        <li><a href="#automations">Automations</a></li>
+        <li><a href="#agent-improvement-loop">Agent Improvement Loop</a></li>
+        <li><a href="#iterative-repair-loop">Iterative Repair Loop</a></li>
+      </ul>
+    </li>
+    <li><a href="#anthropic--claude-code-实践">Anthropic / Claude Code 实践</a>
+      <ul>
+        <li><a href="#workflow-和-agent-的区分">Workflow 和 agent 的区分</a></li>
+        <li><a href="#goal-1"><code>/goal</code></a></li>
+        <li><a href="#loop"><code>/loop</code></a></li>
+        <li><a href="#stop-hook">Stop Hook</a></li>
+      </ul>
+    </li>
+    <li><a href="#oh-my-pi-中的实践">oh-my-pi 中的实践</a></li>
+    <li><a href="#agent-中的实践映射">Agent 中的实践映射</a></li>
+    <li><a href="#反模式">反模式</a>
+      <ul>
+        <li><a href="#while-true-around-a-stranger">While-true around a stranger</a></li>
+        <li><a href="#self-approving-loop">Self-approving loop</a></li>
+        <li><a href="#pretending-level-4-is-level-1">Pretending Level 4 is Level 1</a></li>
+        <li><a href="#unattended-runaway">Unattended runaway</a></li>
+        <li><a href="#memory-hoarding">Memory hoarding</a></li>
+        <li><a href="#automating-before-stabilizing">Automating before stabilizing</a></li>
+      </ul>
+    </li>
+    <li><a href="#设计检查清单">设计检查清单</a></li>
+    <li><a href="#推荐落地模板">推荐落地模板</a></li>
+    <li><a href="#总结">总结</a></li>
+    <li><a href="#参考资料">参考资料</a></li>
+  </ul>
+</nav>
+    </div>
+  
+
+  <div class="post-content"><div>
+        <h2 id="背景">背景<a href="#背景" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<blockquote>
+<p>注：文章由 codex 整理。</p>
+</blockquote>
+<p><code>Loop engineering</code> 讨论的不是普通代码里的 <code>for/while</code>，也不是 agent harness 内部已经存在的 <code>observe -&gt; act -&gt; observe</code> 工具调用循环，而是<strong>人类交给 agent harness 的外部循环规格（loop specification）</strong>。</p>
+<p>arXiv 论文 <a href="https://arxiv.org/abs/2607.00038">Stop Hand-Holding Your Coding Agent: Engineering the Loops that Replace Step-by-Step Prompting</a> 给出的核心定义是：<code>loop specification</code> 是一个有边界、可复用的 artifact，包含 <code>trigger</code>、<code>goal</code>、<code>verification</code>、<code>stopping rule</code> 和 <code>memory</code>，由人类交给 Claude Code、Codex 等 agent harness，让 agent 在无需人类逐步提示的情况下追踪目标、执行、检查并停止。</p>
+<p>这篇论文的价值在于把社区里比较口号化的说法收束成一个工程问题：</p>
+<ul>
+<li><code>prompt engineering</code> 问的是：这一轮怎么问？</li>
+<li><code>context engineering</code> 问的是：agent 应该知道什么？</li>
+<li><code>harness engineering</code> 问的是：agent 能在什么环境里行动？</li>
+<li><code>loop engineering</code> 问的是：如何设计一个系统，让 agent 能发现工作、执行工作、验证结果、记录状态，并知道什么时候停？</li>
+</ul>
+<p>所以它不是“prompt engineering 已死”，而是 prompt 之外多了一层控制系统。一个 loop 的底层仍然会使用 prompt，但关键杠杆从“写一句更聪明的话”变成“设计一个带反馈、验证和刹车的闭环”。</p>
+<h2 id="基本概念">基本概念<a href="#基本概念" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<h3 id="loop-specification-和-harness-的边界">Loop specification 和 harness 的边界<a href="#loop-specification-和-harness-的边界" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>可以把两者分成三层：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">Loop engineering
+</span></span><span class="line"><span class="cl">  = 设计闭环的方法论
+</span></span><span class="line"><span class="cl">    目标、触发、验证、停止、记忆、预算、人工介入点
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">Agent harness
+</span></span><span class="line"><span class="cl">  = Codex / Claude Code / oh-my-pi / Cursor / Amp 等运行时
+</span></span><span class="line"><span class="cl">    负责调用模型、执行工具、读写文件、跑命令、维护上下文、处理权限
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">Harness primitives
+</span></span><span class="line"><span class="cl">  = /goal, /loop, automations, hooks, worktrees, skills, plugins, MCP, subagents
+</span></span><span class="line"><span class="cl">    是 loop engineering 在具体产品里的操作入口
+</span></span></code></pre></div><p><code>/goal</code>、<code>/loop</code>、automation、hook 本身不是完整的 loop engineering。它们只是 harness 暴露出来的执行原语。真正的 loop engineering 在于：你是否定义了可靠的完成条件、反馈如何改变下一步、失败怎么停止、状态放在哪里、谁来审查 agent 的结果。</p>
+<h3 id="一个真正-loop-的最小结构">一个真正 loop 的最小结构<a href="#一个真正-loop-的最小结构" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>结合论文、OpenAI Codex 文档、Claude Code 文档和 Ralph loop 的实践，一个 loop spec 至少应该有这些字段：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-markdown" data-lang="markdown"><span class="line"><span class="cl"><span class="gu">## Trigger
+</span></span></span><span class="line"><span class="cl"><span class="k">-</span> Manual / schedule / event:
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Cadence:
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Preconditions:
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="gu">## Goal
+</span></span></span><span class="line"><span class="cl"><span class="k">-</span> Desired outcome:
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Scope:
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Out of scope:
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="gu">## Execution
+</span></span></span><span class="line"><span class="cl"><span class="k">-</span> One turn does:
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Allowed tools:
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Required skills:
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Isolation:
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="gu">## Verification
+</span></span></span><span class="line"><span class="cl"><span class="k">-</span> Level:
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Concrete check:
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Evidence required:
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="gu">## Stop Conditions
+</span></span></span><span class="line"><span class="cl"><span class="k">-</span> Success:
+</span></span><span class="line"><span class="cl"><span class="k">-</span> No-op:
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Blocked:
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Stalled:
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Exhausted:
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="gu">## Memory
+</span></span></span><span class="line"><span class="cl"><span class="k">-</span> State file:
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Decision log:
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Progress queue:
+</span></span><span class="line"><span class="cl"><span class="k">-</span> What must be updated every turn:
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="gu">## Guardrails
+</span></span></span><span class="line"><span class="cl"><span class="k">-</span> Budget:
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Human approval gates:
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Irreversible actions:
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Security boundaries:
+</span></span></code></pre></div><p>这里最重要的是 <code>Verification</code> 和 <code>Stop Conditions</code>。如果没有真实检查，loop 只是“让 agent 重复干活”；如果没有停止条件，loop 就会把不确定性变成成本。</p>
+<h2 id="verification-ladder">Verification Ladder<a href="#verification-ladder" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>论文里最有用的分类是五级验证阶梯：</p>
+<table>
+	<thead>
+			<tr>
+					<th>Level</th>
+					<th>验证方式</th>
+					<th>例子</th>
+					<th>自主性</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>1</td>
+					<td>Deterministic check</td>
+					<td>exit code、单测、golden output、断言</td>
+					<td>最强</td>
+			</tr>
+			<tr>
+					<td>2</td>
+					<td>Rule / constraint</td>
+					<td>linter、schema、policy、格式规则</td>
+					<td>强</td>
+			</tr>
+			<tr>
+					<td>3</td>
+					<td>Delayed field truth</td>
+					<td>部署后指标、真实用户反馈、线上观测</td>
+					<td>客观但慢</td>
+			</tr>
+			<tr>
+					<td>4</td>
+					<td>Model-as-judge</td>
+					<td>rubric 评分、LLM review</td>
+					<td>脆弱</td>
+			</tr>
+			<tr>
+					<td>5</td>
+					<td>Human checkpoint</td>
+					<td>人工 review、审批、验收</td>
+					<td>监督，不是自动验证</td>
+			</tr>
+	</tbody>
+</table>
+<p>实践原则：</p>
+<ul>
+<li><strong>优先把 loop 设计到 Level 1 或 Level 2。</strong> 这才是无人值守时最可靠的区域。</li>
+<li>Level 3 可以作为长期闭环，但不能替代本轮验收。例如线上指标要过几小时才知道，就需要把当前 loop 的状态标成 <code>pending-field-validation</code>，而不是 <code>success</code>。</li>
+<li>Level 4 必须诚实标注为 model judgment，不要伪装成确定性检查。</li>
+<li>如果必须使用 Level 4，maker 和 checker 要分离：不同 session、不同 subagent、不同模型，至少使用 fresh context。</li>
+<li>Level 5 是人工监督，不是 loop 自动完成的证据。</li>
+</ul>
+<p>这也解释了为什么 coding agent 是 loop engineering 的天然场景。Anthropic 在 <a href="https://www.anthropic.com/engineering/building-effective-agents">Building effective agents</a> 里提到，代码任务适合 agent 的原因之一就是可以通过 automated tests 验证，agent 可以用 test results 作为反馈继续迭代。</p>
+<h2 id="最佳实践">最佳实践<a href="#最佳实践" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<h3 id="1-先定义-done再定义-prompt">1. 先定义 done，再定义 prompt<a href="#1-先定义-done再定义-prompt" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>一个 loop 的第一问题不是“怎么提示 agent”，而是：</p>
+<blockquote>
+<p>什么证据能证明这轮工作真的完成？</p>
+</blockquote>
+<p>OpenAI Codex 的 <a href="https://developers.openai.com/codex/prompting#goal-mode">Goal mode</a> 也强调，goal text 同时是 starting prompt 和 completion criteria，好的 goal 应该包含具体结果、可测目标或测试标准。Claude Code 的 <a href="https://code.claude.com/docs/en/goal"><code>/goal</code></a> 更进一步：每轮后用一个小模型检查 completion condition 是否满足；但文档也提醒，这个 evaluator 不会独立跑命令或读文件，它只能根据 transcript 里 Claude 已经展示的证据判断。</p>
+<p>所以 loop spec 里的 done condition 应该写成：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-markdown" data-lang="markdown"><span class="line"><span class="cl">Success:
+</span></span><span class="line"><span class="cl"><span class="k">-</span> <span class="sb">`npm test -- auth`</span> exits 0
+</span></span><span class="line"><span class="cl"><span class="k">-</span> <span class="sb">`npm run lint`</span> exits 0
+</span></span><span class="line"><span class="cl"><span class="k">-</span> No files outside <span class="sb">`src/auth/**`</span> and <span class="sb">`test/auth/**`</span> are modified
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Final output includes exact command results and changed files
+</span></span></code></pre></div><p>而不是：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-markdown" data-lang="markdown"><span class="line"><span class="cl">Success:
+</span></span><span class="line"><span class="cl"><span class="k">-</span> auth works
+</span></span></code></pre></div><h3 id="2-让每轮反馈改变下一轮动作">2. 让每轮反馈改变下一轮动作<a href="#2-让每轮反馈改变下一轮动作" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>论文提出一个很实用的判断：<strong>如果上一轮结果不会改变下一轮动作，那它不是 loop，只是 scheduled prompt。</strong></p>
+<p>例如：</p>
+<ul>
+<li>每天 9 点让 agent 总结新闻：通常是 scheduled one-shot。</li>
+<li>每 5 分钟检查 CI，失败就修、通过就停：这是 loop。</li>
+<li>每轮读取 coverage，挑最低覆盖文件补一个测试，再重新计算 coverage：这是 loop。</li>
+<li>每天随机让 agent “优化代码”：很可能是成本黑洞。</li>
+</ul>
+<p>这个判断能防止把所有定时任务都包装成 loop。Loop 的价值来自 feedback，不来自重复。</p>
+<h3 id="3-每轮只移动一个主要变量">3. 每轮只移动一个主要变量<a href="#3-每轮只移动一个主要变量" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>Ralph loop 的经验里反复强调 “one item per loop”。这和论文里的 <code>act without breaking what works</code> 是同一个原则：每轮只改一个主要对象，马上跑检查，失败时归因才清楚。</p>
+<p>适合写进 loop spec 的形式：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-markdown" data-lang="markdown"><span class="line"><span class="cl">One turn:
+</span></span><span class="line"><span class="cl"><span class="k">1.</span> Read current failure list.
+</span></span><span class="line"><span class="cl"><span class="k">2.</span> Pick the highest-priority unresolved item.
+</span></span><span class="line"><span class="cl"><span class="k">3.</span> Change only the files needed for that item.
+</span></span><span class="line"><span class="cl"><span class="k">4.</span> Run the smallest relevant test.
+</span></span><span class="line"><span class="cl"><span class="k">5.</span> If green, run the broader regression gate.
+</span></span><span class="line"><span class="cl"><span class="k">6.</span> Update progress memory.
+</span></span></code></pre></div><p>这比“修掉所有失败”更适合无人值守，因为它让 verification signal 保持可解释。</p>
+<h3 id="4-maker-和-checker-分离">4. Maker 和 checker 分离<a href="#4-maker-和-checker-分离" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>论文把 <code>self-approving loop</code> 列为核心反模式：同一个模型生成、同一个模型打分，容易 reward hacking。Addy Osmani 的 <a href="https://addyosmani.com/blog/loop-engineering/">Loop Engineering</a> 也把 sub-agent 视为关键部件：一个 agent 写，另一个 agent 查。</p>
+<p>实践上有几种分离方式：</p>
+<ul>
+<li>Codex / Claude Code 里使用 reviewer subagent。</li>
+<li>一个 session 实现，另一个 fresh session review。</li>
+<li>用 deterministic tests 替代 model review。</li>
+<li>使用 Level 4 judge 时，换模型、换 prompt、换上下文，并保留 rubric。</li>
+<li>对高风险变更，human checkpoint 放在 irreversible action 前，例如 merge、deploy、push tag。</li>
+</ul>
+<p>不要让“写代码的 agent 自己说自己写对了”成为成功条件。</p>
+<h3 id="5-状态必须外部化">5. 状态必须外部化<a href="#5-状态必须外部化" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>长期 loop 不能依赖单一对话窗口。论文和 Ralph 都强调：状态要落在文件、issue board、Linear、PR comment、markdown progress log 或数据库里。</p>
+<p>Ralph 的极端版本是：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-bash" data-lang="bash"><span class="line"><span class="cl"><span class="k">while</span> :<span class="p">;</span> <span class="k">do</span> cat PROMPT.md <span class="p">|</span> claude-code <span class="p">;</span> <span class="k">done</span>
+</span></span></code></pre></div><p>它每轮可以是 fresh context，但会重新读取 <code>PROMPT.md</code>、<code>fix_plan.md</code>、<code>specs/*</code>、测试结果和代码状态。换句话说，<strong>上下文不是 conversation history，而是 versioned artifacts</strong>。</p>
+<p>这给普通 loop 的启发是：</p>
+<ul>
+<li><code>AGENTS.md</code> / <code>CLAUDE.md</code> / project rule：放长期运行规则。</li>
+<li><code>fix_plan.md</code>：放当前 backlog 和优先级。</li>
+<li><code>loop-state.md</code>：放每轮完成、阻塞、失败、下轮动作。</li>
+<li>测试和代码注释：记录为什么某个 check 存在。</li>
+<li>PR / issue / Linear：作为跨系统状态。</li>
+</ul>
+<p>状态外部化还有一个好处：下一轮 agent 可以 fresh start，减少旧上下文污染。</p>
+<h3 id="6-用-skills-固化可重复能力">6. 用 skills 固化可重复能力<a href="#6-用-skills-固化可重复能力" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>论文指出，当前实践里 reusable skills 使用还不充分；但从工程角度看，skills 是 loop 能否稳定复用的关键。</p>
+<p>不要把所有项目知识塞进一个巨大 prompt，而是把可复用动作做成 skill：</p>
+<ul>
+<li><code>$triage-ci-failure</code></li>
+<li><code>$fix-flaky-test</code></li>
+<li><code>$review-pr</code></li>
+<li><code>$update-release-note</code></li>
+<li><code>$coverage-improvement</code></li>
+<li><code>$security-review</code></li>
+</ul>
+<p>一个好的 loop spec 应该调用命名 skill，而不是每轮重新解释完整流程。Addy 的总结也类似：automation 负责 heartbeat，skill 负责可维护的任务逻辑。</p>
+<h3 id="7-自动化之前先手动跑通">7. 自动化之前先手动跑通<a href="#7-自动化之前先手动跑通" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>OpenAI 的 <a href="https://developers.openai.com/codex/learn/best-practices">Codex best practices</a> 倾向于把复杂任务拆成可验证步骤，并通过 <code>AGENTS.md</code>、skills、workflows 固化重复经验。Codex cookbook 的 <a href="https://developers.openai.com/cookbook/examples/codex/build_iterative_repair_loops_with_codex">iterative repair loops</a> 也把流程拆成 <code>Review -&gt; Repair -&gt; Validate</code>：先结构化发现问题，再局部修复，再让 validation 输出成为下一轮输入。</p>
+<p>成熟路径应该是：</p>
+<ol>
+<li>手动 prompt 跑一次。</li>
+<li>写出 loop spec。</li>
+<li>加 deterministic check。</li>
+<li>限制 scope 和 budget。</li>
+<li>用 <code>/goal</code> 跑单 session。</li>
+<li>加 reviewer 或 human gate。</li>
+<li>最后再改成 <code>/loop</code>、automation、cron、GitHub Action 或 Routine。</li>
+</ol>
+<p>不要把手动都不稳定的流程直接放进后台。</p>
+<h2 id="ralph-loop">Ralph Loop<a href="#ralph-loop" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>Ralph 是 loop engineering 的一个很有代表性的极端形态。Geoffrey Huntley 在 <a href="https://ghuntley.com/ralph/">Ralph Wiggum as a &ldquo;software engineer&rdquo;</a> 里把它定义成一个 Bash loop，本质上每轮重放同一个 prompt，让 agent 在 repo、spec、plan 和测试反馈之间反复推进。</p>
+<p>它的核心不是那行 shell，而是这些工程约束：</p>
+<ul>
+<li><strong>Fresh context</strong>：每轮可以从干净上下文开始，减少上一轮幻觉和错误推理污染。</li>
+<li><strong>File-backed memory</strong>：<code>AGENT.md</code>、<code>fix_plan.md</code>、<code>specs/*</code> 是真正的状态。</li>
+<li><strong>One item per loop</strong>：每轮只做一个最重要的事项，避免归因混乱。</li>
+<li><strong>Backpressure</strong>：build、test、type checker、static analyzer、security scanner 都可以作为回压。</li>
+<li><strong>Plan regeneration</strong>：计划文件本身可被重建、清理、更新。</li>
+<li><strong>Self-documenting tests</strong>：写测试时记录测试存在的原因，帮助未来 fresh context 的 agent 理解。</li>
+<li><strong>Human judgment remains</strong>：Ralph 能跑很久，但坏掉时仍需要 senior engineer 判断是回滚、修复还是重写 prompt。</li>
+</ul>
+<p>Ralph 的适用边界也很清楚：</p>
+<ul>
+<li>适合 greenfield、可由 spec 驱动、检查信号明确的项目。</li>
+<li>不适合已有复杂代码库里无约束地乱跑。</li>
+<li>如果没有强 backpressure，Ralph 会把“能编译”误当成“实现完整”。</li>
+<li>如果没有人工巡检和状态整理，<code>fix_plan.md</code> 会变成垃圾堆。</li>
+</ul>
+<p>从 loop engineering 角度看，Ralph 是一种 <code>fresh-context file-state loop</code>：它牺牲 conversation continuity，换取状态可版本化、上下文可重置、失败可重新启动。</p>
+<h2 id="openai--codex-实践">OpenAI / Codex 实践<a href="#openai--codex-实践" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<h3 id="goal"><code>/goal</code><a href="#goal" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>Codex 的 <code>/goal</code> 是 condition-driven loop primitive。根据 Codex <a href="https://developers.openai.com/codex/prompting#goal-mode">Goal mode</a>，goal text 同时作为起始任务和完成标准，Codex 会跨多步工作，并根据 goal 判断下一步和是否完成。</p>
+<p>适合：</p>
+<ul>
+<li>大任务有明确完成条件。</li>
+<li>需要跨多 turn 实现、验证、修复。</li>
+<li>验证证据能由 Codex 自己运行并展示。</li>
+</ul>
+<p>不适合：</p>
+<ul>
+<li>纯审美目标。</li>
+<li>完成条件模糊。</li>
+<li>需要外部长时间信号但没有中间状态。</li>
+</ul>
+<h3 id="automations">Automations<a href="#automations" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>Codex app automations 更像 trigger 层：定时运行任务，结果进入 Triage inbox；也可以与 skills 结合。它适合 discovery、triage、heartbeat，而不是替代 verification 本身。</p>
+<p>一个合理组合是：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">Automation:
+</span></span><span class="line"><span class="cl">  每天检查 CI / issue / PR / dependency
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">Skill:
+</span></span><span class="line"><span class="cl">  结构化 triage 和修复策略
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">Worktree:
+</span></span><span class="line"><span class="cl">  隔离具体修复
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">Subagent:
+</span></span><span class="line"><span class="cl">  reviewer fresh-context 检查
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">Goal:
+</span></span><span class="line"><span class="cl">  单个修复任务 run-until-done
+</span></span></code></pre></div><h3 id="agent-improvement-loop">Agent Improvement Loop<a href="#agent-improvement-loop" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>OpenAI cookbook 的 <a href="https://developers.openai.com/cookbook/examples/agents_sdk/agent_improvement_loop">Agent Improvement Loop</a> 重点不是 coding repair，而是 harness improvement flywheel：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">traces
+</span></span><span class="line"><span class="cl">  -&gt; human / model feedback
+</span></span><span class="line"><span class="cl">  -&gt; evals
+</span></span><span class="line"><span class="cl">  -&gt; ranked harness changes
+</span></span><span class="line"><span class="cl">  -&gt; Codex handoff
+</span></span><span class="line"><span class="cl">  -&gt; rerun evals
+</span></span></code></pre></div><p>它把真实运行反馈变成 eval，再把 eval 变成下一轮 harness change。这是 loop engineering 在 agent 产品迭代上的形态：不是让 agent 随机自我改进，而是把 traces、feedback、eval 和 implementation handoff 连起来。</p>
+<h3 id="iterative-repair-loop">Iterative Repair Loop<a href="#iterative-repair-loop" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>OpenAI cookbook 的 <a href="https://developers.openai.com/cookbook/examples/codex/build_iterative_repair_loops_with_codex">Build iterative repair loops with Codex</a> 给了一个更贴近代码开发的模式：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">Review:
+</span></span><span class="line"><span class="cl">  inspect artifact and produce structured findings
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">Repair:
+</span></span><span class="line"><span class="cl">  apply focused edits based on findings and validation feedback
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">Validate:
+</span></span><span class="line"><span class="cl">  run checks and report remaining issues
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">Repeat:
+</span></span><span class="line"><span class="cl">  remaining issues become next repair input
+</span></span></code></pre></div><p>这个模式适合文档、notebook、测试修复、迁移等任务。关键是 <code>Validate</code> 输出必须结构化，否则下一轮只是重新猜。</p>
+<h2 id="anthropic--claude-code-实践">Anthropic / Claude Code 实践<a href="#anthropic--claude-code-实践" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<h3 id="workflow-和-agent-的区分">Workflow 和 agent 的区分<a href="#workflow-和-agent-的区分" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>Anthropic 的 <a href="https://www.anthropic.com/engineering/building-effective-agents">Building effective agents</a> 区分了 workflow 和 agent：</p>
+<ul>
+<li><code>workflow</code>：路径由代码预先规定。</li>
+<li><code>agent</code>：模型根据环境反馈动态决定下一步。</li>
+</ul>
+<p>Loop engineering 通常位于两者之间：trigger、stop、verification、memory 是人类预先设计的；中间执行路径可以交给 agent 动态探索。</p>
+<p>Anthropic 的建议也很克制：先用简单方案，只有当复杂度带来可测收益时再升级到 agentic system。这个原则对 loop 更重要，因为 loop 会放大成本和错误。</p>
+<h3 id="goal-1"><code>/goal</code><a href="#goal-1" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>Claude Code <a href="https://code.claude.com/docs/en/goal"><code>/goal</code></a> 是 run-until-condition 的 session loop。它的关键点：</p>
+<ul>
+<li>设置 completion condition 后，Claude 会跨 turn 继续工作。</li>
+<li>每轮后由小模型检查条件是否满足。</li>
+<li>条件应该包含 measurable end state、stated check 和 constraints。</li>
+<li>evaluator 根据 transcript 判断，不独立执行命令。</li>
+</ul>
+<p>这意味着 <code>/goal</code> 的最佳写法要主动要求 Claude 展示证据：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">/goal all tests in test/auth pass, npm run lint exits 0,
+</span></span><span class="line"><span class="cl">and the final transcript shows both command outputs and changed files.
+</span></span><span class="line"><span class="cl">Stop after 20 turns if the same failure repeats.
+</span></span></code></pre></div><h3 id="loop"><code>/loop</code><a href="#loop" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>Claude Code <a href="https://code.claude.com/docs/en/scheduled-tasks"><code>/loop</code></a> 是 schedule / polling loop：</p>
+<ul>
+<li><code>/loop 5m check the deploy</code>：固定间隔轮询。</li>
+<li><code>/loop check the deploy</code>：由 Claude 动态选择下次间隔。</li>
+<li><code>/loop</code>：运行默认 maintenance prompt 或 <code>loop.md</code>。</li>
+<li>session-scoped，有 expiry 和调度限制。</li>
+</ul>
+<p>它适合：</p>
+<ul>
+<li>等部署。</li>
+<li>babysit PR。</li>
+<li>检查 CI。</li>
+<li>定期处理 review comments。</li>
+</ul>
+<p>它不适合：</p>
+<ul>
+<li>需要连续思考的一次性深任务；这种更适合 <code>/goal</code>。</li>
+<li>没有反馈改变下一步的固定摘要任务；那只是 scheduled prompt。</li>
+</ul>
+<h3 id="stop-hook">Stop Hook<a href="#stop-hook" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>Claude Code 文档把 <code>/goal</code>、<code>/loop</code>、Stop hook 放在同一组比较里：</p>
+<ul>
+<li><code>/goal</code>：上一 turn 结束后，由 evaluator 判断是否继续。</li>
+<li><code>/loop</code>：时间间隔到了再启动下一 turn。</li>
+<li>Stop hook：上一 turn 结束后，由你自己的脚本或 prompt 决定。</li>
+</ul>
+<p>从 loop engineering 角度看，Stop hook 是更底层的 programmable gate，适合把 Level 1 / Level 2 检查做成强约束。</p>
+<h2 id="oh-my-pi-中的实践">oh-my-pi 中的实践<a href="#oh-my-pi-中的实践" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>本地 <code>oh-my-pi</code> 也有对应的 harness primitives。</p>
+<p>在 <code>packages/coding-agent/src/slash-commands/builtin-registry.ts</code> 里：</p>
+<ul>
+<li><code>/goal</code>：<code>Toggle goal mode (persistent autonomous objective for this session)</code>，支持 <code>set/show/pause/resume/drop/budget</code>。</li>
+<li><code>/guided-goal</code>：先访谈和 refine goal，再启用 goal mode。</li>
+<li><code>/loop</code>：开启 loop mode，下一个 prompt 会在每次 yield 后重新提交，支持 count / duration / inline prompt。</li>
+</ul>
+<p>对应实现：</p>
+<ul>
+<li><code>packages/coding-agent/src/goals/runtime.ts</code>：goal runtime，记录 objective、token budget、tokens used、time used，并渲染 continuation prompt。</li>
+<li><code>packages/coding-agent/src/goals/tools/goal-tool.ts</code>：给 agent 调用的 <code>goal</code> tool，用于 <code>create/get/resume/complete/drop</code>。</li>
+<li><code>packages/coding-agent/src/modes/loop-limit.ts</code>：解析 <code>/loop 10</code>、<code>/loop 10m</code> 等限制。</li>
+<li><code>packages/coding-agent/src/modes/interactive-mode.ts</code>：每次 yield 后约 800ms 自动重交 loop prompt。</li>
+</ul>
+<p>它和 Claude Code 的差异是：</p>
+<table>
+	<thead>
+			<tr>
+					<th>能力</th>
+					<th>Claude Code</th>
+					<th>oh-my-pi</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td><code>/goal</code></td>
+					<td>completion condition + 小模型 evaluator</td>
+					<td>goal runtime + hidden continuation + agent <code>goal</code> tool</td>
+			</tr>
+			<tr>
+					<td><code>/loop</code></td>
+					<td>schedule / polling，按时间间隔触发</td>
+					<td>turn-level repeat，每次 yield 后重交 prompt</td>
+			</tr>
+			<tr>
+					<td>state</td>
+					<td>session task、transcript、settings、hooks</td>
+					<td>session state、goal state、todo、checkpoint、memory tools</td>
+			</tr>
+			<tr>
+					<td>memory</td>
+					<td>CLAUDE.md、skills、hooks、scheduled tasks</td>
+					<td>retain/recall/reflect、checkpoint/rewind、skills、rules</td>
+			</tr>
+	</tbody>
+</table>
+<p>所以 <code>oh-my-pi</code> 的 <code>/loop</code> 更像 Ralph 的同 prompt 重复执行，但它是在一个 interactive harness 里做自动重交，而不是 shell 层面 <code>while true</code>。</p>
+<h2 id="agent-中的实践映射">Agent 中的实践映射<a href="#agent-中的实践映射" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<table>
+	<thead>
+			<tr>
+					<th>Loop engineering 元素</th>
+					<th>Codex</th>
+					<th>Claude Code</th>
+					<th>oh-my-pi</th>
+					<th>Ralph</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>Trigger</td>
+					<td>prompt、automation、GitHub/Linear/Slack integrations</td>
+					<td>prompt、<code>/loop</code>、cron、routines、channels</td>
+					<td>slash command、loop mode、commands</td>
+					<td>shell loop</td>
+			</tr>
+			<tr>
+					<td>Goal</td>
+					<td><code>/goal</code></td>
+					<td><code>/goal</code></td>
+					<td><code>/goal</code>、<code>goal</code> tool</td>
+					<td><code>PROMPT.md</code> + spec</td>
+			</tr>
+			<tr>
+					<td>Execution</td>
+					<td>tools、skills、MCP、worktrees</td>
+					<td>tools、skills、MCP、hooks、worktrees</td>
+					<td>tools、subagents、LSP、debug、job</td>
+					<td>agent CLI + repo</td>
+			</tr>
+			<tr>
+					<td>Verification</td>
+					<td>tests、review、cookbook eval gates</td>
+					<td>tests、Stop hook、evaluator、human gate</td>
+					<td>tests、goal completion audit、reviewer/advisor</td>
+					<td>build/test/typecheck backpressure</td>
+			</tr>
+			<tr>
+					<td>Stop</td>
+					<td>goal complete、cancel、automation no-op</td>
+					<td>goal met、clear、expiry、hook</td>
+					<td>complete/drop/budget/loop limit</td>
+					<td>manual stop、test pass、git tag、human intervention</td>
+			</tr>
+			<tr>
+					<td>Memory</td>
+					<td>AGENTS.md、skills、thread、files</td>
+					<td>CLAUDE.md、loop.md、skills、files</td>
+					<td>Hindsight、retain/recall、checkpoint、files</td>
+					<td>AGENT.md、fix_plan.md、specs</td>
+			</tr>
+			<tr>
+					<td>Isolation</td>
+					<td>worktrees、cloud env</td>
+					<td>worktrees、subagent isolation</td>
+					<td>workspace/subagent patterns</td>
+					<td>usually one repo/process</td>
+			</tr>
+	</tbody>
+</table>
+<h2 id="反模式">反模式<a href="#反模式" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<h3 id="while-true-around-a-stranger">While-true around a stranger<a href="#while-true-around-a-stranger" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>只是把一个原始 prompt 放进无限循环，没有 skill、没有 check、没有状态。这种 loop 看起来勤奋，实际只是把不确定性放大。</p>
+<h3 id="self-approving-loop">Self-approving loop<a href="#self-approving-loop" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>同一个 agent 写、同一个 agent 判断完成。尤其是 model-as-judge 时，这会变成 reward hacking。解决方式是 deterministic check 或 maker/checker 分离。</p>
+<h3 id="pretending-level-4-is-level-1">Pretending Level 4 is Level 1<a href="#pretending-level-4-is-level-1" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>把 LLM review 说成“验证通过”。正确做法是标注 <code>verification_level: 4</code>，并加 fresh-context reviewer、rubric、抽样人工检查。</p>
+<h3 id="unattended-runaway">Unattended runaway<a href="#unattended-runaway" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>没有 budget ceiling、没有 stagnation detector、没有 terminal states。最小修复是加：</p>
+<ul>
+<li>max turns</li>
+<li>max cost</li>
+<li>repeated-failure stop</li>
+<li>no-progress stop</li>
+<li>human approval gate</li>
+</ul>
+<h3 id="memory-hoarding">Memory hoarding<a href="#memory-hoarding" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>状态只追加不整理。长期看，memory 会污染 agent。需要周期性清理、合并、删除过期事实，并把“当前有效规则”和“历史记录”分开。</p>
+<h3 id="automating-before-stabilizing">Automating before stabilizing<a href="#automating-before-stabilizing" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>还没手动跑通，就上 cron / automation / GitHub Action。结果是后台稳定制造不可审查 diff。</p>
+<h2 id="设计检查清单">设计检查清单<a href="#设计检查清单" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>写 loop spec 前，先回答这些问题：</p>
+<ol>
+<li>反馈会改变下一轮动作吗？如果不会，不要做 loop。</li>
+<li>成功条件是 Level 1/2/3/4/5 中哪一级？</li>
+<li>是否有 deterministic check？如果没有，为什么？</li>
+<li>model-as-judge 是否和 maker 分离？</li>
+<li>每轮是否只移动一个主要变量？</li>
+<li>失败、阻塞、无进展、预算耗尽分别怎么命名？</li>
+<li>状态写在哪里？下一轮 fresh context 能否接上？</li>
+<li>哪些动作必须人工批准？</li>
+<li>如何衡量 <code>cost per accepted change</code>？</li>
+<li>这个 loop 应该用 <code>/goal</code>、<code>/loop</code>、automation、hook，还是普通 one-shot prompt？</li>
+</ol>
+<h2 id="推荐落地模板">推荐落地模板<a href="#推荐落地模板" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-markdown" data-lang="markdown"><span class="line"><span class="cl"><span class="gh"># &lt;name&gt; loop
+</span></span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="gu">## Use When
+</span></span></span><span class="line"><span class="cl"><span class="k">-</span> Feedback from each turn changes the next action.
+</span></span><span class="line"><span class="cl"><span class="k">-</span> The goal has a reproducible check.
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="gu">## Do Not Use When
+</span></span></span><span class="line"><span class="cl"><span class="k">-</span> The task is pure taste.
+</span></span><span class="line"><span class="cl"><span class="k">-</span> The next action is fixed regardless of result.
+</span></span><span class="line"><span class="cl"><span class="k">-</span> The cost of repeated runs exceeds the value of accepted changes.
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="gu">## Trigger
+</span></span></span><span class="line"><span class="cl"><span class="k">-</span> Type: manual / scheduled / event
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Cadence:
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Preconditions:
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="gu">## Goal
+</span></span></span><span class="line"><span class="cl"><span class="k">-</span> Objective:
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Scope:
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Out of scope:
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="gu">## Verification
+</span></span></span><span class="line"><span class="cl"><span class="k">-</span> Level: 1 / 2 / 3 / 4 / 5
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Command / check:
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Required evidence:
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Who checks:
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="gu">## One Turn
+</span></span></span><span class="line"><span class="cl"><span class="k">1.</span> Load state.
+</span></span><span class="line"><span class="cl"><span class="k">2.</span> Pick one highest-priority item.
+</span></span><span class="line"><span class="cl"><span class="k">3.</span> Make the smallest useful change.
+</span></span><span class="line"><span class="cl"><span class="k">4.</span> Run the narrow check.
+</span></span><span class="line"><span class="cl"><span class="k">5.</span> Run broader regression if narrow check passes.
+</span></span><span class="line"><span class="cl"><span class="k">6.</span> Update state.
+</span></span><span class="line"><span class="cl"><span class="k">7.</span> Decide terminal state.
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="gu">## Terminal States
+</span></span></span><span class="line"><span class="cl"><span class="k">-</span> success:
+</span></span><span class="line"><span class="cl"><span class="k">-</span> no-op:
+</span></span><span class="line"><span class="cl"><span class="k">-</span> blocked:
+</span></span><span class="line"><span class="cl"><span class="k">-</span> stalled:
+</span></span><span class="line"><span class="cl"><span class="k">-</span> exhausted:
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="gu">## Memory
+</span></span></span><span class="line"><span class="cl"><span class="k">-</span> State file:
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Decision log:
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Queue:
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Rules file:
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="gu">## Guardrails
+</span></span></span><span class="line"><span class="cl"><span class="k">-</span> Max turns:
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Token / cost budget:
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Human approval:
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Files / systems agent may not modify:
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="gu">## Actuation
+</span></span></span><span class="line"><span class="cl"><span class="k">-</span> Local manual:
+</span></span><span class="line"><span class="cl"><span class="k">-</span> <span class="sb">`/goal ...`</span>
+</span></span><span class="line"><span class="cl"><span class="k">-</span> <span class="sb">`/loop ...`</span>
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Automation / cron / GitHub Action:
+</span></span></code></pre></div><h2 id="总结">总结<a href="#总结" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>Loop engineering 的核心不是“让 agent 一直跑”，而是<strong>把 agent 的持续行动约束在一个可验证、可停止、可复盘的控制系统里</strong>。</p>
+<p>最稳的实践路径是：</p>
+<ol>
+<li>从可验证目标开始。</li>
+<li>让反馈决定下一步。</li>
+<li>每轮只动一个主要变量。</li>
+<li>用测试、linter、schema、field truth 做回压。</li>
+<li>maker 和 checker 分离。</li>
+<li>把状态放到文件或外部系统。</li>
+<li>给预算、无进展和人工审批留刹车。</li>
+<li>先手动跑通，再上 <code>/goal</code>、<code>/loop</code>、automation 或 Ralph。</li>
+</ol>
+<p><code>/goal</code>、<code>/loop</code>、automations、hooks、skills、subagents、worktrees 都是 harness 提供的 loop primitives。真正的工程能力在于如何把这些 primitives 组合成一个不会自欺、不会失控、不会把 token 烧成幻觉的系统。</p>
+<h2 id="参考资料">参考资料<a href="#参考资料" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<ul>
+<li><a href="https://arxiv.org/abs/2607.00038">Stop Hand-Holding Your Coding Agent: Engineering the Loops that Replace Step-by-Step Prompting</a></li>
+<li><a href="https://developers.openai.com/codex/prompting#goal-mode">OpenAI Codex: Goal mode</a></li>
+<li><a href="https://developers.openai.com/codex/learn/best-practices">OpenAI Codex best practices</a></li>
+<li><a href="https://developers.openai.com/cookbook/examples/agents_sdk/agent_improvement_loop">Build an Agent Improvement Loop with Traces, Evals, and Codex</a></li>
+<li><a href="https://developers.openai.com/cookbook/examples/codex/build_iterative_repair_loops_with_codex">Build iterative repair loops with Codex</a></li>
+<li><a href="https://www.anthropic.com/engineering/building-effective-agents">Anthropic: Building effective agents</a></li>
+<li><a href="https://code.claude.com/docs/en/goal">Claude Code: Keep Claude working toward a goal</a></li>
+<li><a href="https://code.claude.com/docs/en/scheduled-tasks">Claude Code: Run prompts on a schedule</a></li>
+<li><a href="https://addyosmani.com/blog/loop-engineering/">Addy Osmani: Loop Engineering</a></li>
+<li><a href="https://ghuntley.com/ralph/">Geoffrey Huntley: Ralph Wiggum as a &ldquo;software engineer&rdquo;</a></li>
+</ul>
+
+      </div></div>
+
+  
+    
+<div class="pagination">
+  <div class="pagination__title">
+    <span class="pagination__title-h">Read other posts</span>
+    <hr />
+  </div>
+  <div class="pagination__buttons">
+    
+    
+    
+      <a href="https://blog.jinzhi.site/posts/2026-07/oh-my-pi-memory-%E7%B3%BB%E7%BB%9F%E5%AE%9E%E7%8E%B0%E5%88%86%E6%9E%90/" class="button inline next">
+         [<span class="button__text">oh-my-pi memory 系统实现分析</span>] &gt;
+      </a>
+    
+  </div>
+</div>
+
+
+  
+
+  
+    
+
+  
+</article>
+
+  </div>
+
+  
+    <footer class="footer">
+  <div class="footer__inner">
+    
+      <div class="copyright">
+        <span>© 2026 Powered by <a href="https://gohugo.io">Hugo</a></span>
+    
+      <span>:: <a href="https://github.com/panr/hugo-theme-terminal" target="_blank">Theme</a> made by <a href="https://github.com/panr" target="_blank">panr</a></span>
+      </div>
+  </div>
+</footer>
+
+
+
+
+
+
+<script type="text/javascript" src="/bundle.min.js"></script>
+
+
+
+
+
+  
+  </div>
+
+  <aside class="floating-sidebar">
+    
+<div class="sidebar time-archive">
+  <h3>Time Archives</h3>
+  <div class="archive-list">
+    
+    
+
+    
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+
+    
+    
+
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2026-07/" class="archive-link">
+          <span class="archive-date">2026-07</span>
+          <span class="archive-month-name">Jul</span>
+          <span class="archive-count">(3)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2026-06/" class="archive-link">
+          <span class="archive-date">2026-06</span>
+          <span class="archive-month-name">Jun</span>
+          <span class="archive-count">(5)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2026-05/" class="archive-link">
+          <span class="archive-date">2026-05</span>
+          <span class="archive-month-name">May</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2026-04/" class="archive-link">
+          <span class="archive-date">2026-04</span>
+          <span class="archive-month-name">Apr</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2026-01/" class="archive-link">
+          <span class="archive-date">2026-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(2)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-11/" class="archive-link">
+          <span class="archive-date">2025-11</span>
+          <span class="archive-month-name">Nov</span>
+          <span class="archive-count">(3)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-10/" class="archive-link">
+          <span class="archive-date">2025-10</span>
+          <span class="archive-month-name">Oct</span>
+          <span class="archive-count">(4)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-09/" class="archive-link">
+          <span class="archive-date">2025-09</span>
+          <span class="archive-month-name">Sep</span>
+          <span class="archive-count">(3)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-08/" class="archive-link">
+          <span class="archive-date">2025-08</span>
+          <span class="archive-month-name">Aug</span>
+          <span class="archive-count">(9)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-06/" class="archive-link">
+          <span class="archive-date">2025-06</span>
+          <span class="archive-month-name">Jun</span>
+          <span class="archive-count">(2)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-04/" class="archive-link">
+          <span class="archive-date">2025-04</span>
+          <span class="archive-month-name">Apr</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-03/" class="archive-link">
+          <span class="archive-date">2025-03</span>
+          <span class="archive-month-name">Mar</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2024-01/" class="archive-link">
+          <span class="archive-date">2024-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(2)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-10/" class="archive-link">
+          <span class="archive-date">2022-10</span>
+          <span class="archive-month-name">Oct</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-07/" class="archive-link">
+          <span class="archive-date">2022-07</span>
+          <span class="archive-month-name">Jul</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-06/" class="archive-link">
+          <span class="archive-date">2022-06</span>
+          <span class="archive-month-name">Jun</span>
+          <span class="archive-count">(4)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-05/" class="archive-link">
+          <span class="archive-date">2022-05</span>
+          <span class="archive-month-name">May</span>
+          <span class="archive-count">(4)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-03/" class="archive-link">
+          <span class="archive-date">2022-03</span>
+          <span class="archive-month-name">Mar</span>
+          <span class="archive-count">(4)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-01/" class="archive-link">
+          <span class="archive-date">2022-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-11/" class="archive-link">
+          <span class="archive-date">2021-11</span>
+          <span class="archive-month-name">Nov</span>
+          <span class="archive-count">(2)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-09/" class="archive-link">
+          <span class="archive-date">2021-09</span>
+          <span class="archive-month-name">Sep</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-06/" class="archive-link">
+          <span class="archive-date">2021-06</span>
+          <span class="archive-month-name">Jun</span>
+          <span class="archive-count">(3)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-01/" class="archive-link">
+          <span class="archive-date">2021-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+  </div>
+</div>
+
+<style>
+.sidebar.time-archive {
+  background: rgba(26, 23, 15, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--accent, #FFA86B);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+  max-width: var(--sidebar-component-width, 240px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.sidebar.time-archive h3 {
+  margin: 0 0 1rem 0;
+  color: var(--accent, #FFA86B);
+  font-size: 1.2rem;
+  border-bottom: 1px solid var(--accent-alpha-70, rgba(255, 168, 107, 0.7));
+  padding-bottom: 0.5rem;
+}
+
+
+.archive-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.archive-item {
+  display: block;
+}
+
+.archive-link {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  text-decoration: none;
+  color: var(--color, inherit);
+  padding: 0.5rem;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+}
+
+.archive-link:hover {
+  background-color: var(--accent-alpha-20, rgba(255, 168, 107, 0.2));
+  color: var(--accent, #FFA86B);
+}
+
+.archive-date {
+  font-family: var(--code-font-family, 'Fira Code', monospace);
+  font-weight: bold;
+  min-width: 60px;
+}
+
+.archive-month-name {
+  flex: 1;
+  margin-left: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.archive-count {
+  color: var(--accent, #FFA86B);
+  font-weight: bold;
+  font-size: 0.9rem;
+}
+
+ 
+</style>
+
+    
+<div class="sidebar tags-cloud">
+  <h3>Tags Cloud</h3>
+  <div class="tags-container">
+    
+    
+    
+    
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+    
+    
+    
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+    
+    
+    
+    
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+    
+    
+    
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+    
+    
+    
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/agent/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="4 articles">
+          Agent
+          <span class="tag-count">(4)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/ai/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="5 articles">
+          AI
+          <span class="tag-count">(5)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/apisix/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="3 articles">
+          apisix
+          <span class="tag-count">(3)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/behavioral-finance/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          behavioral-finance
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/biography/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          biography
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/cloudnative/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          CloudNative
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/compile/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          compile
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/concurrency/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="7 articles">
+          Concurrency
+          <span class="tag-count">(7)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/csi/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          csi
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/debug/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          debug
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/dns/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          dns
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/ebpf/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          ebpf
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/elf/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          ELF
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/envoy/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Envoy
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/financial-analysis/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          financial-analysis
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/go/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          Go
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/http/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          HTTP
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/inference/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Inference
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/investing/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="5 articles">
+          investing
+          <span class="tag-count">(5)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/kaist-cs431/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="7 articles">
+          KAIST-CS431
+          <span class="tag-count">(7)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/kernel/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Kernel
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/kubecon/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          KubeCon
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/kubernetes/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          kubernetes
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/l7gateway/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="4 articles">
+          L7Gateway
+          <span class="tag-count">(4)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/linux/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="3 articles">
+          Linux
+          <span class="tag-count">(3)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/llm/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          LLM
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/lua/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="3 articles">
+          Lua
+          <span class="tag-count">(3)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/makefile/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          makefile
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/market-analysis/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          market-analysis
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/mindfulness/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          mindfulness
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/network/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="4 articles">
+          Network
+          <span class="tag-count">(4)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/nonfiction/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="6 articles">
+          nonfiction
+          <span class="tag-count">(6)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/operatingsystem/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          OperatingSystem
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/philosophy/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          philosophy
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/rust/" 
+           class="tag-item" 
+           style="font-size: 1.5em;"
+           title="10 articles">
+          Rust
+          <span class="tag-count">(10)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/schedule/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Schedule
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/science/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          science
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/softwareengineering/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          SoftwareEngineering
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/stocks/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          stocks
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/wasm/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          wasm
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+  </div>
+</div>
+
+<style>
+.sidebar.tags-cloud {
+  background: rgba(26, 23, 15, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--accent, #FFA86B);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+  max-width: var(--sidebar-component-width, 240px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.sidebar.tags-cloud h3 {
+  margin: 0 0 1rem 0;
+  color: var(--accent, #FFA86B);
+  font-size: 1.2rem;
+  border-bottom: 1px solid var(--accent-alpha-70, rgba(255, 168, 107, 0.7));
+  padding-bottom: 0.5rem;
+}
+
+.tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  line-height: 1.6;
+}
+
+.tag-item {
+  display: inline-flex;
+  align-items: baseline;
+  text-decoration: none;
+  color: var(--color, inherit);
+  padding: 0.3rem 0.6rem;
+  border-radius: 16px;
+  background: rgba(255, 168, 107, 0.1);
+  border: 1px solid transparent;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.tag-item:hover {
+  background: rgba(255, 168, 107, 0.25);
+  border-color: var(--accent-alpha-50, rgba(255, 168, 107, 0.5));
+  color: var(--accent, #FFA86B);
+  transform: translateY(-1px);
+}
+
+.tag-count {
+  font-size: 0.75em;
+  margin-left: 0.3rem;
+  opacity: 0.7;
+  font-weight: normal;
+}
+
+.tag-item:hover .tag-count {
+  opacity: 1;
+}
+
+ 
+
+ 
+.tag-item {
+  font-weight: 400;
+}
+
+ 
+.tag-item[style*="1.5"], 
+.tag-item[style*="1.4"],
+.tag-item[style*="1.3"] {
+  font-weight: 600;
+}
+
+ 
+.tag-item[style*="1.2"],
+.tag-item[style*="1.1"] {
+  font-weight: 500;
+}
+
+ 
+.tag-item[style*="1.5"]:hover,
+.tag-item[style*="1.4"]:hover,
+.tag-item[style*="1.3"]:hover {
+  box-shadow: 0 3px 10px rgba(255, 168, 107, 0.4);
+  transform: translateY(-2px);
+}
+
+</style>
+
+  </aside>
+</div>
+
+<style>
+ 
+.page-wrapper {
+  position: relative;
+  width: 100%;
+  max-width: none;
+  --sidebar-top-offset: 150px;  
+  --sidebar-component-width: 240px;  
+}
+
+   
+.floating-sidebar {
+  position: absolute;
+   
+  top: var(--sidebar-top-offset, 175px);
+   
+  right: max(20px, calc((100vw - 864px) / 2 - 330px));
+  width: 300px;
+  z-index: 100;
+  opacity: 0.96;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+ 
+.floating-sidebar:hover {
+  opacity: 1;
+  transform: translateX(-5px);
+}
+
+ 
+.floating-sidebar {
+  display: none;
+}
+
+ 
+@media (min-width: 1524px) {
+  .floating-sidebar {
+    display: block;
+    position: absolute;
+    right: max(20px, calc((100vw - 864px) / 2 - 330px));
+  }
+}
+
+ 
+@media (max-width: 1523px) {
+  .floating-sidebar {
+    display: none !important;
+  }
+}
+
+</style>
+
+</body>
+</html>

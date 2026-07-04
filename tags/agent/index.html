@@ -207,6 +207,51 @@
     
       <article class="post on-list">
         <h1 class="post-title">
+          <a href="https://blog.jinzhi.site/posts/2026-07/loop-engineering-%E6%9C%80%E4%BD%B3%E5%AE%9E%E8%B7%B5/">Loop Engineering 最佳实践</a>
+        </h1>
+        <div class="post-meta"><time class="post-date">2026-07-04</time></div>
+
+        
+          <span class="post-tags">
+            
+            #<a href="https://blog.jinzhi.site/tags/ai/">AI</a>&nbsp;
+            
+            #<a href="https://blog.jinzhi.site/tags/agent/">Agent</a>&nbsp;
+            
+          </span>
+        
+
+        
+
+
+        <div class="post-content">
+          
+            <h2 id="背景">背景</h2>
+<blockquote>
+<p>注：文章由 codex 整理。</p>
+</blockquote>
+<p><code>Loop engineering</code> 讨论的不是普通代码里的 <code>for/while</code>，也不是 agent harness 内部已经存在的 <code>observe -&gt; act -&gt; observe</code> 工具调用循环，而是<strong>人类交给 agent harness 的外部循环规格（loop specification）</strong>。</p>
+<p>arXiv 论文 <a href="https://arxiv.org/abs/2607.00038">Stop Hand-Holding Your Coding Agent: Engineering the Loops that Replace Step-by-Step Prompting</a> 给出的核心定义是：<code>loop specification</code> 是一个有边界、可复用的 artifact，包含 <code>trigger</code>、<code>goal</code>、<code>verification</code>、<code>stopping rule</code> 和 <code>memory</code>，由人类交给 Claude Code、Codex 等 agent harness，让 agent 在无需人类逐步提示的情况下追踪目标、执行、检查并停止。</p>
+<p>这篇论文的价值在于把社区里比较口号化的说法收束成一个工程问题：</p>
+<ul>
+<li><code>prompt engineering</code> 问的是：这一轮怎么问？</li>
+<li><code>context engineering</code> 问的是：agent 应该知道什么？</li>
+<li><code>harness engineering</code> 问的是：agent 能在什么环境里行动？</li>
+<li><code>loop engineering</code> 问的是：如何设计一个系统，让 agent 能发现工作、执行工作、验证结果、记录状态，并知道什么时候停？</li>
+</ul>
+<p>所以它不是“prompt engineering 已死”，而是 prompt 之外多了一层控制系统。一个 loop 的底层仍然会使用 prompt，但关键杠杆从“写一句更聪明的话”变成“设计一个带反馈、验证和刹车的闭环”。</p>
+          
+        </div>
+
+        
+          <div>
+            <a class="read-more button inline" href="/posts/2026-07/loop-engineering-%E6%9C%80%E4%BD%B3%E5%AE%9E%E8%B7%B5/">[Read more]</a>
+          </div>
+        
+      </article>
+    
+      <article class="post on-list">
+        <h1 class="post-title">
           <a href="https://blog.jinzhi.site/posts/2026-07/oh-my-pi-memory-%E7%B3%BB%E7%BB%9F%E5%AE%9E%E7%8E%B0%E5%88%86%E6%9E%90/">oh-my-pi memory 系统实现分析</a>
         </h1>
         <div class="post-meta"><time class="post-date">2026-07-04</time></div>
@@ -694,6 +739,10 @@
       
       
     
+      
+      
+      
+    
 
     
     
@@ -723,7 +772,7 @@
         <a href="/posts/2026-07/" class="archive-link">
           <span class="archive-date">2026-07</span>
           <span class="archive-month-name">Jul</span>
-          <span class="archive-count">(2)</span>
+          <span class="archive-count">(3)</span>
         </a>
       </div>
     
@@ -1458,22 +1507,6 @@
       
         
       
-        
-      
-    
-      
-        
-      
-        
-      
-    
-      
-        
-      
-        
-      
-        
-      
     
       
         
@@ -1491,14 +1524,6 @@
     
       
         
-      
-    
-      
-        
-      
-        
-      
-    
       
         
       
@@ -1526,6 +1551,36 @@
       
         
       
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
     
       
         
@@ -1545,22 +1600,6 @@
         
       
     
-      
-        
-      
-    
-      
-        
-      
-        
-      
-        
-      
-    
-      
-        
-      
-        
       
         
       
@@ -1600,38 +1639,6 @@
       
         
       
-    
-      
-        
-      
-    
-      
-        
-      
-        
-      
-    
-      
-        
-      
-    
-      
-        
-      
-    
-      
-    
-      
-        
-      
-    
-      
-        
-      
-    
-      
-        
-      
         
       
         
@@ -1641,14 +1648,6 @@
         
       
         
-      
-    
-      
-        
-      
-        
-      
-    
       
         
       
@@ -1676,8 +1675,6 @@
       
     
       
-        
-      
     
       
         
@@ -1691,6 +1688,26 @@
         
       
         
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
       
         
       
@@ -1728,6 +1745,44 @@
       
         
       
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
     
       
         
@@ -1736,6 +1791,12 @@
     
     
     
+    
+      
+      
+    
+      
+      
     
       
       
@@ -2254,9 +2315,9 @@
         <a href="https://blog.jinzhi.site/tags/agent/" 
            class="tag-item" 
            style="font-size: 0.9em;"
-           title="3 articles">
+           title="4 articles">
           Agent
-          <span class="tag-count">(3)</span>
+          <span class="tag-count">(4)</span>
         </a>
       
     
@@ -2273,9 +2334,9 @@
         <a href="https://blog.jinzhi.site/tags/ai/" 
            class="tag-item" 
            style="font-size: 0.9em;"
-           title="4 articles">
+           title="5 articles">
           AI
-          <span class="tag-count">(4)</span>
+          <span class="tag-count">(5)</span>
         </a>
       
     
