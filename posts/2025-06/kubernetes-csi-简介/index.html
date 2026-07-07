@@ -664,98 +664,98 @@
 <p>负责向 kubelet 注册 CSI 驱动（使用 <a href="https://github.com/kubernetes/kubernetes/blob/master/pkg/kubelet/pluginmanager/pluginwatcher/README.md">kubelet plugin registration mechanism</a>），并提供 CSI 驱动的基本信息 <code>NodeGetInfo</code>（例如驱动名称、节点能力等）。</p>
 <h2 id="3-csi-grpc-proto">3. CSI gRPC proto<a href="#3-csi-grpc-proto" class="hanchor" ariaLabel="Anchor">#</a> </h2>
 <h3 id="31-controller-service">3.1. Controller Service<a href="#31-controller-service" class="hanchor" ariaLabel="Anchor">#</a> </h3>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-proto" data-lang="proto"><span class="line"><span class="cl"><span class="kd">service</span> <span class="n">Controller</span> <span class="p">{</span><span class="err">
-</span></span></span><span class="line"><span class="cl">  <span class="k">rpc</span> <span class="n">CreateVolume</span> <span class="p">(</span><span class="n">CreateVolumeRequest</span><span class="p">)</span><span class="err">
-</span></span></span><span class="line"><span class="cl">    <span class="k">returns</span> <span class="p">(</span><span class="n">CreateVolumeResponse</span><span class="p">)</span> <span class="p">{}</span><span class="err">
-</span></span></span><span class="line"><span class="cl"><span class="err">
-</span></span></span><span class="line"><span class="cl">  <span class="k">rpc</span> <span class="n">DeleteVolume</span> <span class="p">(</span><span class="n">DeleteVolumeRequest</span><span class="p">)</span><span class="err">
-</span></span></span><span class="line"><span class="cl">    <span class="k">returns</span> <span class="p">(</span><span class="n">DeleteVolumeResponse</span><span class="p">)</span> <span class="p">{}</span><span class="err">
-</span></span></span><span class="line"><span class="cl"><span class="err">
-</span></span></span><span class="line"><span class="cl">  <span class="k">rpc</span> <span class="n">ControllerPublishVolume</span> <span class="p">(</span><span class="n">ControllerPublishVolumeRequest</span><span class="p">)</span><span class="err">
-</span></span></span><span class="line"><span class="cl">    <span class="k">returns</span> <span class="p">(</span><span class="n">ControllerPublishVolumeResponse</span><span class="p">)</span> <span class="p">{}</span><span class="err">
-</span></span></span><span class="line"><span class="cl"><span class="err">
-</span></span></span><span class="line"><span class="cl">  <span class="k">rpc</span> <span class="n">ControllerUnpublishVolume</span> <span class="p">(</span><span class="n">ControllerUnpublishVolumeRequest</span><span class="p">)</span><span class="err">
-</span></span></span><span class="line"><span class="cl">    <span class="k">returns</span> <span class="p">(</span><span class="n">ControllerUnpublishVolumeResponse</span><span class="p">)</span> <span class="p">{}</span><span class="err">
-</span></span></span><span class="line"><span class="cl"><span class="err">
-</span></span></span><span class="line"><span class="cl">  <span class="k">rpc</span> <span class="n">ValidateVolumeCapabilities</span> <span class="p">(</span><span class="n">ValidateVolumeCapabilitiesRequest</span><span class="p">)</span><span class="err">
-</span></span></span><span class="line"><span class="cl">    <span class="k">returns</span> <span class="p">(</span><span class="n">ValidateVolumeCapabilitiesResponse</span><span class="p">)</span> <span class="p">{}</span><span class="err">
-</span></span></span><span class="line"><span class="cl"><span class="err">
-</span></span></span><span class="line"><span class="cl">  <span class="k">rpc</span> <span class="n">ListVolumes</span> <span class="p">(</span><span class="n">ListVolumesRequest</span><span class="p">)</span><span class="err">
-</span></span></span><span class="line"><span class="cl">    <span class="k">returns</span> <span class="p">(</span><span class="n">ListVolumesResponse</span><span class="p">)</span> <span class="p">{}</span><span class="err">
-</span></span></span><span class="line"><span class="cl"><span class="err">
-</span></span></span><span class="line"><span class="cl">  <span class="k">rpc</span> <span class="n">GetCapacity</span> <span class="p">(</span><span class="n">GetCapacityRequest</span><span class="p">)</span><span class="err">
-</span></span></span><span class="line"><span class="cl">    <span class="k">returns</span> <span class="p">(</span><span class="n">GetCapacityResponse</span><span class="p">)</span> <span class="p">{}</span><span class="err">
-</span></span></span><span class="line"><span class="cl"><span class="err">
-</span></span></span><span class="line"><span class="cl">  <span class="k">rpc</span> <span class="n">ControllerGetCapabilities</span> <span class="p">(</span><span class="n">ControllerGetCapabilitiesRequest</span><span class="p">)</span><span class="err">
-</span></span></span><span class="line"><span class="cl">    <span class="k">returns</span> <span class="p">(</span><span class="n">ControllerGetCapabilitiesResponse</span><span class="p">)</span> <span class="p">{}</span><span class="err">
-</span></span></span><span class="line"><span class="cl"><span class="err">
-</span></span></span><span class="line"><span class="cl">  <span class="k">rpc</span> <span class="n">CreateSnapshot</span> <span class="p">(</span><span class="n">CreateSnapshotRequest</span><span class="p">)</span><span class="err">
-</span></span></span><span class="line"><span class="cl">    <span class="k">returns</span> <span class="p">(</span><span class="n">CreateSnapshotResponse</span><span class="p">)</span> <span class="p">{}</span><span class="err">
-</span></span></span><span class="line"><span class="cl"><span class="err">
-</span></span></span><span class="line"><span class="cl">  <span class="k">rpc</span> <span class="n">DeleteSnapshot</span> <span class="p">(</span><span class="n">DeleteSnapshotRequest</span><span class="p">)</span><span class="err">
-</span></span></span><span class="line"><span class="cl">    <span class="k">returns</span> <span class="p">(</span><span class="n">DeleteSnapshotResponse</span><span class="p">)</span> <span class="p">{}</span><span class="err">
-</span></span></span><span class="line"><span class="cl"><span class="err">
-</span></span></span><span class="line"><span class="cl">  <span class="k">rpc</span> <span class="n">ListSnapshots</span> <span class="p">(</span><span class="n">ListSnapshotsRequest</span><span class="p">)</span><span class="err">
-</span></span></span><span class="line"><span class="cl">    <span class="k">returns</span> <span class="p">(</span><span class="n">ListSnapshotsResponse</span><span class="p">)</span> <span class="p">{}</span><span class="err">
-</span></span></span><span class="line"><span class="cl"><span class="err">
-</span></span></span><span class="line"><span class="cl">  <span class="k">rpc</span> <span class="n">GetSnapshot</span> <span class="p">(</span><span class="n">GetSnapshotRequest</span><span class="p">)</span><span class="err">
-</span></span></span><span class="line"><span class="cl">    <span class="k">returns</span> <span class="p">(</span><span class="n">GetSnapshotResponse</span><span class="p">)</span> <span class="p">{</span><span class="err">
-</span></span></span><span class="line"><span class="cl">        <span class="k">option</span> <span class="p">(</span><span class="n">alpha_method</span><span class="p">)</span> <span class="o">=</span> <span class="kc">true</span><span class="p">;</span><span class="err">
-</span></span></span><span class="line"><span class="cl">    <span class="p">}</span><span class="err">
-</span></span></span><span class="line"><span class="cl"><span class="err">
-</span></span></span><span class="line"><span class="cl">  <span class="k">rpc</span> <span class="n">ControllerExpandVolume</span> <span class="p">(</span><span class="n">ControllerExpandVolumeRequest</span><span class="p">)</span><span class="err">
-</span></span></span><span class="line"><span class="cl">    <span class="k">returns</span> <span class="p">(</span><span class="n">ControllerExpandVolumeResponse</span><span class="p">)</span> <span class="p">{}</span><span class="err">
-</span></span></span><span class="line"><span class="cl"><span class="err">
-</span></span></span><span class="line"><span class="cl">  <span class="k">rpc</span> <span class="n">ControllerGetVolume</span> <span class="p">(</span><span class="n">ControllerGetVolumeRequest</span><span class="p">)</span><span class="err">
-</span></span></span><span class="line"><span class="cl">    <span class="k">returns</span> <span class="p">(</span><span class="n">ControllerGetVolumeResponse</span><span class="p">)</span> <span class="p">{</span><span class="err">
-</span></span></span><span class="line"><span class="cl">        <span class="k">option</span> <span class="p">(</span><span class="n">alpha_method</span><span class="p">)</span> <span class="o">=</span> <span class="kc">true</span><span class="p">;</span><span class="err">
-</span></span></span><span class="line"><span class="cl">    <span class="p">}</span><span class="err">
-</span></span></span><span class="line"><span class="cl"><span class="err">
-</span></span></span><span class="line"><span class="cl">  <span class="k">rpc</span> <span class="n">ControllerModifyVolume</span> <span class="p">(</span><span class="n">ControllerModifyVolumeRequest</span><span class="p">)</span><span class="err">
-</span></span></span><span class="line"><span class="cl">    <span class="k">returns</span> <span class="p">(</span><span class="n">ControllerModifyVolumeResponse</span><span class="p">)</span> <span class="p">{</span><span class="err">
-</span></span></span><span class="line"><span class="cl">        <span class="k">option</span> <span class="p">(</span><span class="n">alpha_method</span><span class="p">)</span> <span class="o">=</span> <span class="kc">true</span><span class="p">;</span><span class="err">
-</span></span></span><span class="line"><span class="cl">    <span class="p">}</span><span class="err">
-</span></span></span><span class="line"><span class="cl"><span class="p">}</span><span class="err">
-</span></span></span></code></pre></div><h3 id="32-node-service">3.2. Node Service<a href="#32-node-service" class="hanchor" ariaLabel="Anchor">#</a> </h3>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-proto" data-lang="proto"><span class="line"><span class="cl"><span class="kd">service</span> <span class="n">Node</span> <span class="p">{</span><span class="err">
-</span></span></span><span class="line"><span class="cl">  <span class="k">rpc</span> <span class="n">NodeStageVolume</span> <span class="p">(</span><span class="n">NodeStageVolumeRequest</span><span class="p">)</span><span class="err">
-</span></span></span><span class="line"><span class="cl">    <span class="k">returns</span> <span class="p">(</span><span class="n">NodeStageVolumeResponse</span><span class="p">)</span> <span class="p">{}</span><span class="err">
-</span></span></span><span class="line"><span class="cl"><span class="err">
-</span></span></span><span class="line"><span class="cl">  <span class="k">rpc</span> <span class="n">NodeUnstageVolume</span> <span class="p">(</span><span class="n">NodeUnstageVolumeRequest</span><span class="p">)</span><span class="err">
-</span></span></span><span class="line"><span class="cl">    <span class="k">returns</span> <span class="p">(</span><span class="n">NodeUnstageVolumeResponse</span><span class="p">)</span> <span class="p">{}</span><span class="err">
-</span></span></span><span class="line"><span class="cl"><span class="err">
-</span></span></span><span class="line"><span class="cl">  <span class="k">rpc</span> <span class="n">NodePublishVolume</span> <span class="p">(</span><span class="n">NodePublishVolumeRequest</span><span class="p">)</span><span class="err">
-</span></span></span><span class="line"><span class="cl">    <span class="k">returns</span> <span class="p">(</span><span class="n">NodePublishVolumeResponse</span><span class="p">)</span> <span class="p">{}</span><span class="err">
-</span></span></span><span class="line"><span class="cl"><span class="err">
-</span></span></span><span class="line"><span class="cl">  <span class="k">rpc</span> <span class="n">NodeUnpublishVolume</span> <span class="p">(</span><span class="n">NodeUnpublishVolumeRequest</span><span class="p">)</span><span class="err">
-</span></span></span><span class="line"><span class="cl">    <span class="k">returns</span> <span class="p">(</span><span class="n">NodeUnpublishVolumeResponse</span><span class="p">)</span> <span class="p">{}</span><span class="err">
-</span></span></span><span class="line"><span class="cl"><span class="err">
-</span></span></span><span class="line"><span class="cl">  <span class="k">rpc</span> <span class="n">NodeGetVolumeStats</span> <span class="p">(</span><span class="n">NodeGetVolumeStatsRequest</span><span class="p">)</span><span class="err">
-</span></span></span><span class="line"><span class="cl">    <span class="k">returns</span> <span class="p">(</span><span class="n">NodeGetVolumeStatsResponse</span><span class="p">)</span> <span class="p">{}</span><span class="err">
-</span></span></span><span class="line"><span class="cl"><span class="err">
-</span></span></span><span class="line"><span class="cl"><span class="err">
-</span></span></span><span class="line"><span class="cl">  <span class="k">rpc</span> <span class="n">NodeExpandVolume</span><span class="p">(</span><span class="n">NodeExpandVolumeRequest</span><span class="p">)</span><span class="err">
-</span></span></span><span class="line"><span class="cl">    <span class="k">returns</span> <span class="p">(</span><span class="n">NodeExpandVolumeResponse</span><span class="p">)</span> <span class="p">{}</span><span class="err">
-</span></span></span><span class="line"><span class="cl"><span class="err">
-</span></span></span><span class="line"><span class="cl"><span class="err">
-</span></span></span><span class="line"><span class="cl">  <span class="k">rpc</span> <span class="n">NodeGetCapabilities</span> <span class="p">(</span><span class="n">NodeGetCapabilitiesRequest</span><span class="p">)</span><span class="err">
-</span></span></span><span class="line"><span class="cl">    <span class="k">returns</span> <span class="p">(</span><span class="n">NodeGetCapabilitiesResponse</span><span class="p">)</span> <span class="p">{}</span><span class="err">
-</span></span></span><span class="line"><span class="cl"><span class="err">
-</span></span></span><span class="line"><span class="cl">  <span class="k">rpc</span> <span class="n">NodeGetInfo</span> <span class="p">(</span><span class="n">NodeGetInfoRequest</span><span class="p">)</span><span class="err">
-</span></span></span><span class="line"><span class="cl">    <span class="k">returns</span> <span class="p">(</span><span class="n">NodeGetInfoResponse</span><span class="p">)</span> <span class="p">{}</span><span class="err">
-</span></span></span><span class="line"><span class="cl"><span class="p">}</span><span class="err">
-</span></span></span></code></pre></div><h3 id="33-identity-service">3.3. Identity Service<a href="#33-identity-service" class="hanchor" ariaLabel="Anchor">#</a> </h3>
-<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-proto" data-lang="proto"><span class="line"><span class="cl"><span class="kd">service</span> <span class="n">Identity</span> <span class="p">{</span><span class="err">
-</span></span></span><span class="line"><span class="cl">  <span class="k">rpc</span> <span class="n">GetPluginInfo</span><span class="p">(</span><span class="n">GetPluginInfoRequest</span><span class="p">)</span><span class="err">
-</span></span></span><span class="line"><span class="cl">    <span class="k">returns</span> <span class="p">(</span><span class="n">GetPluginInfoResponse</span><span class="p">)</span> <span class="p">{}</span><span class="err">
-</span></span></span><span class="line"><span class="cl"><span class="err">
-</span></span></span><span class="line"><span class="cl">  <span class="k">rpc</span> <span class="n">GetPluginCapabilities</span><span class="p">(</span><span class="n">GetPluginCapabilitiesRequest</span><span class="p">)</span><span class="err">
-</span></span></span><span class="line"><span class="cl">    <span class="k">returns</span> <span class="p">(</span><span class="n">GetPluginCapabilitiesResponse</span><span class="p">)</span> <span class="p">{}</span><span class="err">
-</span></span></span><span class="line"><span class="cl"><span class="err">
-</span></span></span><span class="line"><span class="cl">  <span class="k">rpc</span> <span class="n">Probe</span> <span class="p">(</span><span class="n">ProbeRequest</span><span class="p">)</span><span class="err">
-</span></span></span><span class="line"><span class="cl">    <span class="k">returns</span> <span class="p">(</span><span class="n">ProbeResponse</span><span class="p">)</span> <span class="p">{}</span><span class="err">
-</span></span></span><span class="line"><span class="cl"><span class="p">}</span><span class="err">
-</span></span></span></code></pre></div><h2 id="4-reference">4. Reference<a href="#4-reference" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-proto" data-lang="proto"><span class="line"><span class="cl"><span class="kd">service</span> <span class="n">Controller</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="kd">rpc</span> <span class="n">CreateVolume</span> <span class="p">(</span><span class="n">CreateVolumeRequest</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">returns</span> <span class="p">(</span><span class="n">CreateVolumeResponse</span><span class="p">)</span> <span class="p">{}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="kd">rpc</span> <span class="n">DeleteVolume</span> <span class="p">(</span><span class="n">DeleteVolumeRequest</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">returns</span> <span class="p">(</span><span class="n">DeleteVolumeResponse</span><span class="p">)</span> <span class="p">{}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="kd">rpc</span> <span class="n">ControllerPublishVolume</span> <span class="p">(</span><span class="n">ControllerPublishVolumeRequest</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">returns</span> <span class="p">(</span><span class="n">ControllerPublishVolumeResponse</span><span class="p">)</span> <span class="p">{}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="kd">rpc</span> <span class="n">ControllerUnpublishVolume</span> <span class="p">(</span><span class="n">ControllerUnpublishVolumeRequest</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">returns</span> <span class="p">(</span><span class="n">ControllerUnpublishVolumeResponse</span><span class="p">)</span> <span class="p">{}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="kd">rpc</span> <span class="n">ValidateVolumeCapabilities</span> <span class="p">(</span><span class="n">ValidateVolumeCapabilitiesRequest</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">returns</span> <span class="p">(</span><span class="n">ValidateVolumeCapabilitiesResponse</span><span class="p">)</span> <span class="p">{}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="kd">rpc</span> <span class="n">ListVolumes</span> <span class="p">(</span><span class="n">ListVolumesRequest</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">returns</span> <span class="p">(</span><span class="n">ListVolumesResponse</span><span class="p">)</span> <span class="p">{}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="kd">rpc</span> <span class="n">GetCapacity</span> <span class="p">(</span><span class="n">GetCapacityRequest</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">returns</span> <span class="p">(</span><span class="n">GetCapacityResponse</span><span class="p">)</span> <span class="p">{}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="kd">rpc</span> <span class="n">ControllerGetCapabilities</span> <span class="p">(</span><span class="n">ControllerGetCapabilitiesRequest</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">returns</span> <span class="p">(</span><span class="n">ControllerGetCapabilitiesResponse</span><span class="p">)</span> <span class="p">{}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="kd">rpc</span> <span class="n">CreateSnapshot</span> <span class="p">(</span><span class="n">CreateSnapshotRequest</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">returns</span> <span class="p">(</span><span class="n">CreateSnapshotResponse</span><span class="p">)</span> <span class="p">{}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="kd">rpc</span> <span class="n">DeleteSnapshot</span> <span class="p">(</span><span class="n">DeleteSnapshotRequest</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">returns</span> <span class="p">(</span><span class="n">DeleteSnapshotResponse</span><span class="p">)</span> <span class="p">{}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="kd">rpc</span> <span class="n">ListSnapshots</span> <span class="p">(</span><span class="n">ListSnapshotsRequest</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">returns</span> <span class="p">(</span><span class="n">ListSnapshotsResponse</span><span class="p">)</span> <span class="p">{}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="kd">rpc</span> <span class="n">GetSnapshot</span> <span class="p">(</span><span class="n">GetSnapshotRequest</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">returns</span> <span class="p">(</span><span class="n">GetSnapshotResponse</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">option</span> <span class="p">(</span><span class="n">alpha_method</span><span class="p">)</span> <span class="o">=</span> <span class="kc">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="kd">rpc</span> <span class="n">ControllerExpandVolume</span> <span class="p">(</span><span class="n">ControllerExpandVolumeRequest</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">returns</span> <span class="p">(</span><span class="n">ControllerExpandVolumeResponse</span><span class="p">)</span> <span class="p">{}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="kd">rpc</span> <span class="n">ControllerGetVolume</span> <span class="p">(</span><span class="n">ControllerGetVolumeRequest</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">returns</span> <span class="p">(</span><span class="n">ControllerGetVolumeResponse</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">option</span> <span class="p">(</span><span class="n">alpha_method</span><span class="p">)</span> <span class="o">=</span> <span class="kc">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="kd">rpc</span> <span class="n">ControllerModifyVolume</span> <span class="p">(</span><span class="n">ControllerModifyVolumeRequest</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">returns</span> <span class="p">(</span><span class="n">ControllerModifyVolumeResponse</span><span class="p">)</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">        <span class="k">option</span> <span class="p">(</span><span class="n">alpha_method</span><span class="p">)</span> <span class="o">=</span> <span class="kc">true</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><h3 id="32-node-service">3.2. Node Service<a href="#32-node-service" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-proto" data-lang="proto"><span class="line"><span class="cl"><span class="kd">service</span> <span class="n">Node</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="kd">rpc</span> <span class="n">NodeStageVolume</span> <span class="p">(</span><span class="n">NodeStageVolumeRequest</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">returns</span> <span class="p">(</span><span class="n">NodeStageVolumeResponse</span><span class="p">)</span> <span class="p">{}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="kd">rpc</span> <span class="n">NodeUnstageVolume</span> <span class="p">(</span><span class="n">NodeUnstageVolumeRequest</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">returns</span> <span class="p">(</span><span class="n">NodeUnstageVolumeResponse</span><span class="p">)</span> <span class="p">{}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="kd">rpc</span> <span class="n">NodePublishVolume</span> <span class="p">(</span><span class="n">NodePublishVolumeRequest</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">returns</span> <span class="p">(</span><span class="n">NodePublishVolumeResponse</span><span class="p">)</span> <span class="p">{}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="kd">rpc</span> <span class="n">NodeUnpublishVolume</span> <span class="p">(</span><span class="n">NodeUnpublishVolumeRequest</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">returns</span> <span class="p">(</span><span class="n">NodeUnpublishVolumeResponse</span><span class="p">)</span> <span class="p">{}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="kd">rpc</span> <span class="n">NodeGetVolumeStats</span> <span class="p">(</span><span class="n">NodeGetVolumeStatsRequest</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">returns</span> <span class="p">(</span><span class="n">NodeGetVolumeStatsResponse</span><span class="p">)</span> <span class="p">{}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="kd">rpc</span> <span class="n">NodeExpandVolume</span><span class="p">(</span><span class="n">NodeExpandVolumeRequest</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">returns</span> <span class="p">(</span><span class="n">NodeExpandVolumeResponse</span><span class="p">)</span> <span class="p">{}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="kd">rpc</span> <span class="n">NodeGetCapabilities</span> <span class="p">(</span><span class="n">NodeGetCapabilitiesRequest</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">returns</span> <span class="p">(</span><span class="n">NodeGetCapabilitiesResponse</span><span class="p">)</span> <span class="p">{}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="kd">rpc</span> <span class="n">NodeGetInfo</span> <span class="p">(</span><span class="n">NodeGetInfoRequest</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">returns</span> <span class="p">(</span><span class="n">NodeGetInfoResponse</span><span class="p">)</span> <span class="p">{}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><h3 id="33-identity-service">3.3. Identity Service<a href="#33-identity-service" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-proto" data-lang="proto"><span class="line"><span class="cl"><span class="kd">service</span> <span class="n">Identity</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="kd">rpc</span> <span class="n">GetPluginInfo</span><span class="p">(</span><span class="n">GetPluginInfoRequest</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">returns</span> <span class="p">(</span><span class="n">GetPluginInfoResponse</span><span class="p">)</span> <span class="p">{}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="kd">rpc</span> <span class="n">GetPluginCapabilities</span><span class="p">(</span><span class="n">GetPluginCapabilitiesRequest</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">returns</span> <span class="p">(</span><span class="n">GetPluginCapabilitiesResponse</span><span class="p">)</span> <span class="p">{}</span>
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">  <span class="kd">rpc</span> <span class="n">Probe</span> <span class="p">(</span><span class="n">ProbeRequest</span><span class="p">)</span>
+</span></span><span class="line"><span class="cl">    <span class="k">returns</span> <span class="p">(</span><span class="n">ProbeResponse</span><span class="p">)</span> <span class="p">{}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><h2 id="4-reference">4. Reference<a href="#4-reference" class="hanchor" ariaLabel="Anchor">#</a> </h2>
 <ul>
 <li><a href="https://kubernetes-csi.github.io/docs/introduction.html">https://kubernetes-csi.github.io/docs/introduction.html</a></li>
 <li><a href="https://github.com/container-storage-interface/spec/blob/master/spec.md">https://github.com/container-storage-interface/spec/blob/master/spec.md</a></li>
