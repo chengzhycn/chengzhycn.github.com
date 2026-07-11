@@ -1,0 +1,3500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  
+    <title>opencode memory 实现与最佳实践 :: chengzhycn&#39;s blog</title>
+  
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content=" 注：文章由 codex 整理。
+背景 这里的 memory 不是操作系统内存，也不是模型推理时的 KV cache，而是 coding agent 在多轮、多 session、多项目之间保存和复用上下文的能力。
+截至这次分析的源码快照，opencode 并没有内置一个类似 mem0、mnemopi 或向量数据库的长期记忆系统。它的 memory 更接近三层组合：
+规则型长期记忆：AGENTS.md、全局 AGENTS.md、opencode.json 里的 instructions。这些内容每轮都会进入 system prompt，是最稳定、最可审计的记忆。 会话内压缩记忆：compaction agent 把长会话压缩成摘要，并保留最近若干 turn，让当前 session 可以继续推进。 上下文型临时记忆：用户用 @file、MCP resource、skill、subagent 等方式临时补充上下文，主要服务当前任务。 所以分析 opencode memory 时，关键不是找一个 MemoryBackend，而是看它如何把规则文件、配置、压缩摘要和临时上下文组装进模型请求。
+本文基于：
+官方文档：Rules、Config、Agents、Agent Skills 源码快照：anomalyco/opencode@251177d56cf2a8821f7e1464dd7c164e8f56036d 重点源码文件： packages/opencode/src/session/instruction.ts packages/opencode/src/session/prompt.ts packages/opencode/src/session/compaction.ts packages/opencode/src/session/system.ts packages/opencode/src/config/config.ts packages/core/src/v1/config/config.ts 核心结论 opencode 的 memory 设计偏“显式上下文工程（context engineering）”，而不是“自动记住一切”。
+这带来一个很重要的实践判断：应该把长期稳定的项目知识写进规则文件，把当前任务过程交给 session history 和 compaction，把低置信度、临时性、可能过期的信息留在对话里，而不是沉淀到 AGENTS.md。
+可以这样理解：
+层次 opencode 机制 适合保存什么 不适合保存什么 长期项目记忆 项目 AGENTS.md 架构边界、测试命令、代码风格、危险操作约束 临时任务进度、一次性 debug 现象 长期个人记忆 ~/.config/opencode/AGENTS.md 个人偏好、默认工作方式、输出习惯 某个项目的私有约定 可复用规则片段 opencode.json 的 instructions 多文件规范、共享团队标准、monorepo 分包规则 需要模型自己递归解析的隐式引用 会话内记忆 compaction 当前 session 的目标、决策、已完成动作、未解决问题 跨 session 的长期知识 临时上下文 @file、MCP、skills、subagents 本轮要读的文件、外部资料、专项流程 需要每次都遵守的硬规则 实现总览 一轮模型调用前，SessionPrompt 会把几类 system prompt 片段拼起来：
+" />
+<meta name="keywords" content="" />
+
+  <meta name="robots" content="noodp" />
+
+<link rel="canonical" href="https://blog.jinzhi.site/posts/2026-07/opencode-memory-%E5%AE%9E%E7%8E%B0%E4%B8%8E%E6%9C%80%E4%BD%B3%E5%AE%9E%E8%B7%B5/" />
+
+
+
+
+
+  
+  <link rel="stylesheet" href="https://blog.jinzhi.site/css/buttons.min.86f6b4c106b6c6eb690ae5203d36b442c1f66f718ff4e8164fa86cf6c61ad641.css">
+
+  
+  <link rel="stylesheet" href="https://blog.jinzhi.site/css/code.min.c4581949edab7810737609fc5568852bcd908945f14561e366dcd2300a370545.css">
+
+  
+  <link rel="stylesheet" href="https://blog.jinzhi.site/css/fonts.min.5bb7ed13e1d00d8ff39ea84af26737007eb5051b157b86fc24487c94f3dc8bbe.css">
+
+  
+  <link rel="stylesheet" href="https://blog.jinzhi.site/css/footer.min.eb8dfc2c6a7eafa36cd3ba92d63e69e849e2200e0002a228d137f236b09ecd75.css">
+
+  
+  <link rel="stylesheet" href="https://blog.jinzhi.site/css/gist.min.a751e8b0abe1ba8bc53ced52a38b19d8950fe78ca29454ea8c2595cf26aad5c0.css">
+
+  
+  <link rel="stylesheet" href="https://blog.jinzhi.site/css/header.min.75c7eb0e2872d95ff48109c6647d0223a38db52e2561dd87966eb5fc7c6bdac6.css">
+
+  
+  <link rel="stylesheet" href="https://blog.jinzhi.site/css/main.min.7984a754b43b7469d389c539410e90dff2870263de16b008dfc7e8170fcd0f5b.css">
+
+  
+  <link rel="stylesheet" href="https://blog.jinzhi.site/css/menu.min.3c17467ebeb3d38663dce68f71f519901124fa5cbb4519b2fb0667a21e9aca39.css">
+
+  
+  <link rel="stylesheet" href="https://blog.jinzhi.site/css/pagination.min.bbb986dbce00a5ce5aca0504b7925fc1c581992a4bf57f163e5d69cc1db7d836.css">
+
+  
+  <link rel="stylesheet" href="https://blog.jinzhi.site/css/post.min.e6dddd258e64c83e05cec0cd49c05216742d42fc8ecbfbe6b67083412b609bd3.css">
+
+  
+  <link rel="stylesheet" href="https://blog.jinzhi.site/css/syntax.min.a2cc694a9b481f15d41722bffc2cc54eea4c4f74fd9072b0b33253604c22606e.css">
+
+  
+  <link rel="stylesheet" href="https://blog.jinzhi.site/css/terminal.min.e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.css">
+
+  
+  <link rel="stylesheet" href="https://blog.jinzhi.site/css/terms.min.b81791663c3790e738e571cdbf802312390d30e4b1d8dc9d814a5b5454d0ac11.css">
+
+
+
+
+
+
+
+<link rel="shortcut icon" href="https://blog.jinzhi.site/favicon.png">
+<link rel="apple-touch-icon" href="https://blog.jinzhi.site/apple-touch-icon.png">
+
+
+<meta name="twitter:card" content="summary" />
+
+  
+    <meta name="twitter:site" content="" />
+  
+    <meta name="twitter:creator" content="" />
+
+
+
+<meta property="og:locale" content="en" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="opencode memory 实现与最佳实践">
+<meta property="og:description" content=" 注：文章由 codex 整理。
+背景 这里的 memory 不是操作系统内存，也不是模型推理时的 KV cache，而是 coding agent 在多轮、多 session、多项目之间保存和复用上下文的能力。
+截至这次分析的源码快照，opencode 并没有内置一个类似 mem0、mnemopi 或向量数据库的长期记忆系统。它的 memory 更接近三层组合：
+规则型长期记忆：AGENTS.md、全局 AGENTS.md、opencode.json 里的 instructions。这些内容每轮都会进入 system prompt，是最稳定、最可审计的记忆。 会话内压缩记忆：compaction agent 把长会话压缩成摘要，并保留最近若干 turn，让当前 session 可以继续推进。 上下文型临时记忆：用户用 @file、MCP resource、skill、subagent 等方式临时补充上下文，主要服务当前任务。 所以分析 opencode memory 时，关键不是找一个 MemoryBackend，而是看它如何把规则文件、配置、压缩摘要和临时上下文组装进模型请求。
+本文基于：
+官方文档：Rules、Config、Agents、Agent Skills 源码快照：anomalyco/opencode@251177d56cf2a8821f7e1464dd7c164e8f56036d 重点源码文件： packages/opencode/src/session/instruction.ts packages/opencode/src/session/prompt.ts packages/opencode/src/session/compaction.ts packages/opencode/src/session/system.ts packages/opencode/src/config/config.ts packages/core/src/v1/config/config.ts 核心结论 opencode 的 memory 设计偏“显式上下文工程（context engineering）”，而不是“自动记住一切”。
+这带来一个很重要的实践判断：应该把长期稳定的项目知识写进规则文件，把当前任务过程交给 session history 和 compaction，把低置信度、临时性、可能过期的信息留在对话里，而不是沉淀到 AGENTS.md。
+可以这样理解：
+层次 opencode 机制 适合保存什么 不适合保存什么 长期项目记忆 项目 AGENTS.md 架构边界、测试命令、代码风格、危险操作约束 临时任务进度、一次性 debug 现象 长期个人记忆 ~/.config/opencode/AGENTS.md 个人偏好、默认工作方式、输出习惯 某个项目的私有约定 可复用规则片段 opencode.json 的 instructions 多文件规范、共享团队标准、monorepo 分包规则 需要模型自己递归解析的隐式引用 会话内记忆 compaction 当前 session 的目标、决策、已完成动作、未解决问题 跨 session 的长期知识 临时上下文 @file、MCP、skills、subagents 本轮要读的文件、外部资料、专项流程 需要每次都遵守的硬规则 实现总览 一轮模型调用前，SessionPrompt 会把几类 system prompt 片段拼起来：
+" />
+<meta property="og:url" content="https://blog.jinzhi.site/posts/2026-07/opencode-memory-%E5%AE%9E%E7%8E%B0%E4%B8%8E%E6%9C%80%E4%BD%B3%E5%AE%9E%E8%B7%B5/" />
+<meta property="og:site_name" content="chengzhycn&#39;s blog" />
+
+  <meta property="og:image" content="https://blog.jinzhi.site/og-image.png">
+
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="627">
+
+  <meta property="article:section" content="Learning" />
+
+
+  <meta property="article:published_time" content="2026-07-10 08:23:23 &#43;0800 &#43;0800" />
+
+
+
+
+
+
+
+
+
+<html>
+<head>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-screen-web/style.css" />
+  <style>
+    body {
+      font-family: "LXGW WenKai Screen";
+      font-weight: normal;
+    }
+  </style>
+</head>
+<body>
+
+</body>
+</html>
+
+
+</head>
+<body>
+
+
+<div class="page-wrapper">
+  <div class="container center">
+
+  <header class="header">
+  <div class="header__inner">
+    <div class="header__logo">
+      <a href="/">
+  <div class="logo">
+    chengzhycn&#39;s blog
+  </div>
+</a>
+
+    </div>
+    
+      <ul class="menu menu--mobile">
+  <li class="menu__trigger">Menu&nbsp;▾</li>
+  <li>
+    <ul class="menu__dropdown">
+      
+        
+          <li><a href="/">Home</a></li>
+        
+      
+        
+          <li><a href="/about">About</a></li>
+        
+      
+        
+          <li><a href="/categories/">Categories</a></li>
+        
+      
+        
+          <li><a href="/tags/">Tags</a></li>
+        
+      
+        
+          <li><a href="/archives/">Archives</a></li>
+        
+      
+      
+    </ul>
+  </li>
+</ul>
+
+    
+    
+  </div>
+  
+    <nav class="navigation-menu">
+  <ul class="navigation-menu__inner menu--desktop">
+    
+      
+        
+          <li><a href="/" >Home</a></li>
+        
+      
+        
+          <li><a href="/about" >About</a></li>
+        
+      
+        
+          <li><a href="/categories/" >Categories</a></li>
+        
+      
+        
+          <li><a href="/tags/" >Tags</a></li>
+        
+      
+        
+          <li><a href="/archives/" >Archives</a></li>
+        
+      
+      
+    
+  </ul>
+</nav>
+
+  
+</header>
+
+
+  <div class="content">
+    
+<article class="post">
+  <h1 class="post-title">
+    <a href="https://blog.jinzhi.site/posts/2026-07/opencode-memory-%E5%AE%9E%E7%8E%B0%E4%B8%8E%E6%9C%80%E4%BD%B3%E5%AE%9E%E8%B7%B5/">opencode memory 实现与最佳实践</a>
+  </h1>
+  <div class="post-meta"><time class="post-date">2026-07-10</time><span class="post-reading-time">5 min read (1031 words)</span></div>
+
+  
+    <span class="post-tags">
+      
+      #<a href="https://blog.jinzhi.site/tags/ai/">AI</a>&nbsp;
+      
+      #<a href="https://blog.jinzhi.site/tags/agent/">Agent</a>&nbsp;
+      
+    </span>
+  
+  
+
+
+  
+    <div class="table-of-contents">
+      <h2>
+        Table of Contents
+      </h2>
+      <nav id="TableOfContents">
+  <ul>
+    <li><a href="#背景">背景</a></li>
+    <li><a href="#核心结论">核心结论</a></li>
+    <li><a href="#实现总览">实现总览</a></li>
+    <li><a href="#规则型记忆instruction-服务">规则型记忆：<code>Instruction</code> 服务</a>
+      <ul>
+        <li><a href="#规则文件来源">规则文件来源</a></li>
+        <li><a href="#opencodejson-instructions"><code>opencode.json instructions</code></a></li>
+        <li><a href="#读文件时加载附近规则">读文件时加载附近规则</a></li>
+      </ul>
+    </li>
+    <li><a href="#配置加载多来源合并形成记忆层级">配置加载：多来源合并形成记忆层级</a></li>
+    <li><a href="#会话内记忆compaction">会话内记忆：<code>compaction</code></a>
+      <ul>
+        <li><a href="#什么时候触发">什么时候触发</a></li>
+        <li><a href="#压缩时保留什么">压缩时保留什么</a></li>
+        <li><a href="#压缩后的继续执行">压缩后的继续执行</a></li>
+      </ul>
+    </li>
+    <li><a href="#和向量库-memory-的差异">和向量库 memory 的差异</a></li>
+    <li><a href="#最佳实践">最佳实践</a>
+      <ul>
+        <li><a href="#1-把-agentsmd-当成项目操作手册不是知识库">1. 把 <code>AGENTS.md</code> 当成项目操作手册，不是知识库</a></li>
+        <li><a href="#2-用-instructions-拆分规则而不是把一个文件写成百科全书">2. 用 <code>instructions</code> 拆分规则，而不是把一个文件写成百科全书</a></li>
+        <li><a href="#3-子目录规则要写局部差异不要重复全局规则">3. 子目录规则要写局部差异，不要重复全局规则</a></li>
+        <li><a href="#4-把经验沉淀成触发条件--行动而不是流水账">4. 把经验沉淀成“触发条件 + 行动”，而不是流水账</a></li>
+        <li><a href="#5-把不稳定信息留在-task-note-或-issue不要写进长期规则">5. 把不稳定信息留在 task note 或 issue，不要写进长期规则</a></li>
+        <li><a href="#6-对-compaction-友好地表达任务状态">6. 对 compaction 友好地表达任务状态</a></li>
+        <li><a href="#7-远程-instructions-要版本锁定或低风险化">7. 远程 instructions 要版本锁定或低风险化</a></li>
+        <li><a href="#8-明确区分个人偏好和团队约定">8. 明确区分个人偏好和团队约定</a></li>
+      </ul>
+    </li>
+    <li><a href="#一个推荐模板">一个推荐模板</a></li>
+    <li><a href="#总结">总结</a></li>
+  </ul>
+</nav>
+    </div>
+  
+
+  <div class="post-content"><div>
+        <blockquote>
+<p>注：文章由 codex 整理。</p>
+</blockquote>
+<h2 id="背景">背景<a href="#背景" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>这里的 <code>memory</code> 不是操作系统内存，也不是模型推理时的 KV cache，而是 coding agent 在多轮、多 session、多项目之间保存和复用上下文的能力。</p>
+<p>截至这次分析的源码快照，<code>opencode</code> 并没有内置一个类似 <code>mem0</code>、<code>mnemopi</code> 或向量数据库的长期记忆系统。它的 memory 更接近三层组合：</p>
+<ol>
+<li><strong>规则型长期记忆</strong>：<code>AGENTS.md</code>、全局 <code>AGENTS.md</code>、<code>opencode.json</code> 里的 <code>instructions</code>。这些内容每轮都会进入 system prompt，是最稳定、最可审计的记忆。</li>
+<li><strong>会话内压缩记忆</strong>：<code>compaction</code> agent 把长会话压缩成摘要，并保留最近若干 turn，让当前 session 可以继续推进。</li>
+<li><strong>上下文型临时记忆</strong>：用户用 <code>@file</code>、MCP resource、skill、subagent 等方式临时补充上下文，主要服务当前任务。</li>
+</ol>
+<p>所以分析 <code>opencode memory</code> 时，关键不是找一个 <code>MemoryBackend</code>，而是看它如何把规则文件、配置、压缩摘要和临时上下文组装进模型请求。</p>
+<p>本文基于：</p>
+<ul>
+<li>官方文档：<a href="https://opencode.ai/docs/rules/">Rules</a>、<a href="https://opencode.ai/docs/config/">Config</a>、<a href="https://opencode.ai/docs/agents/">Agents</a>、<a href="https://opencode.ai/docs/skills/">Agent Skills</a></li>
+<li>源码快照：<a href="https://github.com/anomalyco/opencode/commit/251177d56cf2a8821f7e1464dd7c164e8f56036d">anomalyco/opencode@251177d56cf2a8821f7e1464dd7c164e8f56036d</a></li>
+<li>重点源码文件：
+<ul>
+<li><code>packages/opencode/src/session/instruction.ts</code></li>
+<li><code>packages/opencode/src/session/prompt.ts</code></li>
+<li><code>packages/opencode/src/session/compaction.ts</code></li>
+<li><code>packages/opencode/src/session/system.ts</code></li>
+<li><code>packages/opencode/src/config/config.ts</code></li>
+<li><code>packages/core/src/v1/config/config.ts</code></li>
+</ul>
+</li>
+</ul>
+<h2 id="核心结论">核心结论<a href="#核心结论" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p><code>opencode</code> 的 memory 设计偏“显式上下文工程（context engineering）”，而不是“自动记住一切”。</p>
+<p>这带来一个很重要的实践判断：<strong>应该把长期稳定的项目知识写进规则文件，把当前任务过程交给 session history 和 compaction，把低置信度、临时性、可能过期的信息留在对话里，而不是沉淀到 AGENTS.md。</strong></p>
+<p>可以这样理解：</p>
+<table>
+	<thead>
+			<tr>
+					<th>层次</th>
+					<th>opencode 机制</th>
+					<th>适合保存什么</th>
+					<th>不适合保存什么</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>长期项目记忆</td>
+					<td>项目 <code>AGENTS.md</code></td>
+					<td>架构边界、测试命令、代码风格、危险操作约束</td>
+					<td>临时任务进度、一次性 debug 现象</td>
+			</tr>
+			<tr>
+					<td>长期个人记忆</td>
+					<td><code>~/.config/opencode/AGENTS.md</code></td>
+					<td>个人偏好、默认工作方式、输出习惯</td>
+					<td>某个项目的私有约定</td>
+			</tr>
+			<tr>
+					<td>可复用规则片段</td>
+					<td><code>opencode.json</code> 的 <code>instructions</code></td>
+					<td>多文件规范、共享团队标准、monorepo 分包规则</td>
+					<td>需要模型自己递归解析的隐式引用</td>
+			</tr>
+			<tr>
+					<td>会话内记忆</td>
+					<td><code>compaction</code></td>
+					<td>当前 session 的目标、决策、已完成动作、未解决问题</td>
+					<td>跨 session 的长期知识</td>
+			</tr>
+			<tr>
+					<td>临时上下文</td>
+					<td><code>@file</code>、MCP、skills、subagents</td>
+					<td>本轮要读的文件、外部资料、专项流程</td>
+					<td>需要每次都遵守的硬规则</td>
+			</tr>
+	</tbody>
+</table>
+<h2 id="实现总览">实现总览<a href="#实现总览" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>一轮模型调用前，<code>SessionPrompt</code> 会把几类 system prompt 片段拼起来：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">SystemPrompt.environment(model)
+</span></span><span class="line"><span class="cl">  -&gt; 当前模型、工作目录、workspace root、git 状态、日期、references
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">Instruction.system()
+</span></span><span class="line"><span class="cl">  -&gt; AGENTS.md / CLAUDE.md / CONTEXT.md / opencode.json instructions / remote instructions
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">SystemPrompt.mcp(agent, permission)
+</span></span><span class="line"><span class="cl">  -&gt; MCP server 返回的 instructions
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">SystemPrompt.skills(agent)
+</span></span><span class="line"><span class="cl">  -&gt; 可用 skills 的描述和加载规则
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">MessageV2.toModelMessagesEffect(msgs, model)
+</span></span><span class="line"><span class="cl">  -&gt; 当前 session history，必要时包含 compaction 摘要
+</span></span></code></pre></div><p>源码对应点在 <code>packages/opencode/src/session/prompt.ts</code>：它在处理每一步前并行取 <code>skills</code>、<code>env</code>、<code>instructions</code>、<code>mcpInstructions</code> 和 <code>modelMsgs</code>，然后把这些内容作为 <code>system</code> 传给 <code>processor.process()</code>。</p>
+<p>用数据流表示：</p>
+<pre class="mermaid">flowchart TD
+    A[&#34;用户输入 / session history&#34;] --&gt; B[&#34;SessionPrompt&#34;]
+    C[&#34;SystemPrompt.environment&#34;] --&gt; B
+    D[&#34;Instruction.system&#34;] --&gt; B
+    E[&#34;SystemPrompt.mcp&#34;] --&gt; B
+    F[&#34;SystemPrompt.skills&#34;] --&gt; B
+    B --&gt; G[&#34;processor.process&#34;]
+    G --&gt; H[&#34;LLM request&#34;]
+
+    I[&#34;AGENTS.md / CLAUDE.md&#34;] --&gt; D
+    J[&#34;~/.config/opencode/AGENTS.md&#34;] --&gt; D
+    K[&#34;opencode.json instructions&#34;] --&gt; D
+    L[&#34;Remote instruction URL&#34;] --&gt; D
+    M[&#34;Compaction summary&#34;] --&gt; A</pre><h2 id="规则型记忆instruction-服务">规则型记忆：<code>Instruction</code> 服务<a href="#规则型记忆instruction-服务" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p><code>Instruction</code> 是 opencode memory 最核心的实现文件。它负责三件事：</p>
+<ol>
+<li>找到应该注入的规则文件。</li>
+<li>读取本地或远程 instruction 内容。</li>
+<li>当 agent 读取某个文件时，补充该文件附近的局部规则。</li>
+</ol>
+<h3 id="规则文件来源">规则文件来源<a href="#规则文件来源" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p><code>Instruction</code> 初始化时定义了两组文件：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">globalFiles:
+</span></span><span class="line"><span class="cl">  ~/.config/opencode/AGENTS.md
+</span></span><span class="line"><span class="cl">  ~/.claude/CLAUDE.md      # 未禁用 Claude Code 兼容时
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl">instructionFiles:
+</span></span><span class="line"><span class="cl">  AGENTS.md
+</span></span><span class="line"><span class="cl">  CLAUDE.md                # 未禁用 Claude Code 兼容时
+</span></span><span class="line"><span class="cl">  CONTEXT.md               # deprecated
+</span></span></code></pre></div><p>官方文档也给出同样语义：</p>
+<ul>
+<li>项目规则：项目根目录或上级目录中的 <code>AGENTS.md</code></li>
+<li>全局规则：<code>~/.config/opencode/AGENTS.md</code></li>
+<li>Claude Code 兼容：没有 <code>AGENTS.md</code> 时读取 <code>CLAUDE.md</code></li>
+<li>可以通过 <code>OPENCODE_DISABLE_CLAUDE_CODE</code>、<code>OPENCODE_DISABLE_CLAUDE_CODE_PROMPT</code>、<code>OPENCODE_DISABLE_CLAUDE_CODE_SKILLS</code> 关闭兼容</li>
+</ul>
+<p>这里有两个实现细节值得记住：</p>
+<ol>
+<li><strong>全局规则只取第一个存在的文件。</strong> 如果 <code>~/.config/opencode/AGENTS.md</code> 存在，就不会再读取 <code>~/.claude/CLAUDE.md</code>。</li>
+<li><strong>项目规则也是第一类命中优先。</strong> 它按 <code>AGENTS.md</code>、<code>CLAUDE.md</code>、<code>CONTEXT.md</code> 的顺序找，某一类命中后就不再继续找下一类。</li>
+</ol>
+<p>这意味着迁移时最好明确选择一种规则入口。不要同时维护 <code>AGENTS.md</code> 和 <code>CLAUDE.md</code>，否则容易以为两个都会生效。</p>
+<h3 id="opencodejson-instructions"><code>opencode.json instructions</code><a href="#opencodejson-instructions" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>除了固定规则文件，<code>opencode.json</code> 还支持：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-json" data-lang="json"><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nt">&#34;$schema&#34;</span><span class="p">:</span> <span class="s2">&#34;https://opencode.ai/config.json&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">  <span class="nt">&#34;instructions&#34;</span><span class="p">:</span> <span class="p">[</span>
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;CONTRIBUTING.md&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;docs/guidelines.md&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;.cursor/rules/*.md&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;https://raw.githubusercontent.com/my-org/shared-rules/main/style.md&#34;</span>
+</span></span><span class="line"><span class="cl">  <span class="p">]</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>实现上，<code>Instruction.systemPaths()</code> 会把非 URL 的 <code>instructions</code> 展开成本地路径：</p>
+<ul>
+<li><code>~/...</code> 解析到 home。</li>
+<li>绝对路径用 basename 加 cwd 做 glob。</li>
+<li>相对路径通过 <code>globUp()</code> 从当前目录往 workspace root 方向找。</li>
+<li>多个 config 来源的 <code>instructions</code> 会合并去重，而不是简单覆盖。</li>
+</ul>
+<p>远程 URL 则由 <code>Instruction.system()</code> 单独拉取，带 5 秒 timeout，失败时返回空字符串，不让整个 session 崩掉。</p>
+<p>这让 <code>instructions</code> 很适合承载模块化规则：</p>
+<ul>
+<li><code>docs/development-standards.md</code></li>
+<li><code>test/testing-guidelines.md</code></li>
+<li><code>packages/*/AGENTS.md</code></li>
+<li><code>.cursor/rules/*.md</code></li>
+</ul>
+<p>但也带来一个边界：远程 instruction 是运行时获取的，如果网络不可用、URL 内容漂移或被替换，agent 看到的规则也会变化。关键团队规则更适合本地 vendored 或版本锁定。</p>
+<h3 id="读文件时加载附近规则">读文件时加载附近规则<a href="#读文件时加载附近规则" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p><code>Instruction.resolve(messages, filepath, messageID)</code> 是一个容易被忽略的机制。</p>
+<p>当 agent 读取某个文件时，opencode 会从该文件所在目录一路向上走，寻找附近的 <code>AGENTS.md</code> / <code>CLAUDE.md</code> / <code>CONTEXT.md</code>。如果找到的规则文件：</p>
+<ul>
+<li>不是当前正在读的文件；</li>
+<li>不是已经作为 system instruction 注入过的文件；</li>
+<li>不是本轮之前已经由 read tool 加载过的文件；</li>
+<li>不是同一个 assistant message 已经 claim 过的文件；</li>
+</ul>
+<p>就会把它以 <code>Instructions from: &lt;path&gt;</code> 的格式补充进结果。</p>
+<p>这相当于一种“局部规则懒加载”。对 monorepo 很有价值：根目录 <code>AGENTS.md</code> 放全局原则，子包目录再放更具体的约定，只有 agent 真正进入这个子包时才加载局部规则，避免把所有包的细节都塞进上下文。</p>
+<h2 id="配置加载多来源合并形成记忆层级">配置加载：多来源合并形成记忆层级<a href="#配置加载多来源合并形成记忆层级" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p><code>Config</code> 服务决定哪些 <code>instructions</code>、agent、permission、compaction 选项会生效。</p>
+<p>官方文档列出的配置优先级是：</p>
+<ol>
+<li>远程组织配置：<code>.well-known/opencode</code></li>
+<li>全局配置：<code>~/.config/opencode/opencode.json</code></li>
+<li><code>OPENCODE_CONFIG</code></li>
+<li>项目配置：项目中的 <code>opencode.json</code></li>
+<li><code>.opencode</code> 目录</li>
+<li><code>OPENCODE_CONFIG_CONTENT</code></li>
+<li>macOS/Linux/Windows managed config</li>
+<li>MDM managed preferences</li>
+</ol>
+<p>源码里的一个重要细节是：普通配置合并用 deep merge，但 <code>instructions</code> 数组使用 concat + 去重。也就是说，全局 instruction 和项目 instruction 可以叠加。</p>
+<p>这对 memory 的含义是：</p>
+<ul>
+<li>全局层放个人偏好和通用工作原则。</li>
+<li>项目层放 repo 约定。</li>
+<li><code>.opencode</code> 目录放项目内可复用 agents、commands、plugins、skills。</li>
+<li>组织远程配置可以作为企业级底座，但要注意本地项目配置可能叠加或覆盖部分字段。</li>
+</ul>
+<h2 id="会话内记忆compaction">会话内记忆：<code>compaction</code><a href="#会话内记忆compaction" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p><code>compaction</code> 是 opencode 用来处理长上下文的会话内记忆机制。它不是跨 session 的长期记忆，但对一个复杂任务能不能做完非常关键。</p>
+<h3 id="什么时候触发">什么时候触发<a href="#什么时候触发" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p><code>SessionPrompt</code> 在每轮运行中会检查：</p>
+<ul>
+<li>当前 turn 是否是 <code>compaction</code> 任务；</li>
+<li>上一轮 assistant 的 token 是否接近或超过模型可用上下文；</li>
+<li>配置中 <code>compaction.auto</code> 是否关闭。</li>
+</ul>
+<p>如果上下文溢出并且自动压缩开启，就创建一个 synthetic user message，里面带 <code>compaction</code> part，再由隐藏的 <code>compaction</code> agent 生成摘要。</p>
+<h3 id="压缩时保留什么">压缩时保留什么<a href="#压缩时保留什么" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p><code>SessionCompaction</code> 会先区分两段：</p>
+<ul>
+<li><code>head</code>：较早的历史，交给模型压缩成 summary。</li>
+<li><code>tail</code>：最近的若干 user turn 及其后续 assistant/tool responses，原样保留。</li>
+</ul>
+<p>默认保留最近 <code>2</code> 个 user turn，并用模型可用上下文的 25% 作为 recent budget，上限 8000 tokens，下限 2000 tokens。配置项包括：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-json" data-lang="json"><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nt">&#34;compaction&#34;</span><span class="p">:</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="nt">&#34;auto&#34;</span><span class="p">:</span> <span class="kc">true</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="nt">&#34;tail_turns&#34;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="nt">&#34;preserve_recent_tokens&#34;</span><span class="p">:</span> <span class="mi">8000</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="nt">&#34;reserved&#34;</span><span class="p">:</span> <span class="mi">20000</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="nt">&#34;prune&#34;</span><span class="p">:</span> <span class="kc">true</span>
+</span></span><span class="line"><span class="cl">  <span class="p">}</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>压缩前还会把过老的工具输出截断到较短文本，源码里 <code>TOOL_OUTPUT_MAX_CHARS</code> 是 <code>2000</code>。这能避免一次巨大 <code>cat</code>、日志或 diff 把 compaction 本身挤爆。</p>
+<h3 id="压缩后的继续执行">压缩后的继续执行<a href="#压缩后的继续执行" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>压缩完成后，如果是自动压缩，opencode 默认会追加一条 synthetic user message：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">Continue if you have next steps, or stop and ask for clarification if you are unsure how to proceed.
+</span></span></code></pre></div><p>这说明 compaction 的目标不是“生成一段摘要给用户看”，而是让 agent 继续执行当前任务。对 memory 来说，summary 必须保留目标、约束、已完成动作和未解决问题，否则自动续跑会丢方向。</p>
+<h2 id="和向量库-memory-的差异">和向量库 memory 的差异<a href="#和向量库-memory-的差异" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p><code>opencode</code> 当前的 memory 不是检索增强记忆，而是 prompt 结构化管理。它的优缺点很鲜明。</p>
+<p>优势：</p>
+<ul>
+<li><strong>可审计</strong>：长期知识就在 Markdown / JSON 配置里，团队可以 code review。</li>
+<li><strong>确定性强</strong>：规则文件每轮注入，不依赖 embedding 召回是否命中。</li>
+<li><strong>权限边界清楚</strong>：项目规则、全局规则、组织配置有明确层级。</li>
+<li><strong>适合代码仓库</strong>：repo 约定本来就应该随代码一起版本化。</li>
+</ul>
+<p>不足：</p>
+<ul>
+<li><strong>不会自动沉淀经验</strong>：一次 debug 结论不会自动变成未来记忆。</li>
+<li><strong>没有语义召回</strong>：不会根据当前问题从历史会话里检索相似经验。</li>
+<li><strong>容易被写胖</strong>：<code>AGENTS.md</code> 越写越长会直接吃上下文。</li>
+<li><strong>远程 instruction 有漂移风险</strong>：URL 内容变化会改变 agent 行为。</li>
+</ul>
+<p>所以 opencode 的最佳实践不是“打开 memory 开关”，而是建立一个人类可维护的规则沉淀流程。</p>
+<h2 id="最佳实践">最佳实践<a href="#最佳实践" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<h3 id="1-把-agentsmd-当成项目操作手册不是知识库">1. 把 <code>AGENTS.md</code> 当成项目操作手册，不是知识库<a href="#1-把-agentsmd-当成项目操作手册不是知识库" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>适合写进 <code>AGENTS.md</code> 的内容：</p>
+<ul>
+<li>项目结构中不容易从文件名看出来的边界。</li>
+<li>常用 build、lint、test 命令，以及命令顺序。</li>
+<li>必须遵守的代码风格、架构约束、接口兼容要求。</li>
+<li>危险操作、部署操作、数据迁移的审批要求。</li>
+<li>已经稳定下来的“踩坑规则”。</li>
+</ul>
+<p>不适合写进去的内容：</p>
+<ul>
+<li>当前任务的临时 TODO。</li>
+<li>尚未验证的猜测。</li>
+<li>一次性日志分析。</li>
+<li>过长的背景材料。</li>
+<li>只是为了让 agent 知道“有这个文件”的目录清单。</li>
+</ul>
+<p>一个好的 <code>AGENTS.md</code> 应该短、强、可执行：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-markdown" data-lang="markdown"><span class="line"><span class="cl"><span class="gh"># Project Instructions
+</span></span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="gu">## Commands
+</span></span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Run <span class="sb">`pnpm test --filter api`</span> before changing <span class="sb">`packages/api/**`</span>.
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Run <span class="sb">`pnpm lint`</span> before final response when TypeScript files changed.
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="gu">## Architecture
+</span></span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">-</span> <span class="sb">`packages/core`</span> must not import from <span class="sb">`packages/web`</span>.
+</span></span><span class="line"><span class="cl"><span class="k">-</span> API handlers should call domain services instead of accessing database tables directly.
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="gu">## Safety
+</span></span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Do not run production migration commands unless the user explicitly asks.
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Never edit generated files under <span class="sb">`src/generated/**`</span>; update the schema and regenerate.
+</span></span></code></pre></div><h3 id="2-用-instructions-拆分规则而不是把一个文件写成百科全书">2. 用 <code>instructions</code> 拆分规则，而不是把一个文件写成百科全书<a href="#2-用-instructions-拆分规则而不是把一个文件写成百科全书" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>当规则超过几屏后，把它拆成明确主题：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-json" data-lang="json"><span class="line"><span class="cl"><span class="p">{</span>
+</span></span><span class="line"><span class="cl">  <span class="nt">&#34;$schema&#34;</span><span class="p">:</span> <span class="s2">&#34;https://opencode.ai/config.json&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">  <span class="nt">&#34;instructions&#34;</span><span class="p">:</span> <span class="p">[</span>
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;AGENTS.md&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;docs/agent/testing.md&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;docs/agent/api-style.md&#34;</span><span class="p">,</span>
+</span></span><span class="line"><span class="cl">    <span class="s2">&#34;packages/*/AGENTS.md&#34;</span>
+</span></span><span class="line"><span class="cl">  <span class="p">]</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><p>拆分原则：</p>
+<ul>
+<li>根规则写“总原则和路由”。</li>
+<li>测试规则、API 风格、前端设计规则分别成文。</li>
+<li>子包自己的约定放在子包目录。</li>
+<li>大型 monorepo 优先用 glob，而不是在根文件里手工列所有细节。</li>
+</ul>
+<h3 id="3-子目录规则要写局部差异不要重复全局规则">3. 子目录规则要写局部差异，不要重复全局规则<a href="#3-子目录规则要写局部差异不要重复全局规则" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>因为 opencode 会在读文件时懒加载附近 instruction，子目录的 <code>AGENTS.md</code> 很适合写：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-markdown" data-lang="markdown"><span class="line"><span class="cl"><span class="gh"># packages/billing Instructions
+</span></span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Money values are stored in cents.
+</span></span><span class="line"><span class="cl"><span class="k">-</span> All Stripe webhook handlers must be idempotent.
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Use <span class="sb">`pnpm test --filter billing`</span> after changing this package.
+</span></span></code></pre></div><p>不要复制根目录已有的通用规则。重复规则会让上下文变胖，也会在未来改规则时产生不一致。</p>
+<h3 id="4-把经验沉淀成触发条件--行动而不是流水账">4. 把经验沉淀成“触发条件 + 行动”，而不是流水账<a href="#4-把经验沉淀成触发条件--行动而不是流水账" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>低质量 memory：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-markdown" data-lang="markdown"><span class="line"><span class="cl"><span class="k">-</span> 上次修 billing 测试时遇到 mock 很麻烦。
+</span></span></code></pre></div><p>高质量 memory：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-markdown" data-lang="markdown"><span class="line"><span class="cl"><span class="k">-</span> When changing billing date logic, run <span class="sb">`pnpm test --filter billing -- recurrence`</span>
+</span></span><span class="line"><span class="cl">  because snapshot-only tests missed timezone edge cases before.
+</span></span></code></pre></div><p>好的长期记忆应该包含：</p>
+<ul>
+<li>什么时候触发。</li>
+<li>为什么重要。</li>
+<li>agent 应该做什么。</li>
+<li>可验证命令或文件位置。</li>
+</ul>
+<h3 id="5-把不稳定信息留在-task-note-或-issue不要写进长期规则">5. 把不稳定信息留在 task note 或 issue，不要写进长期规则<a href="#5-把不稳定信息留在-task-note-或-issue不要写进长期规则" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>很多信息“现在有用”，但不应该成为每次调用都注入的长期规则：</p>
+<ul>
+<li>某个 bug 当前排查到第几步。</li>
+<li>某个 PR 的临时决策。</li>
+<li>某个外部依赖今天的版本状态。</li>
+<li>还没有通过测试验证的推断。</li>
+</ul>
+<p>这些更适合放在 issue、task note、PR description 或当前 session 里。等它变成稳定约束后，再浓缩进 <code>AGENTS.md</code>。</p>
+<h3 id="6-对-compaction-友好地表达任务状态">6. 对 compaction 友好地表达任务状态<a href="#6-对-compaction-友好地表达任务状态" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>长任务里，agent 最容易在压缩后丢失三类东西：</p>
+<ul>
+<li>完成条件。</li>
+<li>已经验证过的证据。</li>
+<li>仍然不能动的边界。</li>
+</ul>
+<p>因此复杂任务可以显式维护一个短状态块：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-markdown" data-lang="markdown"><span class="line"><span class="cl">Current task state:
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Goal: add OAuth callback validation.
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Done: route added, unit tests for invalid state passed.
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Remaining: integration test for expired code.
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Constraints: do not change provider SDK wrapper public API.
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Verification: <span class="sb">`pnpm test --filter auth`</span>.
+</span></span></code></pre></div><p>这类结构比长篇自然语言更容易被 compaction 摘要保留下来。</p>
+<h3 id="7-远程-instructions-要版本锁定或低风险化">7. 远程 instructions 要版本锁定或低风险化<a href="#7-远程-instructions-要版本锁定或低风险化" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>opencode 支持从 URL 拉取 instructions，但最佳实践是：</p>
+<ul>
+<li>用 raw GitHub commit URL，而不是浮动 <code>main</code>。</li>
+<li>远程规则只放低风险、通用、可替换的内容。</li>
+<li>核心安全规则放本地仓库，接受 code review。</li>
+<li>远程拉取失败时要允许 agent 继续工作，不要让关键流程只存在远端。</li>
+</ul>
+<h3 id="8-明确区分个人偏好和团队约定">8. 明确区分个人偏好和团队约定<a href="#8-明确区分个人偏好和团队约定" class="hanchor" ariaLabel="Anchor">#</a> </h3>
+<p>个人偏好放：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">~/.config/opencode/AGENTS.md
+</span></span></code></pre></div><p>例如：</p>
+<ul>
+<li>默认回答语言。</li>
+<li>是否先给计划。</li>
+<li>final response 风格。</li>
+<li>自己常用工具路径。</li>
+</ul>
+<p>团队约定放：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-text" data-lang="text"><span class="line"><span class="cl">&lt;repo&gt;/AGENTS.md
+</span></span><span class="line"><span class="cl">&lt;repo&gt;/opencode.json
+</span></span><span class="line"><span class="cl">&lt;repo&gt;/.opencode/
+</span></span></code></pre></div><p>团队约定要随仓库版本化，个人偏好不要污染团队 repo。</p>
+<h2 id="一个推荐模板">一个推荐模板<a href="#一个推荐模板" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p>项目根目录 <code>AGENTS.md</code> 可以从这个结构开始：</p>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-markdown" data-lang="markdown"><span class="line"><span class="cl"><span class="gh"># Agent Instructions
+</span></span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="gu">## Project Shape
+</span></span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Short description of the system and major packages.
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Non-obvious ownership boundaries.
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="gu">## Commands
+</span></span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Install:
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Lint:
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Unit test:
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Focused test:
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Build:
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="gu">## Working Rules
+</span></span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Keep changes scoped to the requested module.
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Prefer existing helpers over new abstractions unless duplication is real.
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Update tests when behavior changes.
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="gu">## Verification
+</span></span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">-</span> For backend changes:
+</span></span><span class="line"><span class="cl"><span class="k">-</span> For frontend changes:
+</span></span><span class="line"><span class="cl"><span class="k">-</span> For schema or generated-code changes:
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="gu">## Safety
+</span></span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Never run:
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Ask before:
+</span></span><span class="line"><span class="cl"><span class="k">-</span> Do not edit:
+</span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="gu">## Local References
+</span></span></span><span class="line"><span class="cl">
+</span></span><span class="line"><span class="cl"><span class="k">-</span> More testing rules: <span class="sb">`docs/agent/testing.md`</span>
+</span></span><span class="line"><span class="cl"><span class="k">-</span> API style: <span class="sb">`docs/agent/api-style.md`</span>
+</span></span></code></pre></div><p>如果规则继续增长，再把 <code>Local References</code> 移到 <code>opencode.json</code> 的 <code>instructions</code> 中，让 opencode 自动加载。</p>
+<h2 id="总结">总结<a href="#总结" class="hanchor" ariaLabel="Anchor">#</a> </h2>
+<p><code>opencode</code> 的 memory 实现可以概括为一句话：</p>
+<blockquote>
+<p>它把长期记忆做成可版本化的 instruction，把会话延续做成 compaction，把临时上下文交给文件引用、MCP、skills 和 subagents。</p>
+</blockquote>
+<p>这是一种保守但工程上很稳的选择。它牺牲了“自动记住所有经验”的魔法感，换来可审计、可 review、可调试的上下文系统。</p>
+<p>实践上最重要的是维护纪律：</p>
+<ol>
+<li><code>AGENTS.md</code> 只写稳定、可执行、会反复影响 agent 行为的规则。</li>
+<li><code>instructions</code> 用来模块化和共享规则。</li>
+<li>子目录规则写局部差异。</li>
+<li>任务状态用结构化短块，帮助 compaction 保留目标和证据。</li>
+<li>不把临时猜测沉淀成长期记忆。</li>
+</ol>
+<p>如果未来 opencode 加入语义检索型 memory，这套规则型 memory 仍然不会过时。因为向量召回解决“找得到过去经验”的问题，<code>AGENTS.md</code> 解决“每次都必须遵守什么”的问题，两者不是同一个层次。</p>
+
+      </div></div>
+
+  
+    
+<div class="pagination">
+  <div class="pagination__title">
+    <span class="pagination__title-h">Read other posts</span>
+    <hr />
+  </div>
+  <div class="pagination__buttons">
+    
+    
+    
+      <a href="https://blog.jinzhi.site/posts/2026-07/loop-engineering-%E6%9C%80%E4%BD%B3%E5%AE%9E%E8%B7%B5/" class="button inline next">
+         [<span class="button__text">Loop Engineering 最佳实践</span>] &gt;
+      </a>
+    
+  </div>
+</div>
+
+
+  
+
+  
+    
+
+  
+</article>
+
+  </div>
+
+  
+    <footer class="footer">
+  <div class="footer__inner">
+    
+      <div class="copyright">
+        <span>© 2026 Powered by <a href="https://gohugo.io">Hugo</a></span>
+    
+      <span>:: <a href="https://github.com/panr/hugo-theme-terminal" target="_blank">Theme</a> made by <a href="https://github.com/panr" target="_blank">panr</a></span>
+      </div>
+  </div>
+</footer>
+
+
+
+
+
+
+<script type="text/javascript" src="/bundle.min.js"></script>
+
+
+
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'dark'
+    });
+  </script>
+
+
+  
+  </div>
+
+  <aside class="floating-sidebar">
+    
+<div class="sidebar time-archive">
+  <h3>Time Archives</h3>
+  <div class="archive-list">
+    
+    
+
+    
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+      
+      
+      
+    
+
+    
+    
+
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2026-07/" class="archive-link">
+          <span class="archive-date">2026-07</span>
+          <span class="archive-month-name">Jul</span>
+          <span class="archive-count">(4)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2026-06/" class="archive-link">
+          <span class="archive-date">2026-06</span>
+          <span class="archive-month-name">Jun</span>
+          <span class="archive-count">(5)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2026-05/" class="archive-link">
+          <span class="archive-date">2026-05</span>
+          <span class="archive-month-name">May</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2026-04/" class="archive-link">
+          <span class="archive-date">2026-04</span>
+          <span class="archive-month-name">Apr</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2026-01/" class="archive-link">
+          <span class="archive-date">2026-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(2)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-11/" class="archive-link">
+          <span class="archive-date">2025-11</span>
+          <span class="archive-month-name">Nov</span>
+          <span class="archive-count">(3)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-10/" class="archive-link">
+          <span class="archive-date">2025-10</span>
+          <span class="archive-month-name">Oct</span>
+          <span class="archive-count">(4)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-09/" class="archive-link">
+          <span class="archive-date">2025-09</span>
+          <span class="archive-month-name">Sep</span>
+          <span class="archive-count">(3)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-08/" class="archive-link">
+          <span class="archive-date">2025-08</span>
+          <span class="archive-month-name">Aug</span>
+          <span class="archive-count">(9)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-06/" class="archive-link">
+          <span class="archive-date">2025-06</span>
+          <span class="archive-month-name">Jun</span>
+          <span class="archive-count">(2)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-04/" class="archive-link">
+          <span class="archive-date">2025-04</span>
+          <span class="archive-month-name">Apr</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2025-03/" class="archive-link">
+          <span class="archive-date">2025-03</span>
+          <span class="archive-month-name">Mar</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2024-01/" class="archive-link">
+          <span class="archive-date">2024-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(2)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-10/" class="archive-link">
+          <span class="archive-date">2022-10</span>
+          <span class="archive-month-name">Oct</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-07/" class="archive-link">
+          <span class="archive-date">2022-07</span>
+          <span class="archive-month-name">Jul</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-06/" class="archive-link">
+          <span class="archive-date">2022-06</span>
+          <span class="archive-month-name">Jun</span>
+          <span class="archive-count">(4)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-05/" class="archive-link">
+          <span class="archive-date">2022-05</span>
+          <span class="archive-month-name">May</span>
+          <span class="archive-count">(4)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-03/" class="archive-link">
+          <span class="archive-date">2022-03</span>
+          <span class="archive-month-name">Mar</span>
+          <span class="archive-count">(4)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2022-01/" class="archive-link">
+          <span class="archive-date">2022-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-11/" class="archive-link">
+          <span class="archive-date">2021-11</span>
+          <span class="archive-month-name">Nov</span>
+          <span class="archive-count">(2)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-09/" class="archive-link">
+          <span class="archive-date">2021-09</span>
+          <span class="archive-month-name">Sep</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-06/" class="archive-link">
+          <span class="archive-date">2021-06</span>
+          <span class="archive-month-name">Jun</span>
+          <span class="archive-count">(3)</span>
+        </a>
+      </div>
+    
+      
+      
+      
+
+      
+      
+      
+      
+        
+          
+        
+      
+      
+      
+      
+
+      
+      
+      
+
+      <div class="archive-item">
+        <a href="/posts/2021-01/" class="archive-link">
+          <span class="archive-date">2021-01</span>
+          <span class="archive-month-name">Jan</span>
+          <span class="archive-count">(1)</span>
+        </a>
+      </div>
+    
+  </div>
+</div>
+
+<style>
+.sidebar.time-archive {
+  background: rgba(26, 23, 15, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--accent, #FFA86B);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+  max-width: var(--sidebar-component-width, 240px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.sidebar.time-archive h3 {
+  margin: 0 0 1rem 0;
+  color: var(--accent, #FFA86B);
+  font-size: 1.2rem;
+  border-bottom: 1px solid var(--accent-alpha-70, rgba(255, 168, 107, 0.7));
+  padding-bottom: 0.5rem;
+}
+
+
+.archive-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.archive-item {
+  display: block;
+}
+
+.archive-link {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  text-decoration: none;
+  color: var(--color, inherit);
+  padding: 0.5rem;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+}
+
+.archive-link:hover {
+  background-color: var(--accent-alpha-20, rgba(255, 168, 107, 0.2));
+  color: var(--accent, #FFA86B);
+}
+
+.archive-date {
+  font-family: var(--code-font-family, 'Fira Code', monospace);
+  font-weight: bold;
+  min-width: 60px;
+}
+
+.archive-month-name {
+  flex: 1;
+  margin-left: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.archive-count {
+  color: var(--accent, #FFA86B);
+  font-weight: bold;
+  font-size: 0.9rem;
+}
+
+ 
+</style>
+
+    
+<div class="sidebar tags-cloud">
+  <h3>Tags Cloud</h3>
+  <div class="tags-container">
+    
+    
+    
+    
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+    
+    
+    
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+    
+    
+    
+    
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+      
+      
+    
+    
+    
+    
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+    
+    
+    
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/agent/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="5 articles">
+          Agent
+          <span class="tag-count">(5)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/ai/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="6 articles">
+          AI
+          <span class="tag-count">(6)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/apisix/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="3 articles">
+          apisix
+          <span class="tag-count">(3)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/behavioral-finance/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          behavioral-finance
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/biography/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          biography
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/cloudnative/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          CloudNative
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/compile/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          compile
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/concurrency/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="7 articles">
+          Concurrency
+          <span class="tag-count">(7)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/csi/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          csi
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/debug/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          debug
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/dns/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          dns
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/ebpf/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          ebpf
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/elf/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          ELF
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/envoy/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Envoy
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/financial-analysis/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          financial-analysis
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/go/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          Go
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/http/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          HTTP
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/inference/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Inference
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/investing/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="5 articles">
+          investing
+          <span class="tag-count">(5)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/kaist-cs431/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="7 articles">
+          KAIST-CS431
+          <span class="tag-count">(7)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/kernel/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Kernel
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/kubecon/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          KubeCon
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/kubernetes/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          kubernetes
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/l7gateway/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="4 articles">
+          L7Gateway
+          <span class="tag-count">(4)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/linux/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="3 articles">
+          Linux
+          <span class="tag-count">(3)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/llm/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          LLM
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/lua/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="3 articles">
+          Lua
+          <span class="tag-count">(3)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/makefile/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          makefile
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/market-analysis/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          market-analysis
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/mindfulness/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          mindfulness
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/network/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="4 articles">
+          Network
+          <span class="tag-count">(4)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/nonfiction/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="6 articles">
+          nonfiction
+          <span class="tag-count">(6)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/operatingsystem/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          OperatingSystem
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/philosophy/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          philosophy
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/rust/" 
+           class="tag-item" 
+           style="font-size: 1.5em;"
+           title="10 articles">
+          Rust
+          <span class="tag-count">(10)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/schedule/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          Schedule
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/science/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          science
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/softwareengineering/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          SoftwareEngineering
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/stocks/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="2 articles">
+          stocks
+          <span class="tag-count">(2)</span>
+        </a>
+      
+    
+      
+      
+      
+      
+      
+      
+      
+        
+        
+        
+        <a href="https://blog.jinzhi.site/tags/wasm/" 
+           class="tag-item" 
+           style="font-size: 0.9em;"
+           title="1 article">
+          wasm
+          <span class="tag-count">(1)</span>
+        </a>
+      
+    
+  </div>
+</div>
+
+<style>
+.sidebar.tags-cloud {
+  background: rgba(26, 23, 15, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--accent, #FFA86B);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+  max-width: var(--sidebar-component-width, 240px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.sidebar.tags-cloud h3 {
+  margin: 0 0 1rem 0;
+  color: var(--accent, #FFA86B);
+  font-size: 1.2rem;
+  border-bottom: 1px solid var(--accent-alpha-70, rgba(255, 168, 107, 0.7));
+  padding-bottom: 0.5rem;
+}
+
+.tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  line-height: 1.6;
+}
+
+.tag-item {
+  display: inline-flex;
+  align-items: baseline;
+  text-decoration: none;
+  color: var(--color, inherit);
+  padding: 0.3rem 0.6rem;
+  border-radius: 16px;
+  background: rgba(255, 168, 107, 0.1);
+  border: 1px solid transparent;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.tag-item:hover {
+  background: rgba(255, 168, 107, 0.25);
+  border-color: var(--accent-alpha-50, rgba(255, 168, 107, 0.5));
+  color: var(--accent, #FFA86B);
+  transform: translateY(-1px);
+}
+
+.tag-count {
+  font-size: 0.75em;
+  margin-left: 0.3rem;
+  opacity: 0.7;
+  font-weight: normal;
+}
+
+.tag-item:hover .tag-count {
+  opacity: 1;
+}
+
+ 
+
+ 
+.tag-item {
+  font-weight: 400;
+}
+
+ 
+.tag-item[style*="1.5"], 
+.tag-item[style*="1.4"],
+.tag-item[style*="1.3"] {
+  font-weight: 600;
+}
+
+ 
+.tag-item[style*="1.2"],
+.tag-item[style*="1.1"] {
+  font-weight: 500;
+}
+
+ 
+.tag-item[style*="1.5"]:hover,
+.tag-item[style*="1.4"]:hover,
+.tag-item[style*="1.3"]:hover {
+  box-shadow: 0 3px 10px rgba(255, 168, 107, 0.4);
+  transform: translateY(-2px);
+}
+
+</style>
+
+  </aside>
+</div>
+
+<style>
+ 
+.page-wrapper {
+  position: relative;
+  width: 100%;
+  max-width: none;
+  --sidebar-top-offset: 150px;  
+  --sidebar-component-width: 240px;  
+}
+
+   
+.floating-sidebar {
+  position: absolute;
+   
+  top: var(--sidebar-top-offset, 175px);
+   
+  right: max(20px, calc((100vw - 864px) / 2 - 330px));
+  width: 300px;
+  z-index: 100;
+  opacity: 0.96;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+ 
+.floating-sidebar:hover {
+  opacity: 1;
+  transform: translateX(-5px);
+}
+
+ 
+.floating-sidebar {
+  display: none;
+}
+
+ 
+@media (min-width: 1524px) {
+  .floating-sidebar {
+    display: block;
+    position: absolute;
+    right: max(20px, calc((100vw - 864px) / 2 - 330px));
+  }
+}
+
+ 
+@media (max-width: 1523px) {
+  .floating-sidebar {
+    display: none !important;
+  }
+}
+
+</style>
+
+</body>
+</html>

@@ -207,6 +207,112 @@
     
       <article class="post on-list">
         <h1 class="post-title">
+          <a href="https://blog.jinzhi.site/posts/2026-07/opencode-memory-%E5%AE%9E%E7%8E%B0%E4%B8%8E%E6%9C%80%E4%BD%B3%E5%AE%9E%E8%B7%B5/">opencode memory 实现与最佳实践</a>
+        </h1>
+        <div class="post-meta"><time class="post-date">2026-07-10</time></div>
+
+        
+          <span class="post-tags">
+            
+            #<a href="https://blog.jinzhi.site/tags/ai/">AI</a>&nbsp;
+            
+            #<a href="https://blog.jinzhi.site/tags/agent/">Agent</a>&nbsp;
+            
+          </span>
+        
+
+        
+
+
+        <div class="post-content">
+          
+            <blockquote>
+<p>注：文章由 codex 整理。</p>
+</blockquote>
+<h2 id="背景">背景</h2>
+<p>这里的 <code>memory</code> 不是操作系统内存，也不是模型推理时的 KV cache，而是 coding agent 在多轮、多 session、多项目之间保存和复用上下文的能力。</p>
+<p>截至这次分析的源码快照，<code>opencode</code> 并没有内置一个类似 <code>mem0</code>、<code>mnemopi</code> 或向量数据库的长期记忆系统。它的 memory 更接近三层组合：</p>
+<ol>
+<li><strong>规则型长期记忆</strong>：<code>AGENTS.md</code>、全局 <code>AGENTS.md</code>、<code>opencode.json</code> 里的 <code>instructions</code>。这些内容每轮都会进入 system prompt，是最稳定、最可审计的记忆。</li>
+<li><strong>会话内压缩记忆</strong>：<code>compaction</code> agent 把长会话压缩成摘要，并保留最近若干 turn，让当前 session 可以继续推进。</li>
+<li><strong>上下文型临时记忆</strong>：用户用 <code>@file</code>、MCP resource、skill、subagent 等方式临时补充上下文，主要服务当前任务。</li>
+</ol>
+<p>所以分析 <code>opencode memory</code> 时，关键不是找一个 <code>MemoryBackend</code>，而是看它如何把规则文件、配置、压缩摘要和临时上下文组装进模型请求。</p>
+<p>本文基于：</p>
+<ul>
+<li>官方文档：<a href="https://opencode.ai/docs/rules/">Rules</a>、<a href="https://opencode.ai/docs/config/">Config</a>、<a href="https://opencode.ai/docs/agents/">Agents</a>、<a href="https://opencode.ai/docs/skills/">Agent Skills</a></li>
+<li>源码快照：<a href="https://github.com/anomalyco/opencode/commit/251177d56cf2a8821f7e1464dd7c164e8f56036d">anomalyco/opencode@251177d56cf2a8821f7e1464dd7c164e8f56036d</a></li>
+<li>重点源码文件：
+<ul>
+<li><code>packages/opencode/src/session/instruction.ts</code></li>
+<li><code>packages/opencode/src/session/prompt.ts</code></li>
+<li><code>packages/opencode/src/session/compaction.ts</code></li>
+<li><code>packages/opencode/src/session/system.ts</code></li>
+<li><code>packages/opencode/src/config/config.ts</code></li>
+<li><code>packages/core/src/v1/config/config.ts</code></li>
+</ul>
+</li>
+</ul>
+<h2 id="核心结论">核心结论</h2>
+<p><code>opencode</code> 的 memory 设计偏“显式上下文工程（context engineering）”，而不是“自动记住一切”。</p>
+<p>这带来一个很重要的实践判断：<strong>应该把长期稳定的项目知识写进规则文件，把当前任务过程交给 session history 和 compaction，把低置信度、临时性、可能过期的信息留在对话里，而不是沉淀到 AGENTS.md。</strong></p>
+<p>可以这样理解：</p>
+<table>
+	<thead>
+			<tr>
+					<th>层次</th>
+					<th>opencode 机制</th>
+					<th>适合保存什么</th>
+					<th>不适合保存什么</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>长期项目记忆</td>
+					<td>项目 <code>AGENTS.md</code></td>
+					<td>架构边界、测试命令、代码风格、危险操作约束</td>
+					<td>临时任务进度、一次性 debug 现象</td>
+			</tr>
+			<tr>
+					<td>长期个人记忆</td>
+					<td><code>~/.config/opencode/AGENTS.md</code></td>
+					<td>个人偏好、默认工作方式、输出习惯</td>
+					<td>某个项目的私有约定</td>
+			</tr>
+			<tr>
+					<td>可复用规则片段</td>
+					<td><code>opencode.json</code> 的 <code>instructions</code></td>
+					<td>多文件规范、共享团队标准、monorepo 分包规则</td>
+					<td>需要模型自己递归解析的隐式引用</td>
+			</tr>
+			<tr>
+					<td>会话内记忆</td>
+					<td><code>compaction</code></td>
+					<td>当前 session 的目标、决策、已完成动作、未解决问题</td>
+					<td>跨 session 的长期知识</td>
+			</tr>
+			<tr>
+					<td>临时上下文</td>
+					<td><code>@file</code>、MCP、skills、subagents</td>
+					<td>本轮要读的文件、外部资料、专项流程</td>
+					<td>需要每次都遵守的硬规则</td>
+			</tr>
+	</tbody>
+</table>
+<h2 id="实现总览">实现总览</h2>
+<p>一轮模型调用前，<code>SessionPrompt</code> 会把几类 system prompt 片段拼起来：</p>
+          
+        </div>
+
+        
+          <div>
+            <a class="read-more button inline" href="/posts/2026-07/opencode-memory-%E5%AE%9E%E7%8E%B0%E4%B8%8E%E6%9C%80%E4%BD%B3%E5%AE%9E%E8%B7%B5/">[Read more]</a>
+          </div>
+        
+      </article>
+    
+      <article class="post on-list">
+        <h1 class="post-title">
           <a href="https://blog.jinzhi.site/posts/2026-07/loop-engineering-%E6%9C%80%E4%BD%B3%E5%AE%9E%E8%B7%B5/">Loop Engineering 最佳实践</a>
         </h1>
         <div class="post-meta"><time class="post-date">2026-07-04</time></div>
@@ -743,6 +849,10 @@
       
       
     
+      
+      
+      
+    
 
     
     
@@ -772,7 +882,7 @@
         <a href="/posts/2026-07/" class="archive-link">
           <span class="archive-date">2026-07</span>
           <span class="archive-month-name">Jul</span>
-          <span class="archive-count">(3)</span>
+          <span class="archive-count">(4)</span>
         </a>
       </div>
     
@@ -1513,22 +1623,6 @@
       
         
       
-        
-      
-    
-      
-        
-      
-        
-      
-    
-      
-        
-      
-        
-      
-        
-      
     
       
         
@@ -1546,14 +1640,6 @@
     
       
         
-      
-    
-      
-        
-      
-        
-      
-    
       
         
       
@@ -1581,6 +1667,36 @@
       
         
       
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
     
       
         
@@ -1600,22 +1716,6 @@
         
       
     
-      
-        
-      
-    
-      
-        
-      
-        
-      
-        
-      
-    
-      
-        
-      
-        
       
         
       
@@ -1655,38 +1755,6 @@
       
         
       
-    
-      
-        
-      
-    
-      
-        
-      
-        
-      
-    
-      
-        
-      
-    
-      
-        
-      
-    
-      
-    
-      
-        
-      
-    
-      
-        
-      
-    
-      
-        
-      
         
       
         
@@ -1696,14 +1764,6 @@
         
       
         
-      
-    
-      
-        
-      
-        
-      
-    
       
         
       
@@ -1731,8 +1791,6 @@
       
     
       
-        
-      
     
       
         
@@ -1746,6 +1804,26 @@
         
       
         
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
       
         
       
@@ -1783,6 +1861,44 @@
       
         
       
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
     
       
         
@@ -1791,6 +1907,12 @@
     
     
     
+    
+      
+      
+    
+      
+      
     
       
       
@@ -2315,9 +2437,9 @@
         <a href="https://blog.jinzhi.site/tags/agent/" 
            class="tag-item" 
            style="font-size: 0.9em;"
-           title="4 articles">
+           title="5 articles">
           Agent
-          <span class="tag-count">(4)</span>
+          <span class="tag-count">(5)</span>
         </a>
       
     
@@ -2334,9 +2456,9 @@
         <a href="https://blog.jinzhi.site/tags/ai/" 
            class="tag-item" 
            style="font-size: 0.9em;"
-           title="5 articles">
+           title="6 articles">
           AI
-          <span class="tag-count">(5)</span>
+          <span class="tag-count">(6)</span>
         </a>
       
     

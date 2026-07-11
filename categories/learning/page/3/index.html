@@ -207,6 +207,129 @@
     
       <article class="post on-list">
         <h1 class="post-title">
+          <a href="https://blog.jinzhi.site/posts/2025-10/apisix-%E6%8F%92%E4%BB%B6%E4%BD%93%E7%B3%BB/">APISIX 插件体系</a>
+        </h1>
+        <div class="post-meta"><time class="post-date">2025-10-30</time></div>
+
+        
+          <span class="post-tags">
+            
+            #<a href="https://blog.jinzhi.site/tags/apisix/">apisix</a>&nbsp;
+            
+            #<a href="https://blog.jinzhi.site/tags/l7gateway/">L7Gateway</a>&nbsp;
+            
+          </span>
+        
+
+        
+
+
+        <div class="post-content">
+          
+            <h2 id="背景知识">背景知识</h2>
+<p>APISIX 基于 Openresty 和 Nginx 开发，了解 APISIX 的插件体系也有必要先了解下 Nginx 和 Openresty 的基础知识。</p>
+<h3 id="nginx-请求处理阶段">Nginx 请求处理阶段</h3>
+<p>Nginx 将一个 HTTP 请求的处理过程精心划分为一系列有序的阶段（Phases），就像一个工厂的流水线。每个阶段都有特定的任务，不同的模块可以将自己的处理程序（handler）注册到感兴趣的阶段。这种设计使得 Nginx 的功能高度模块化、可扩展，并且处理流程非常清晰高效。</p>
+<p>一个请求在 Nginx 中主要会经过以下 <strong>11 个处理阶段</strong>：</p>
+<h4 id="1ngx_http_post_read_phase请求读取后阶段">1. <code>NGX_HTTP_POST_READ_PHASE</code> (请求读取后阶段)</h4>
+<ul>
+<li><strong>任务</strong>: 接收到完整的请求头（Request Header）之后，第一个被执行的阶段。</li>
+<li><strong>常用模块</strong>: <code>ngx_http_realip_module</code>。</li>
+<li><strong>作用举例</strong>: 在这个阶段，<code>realip</code> 模块会根据 <code>X-Forwarded-For</code> 或 <code>X-Real-IP</code> 等请求头，将客户端的真实 IP 地址替换掉代理服务器的 IP 地址。这对后续的访问控制和日志记录至关重要。</li>
+</ul>
+<h4 id="2ngx_http_server_rewrite_phaseserver-级别地址重写阶段">2. <code>NGX_HTTP_SERVER_REWRITE_PHASE</code> (Server 级别地址重写阶段)</h4>
+<ul>
+<li><strong>任务</strong>: 在 <code>server</code> 配置块中执行 URL 重写。</li>
+<li><strong>常用模块/指令</strong>: <code>rewrite</code> 指令（当它定义在 <code>server</code> 块中时）。</li>
+<li><strong>作用举例</strong>: 在请求进入具体的 <code>location</code> 匹配之前，对 URL 进行全局的、初步的改写。例如，将所有 <code>http</code> 请求强制重定向到 <code>https</code>。</li>
+</ul>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-nginx" data-lang="nginx"><span class="line"><span class="cl"><span class="k">server</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="kn">listen</span> <span class="mi">80</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="kn">server_name</span> <span class="s">example.com</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl">    <span class="c1"># 这个 rewrite 就工作在 SERVER_REWRITE 阶段
+</span></span></span><span class="line"><span class="cl">    <span class="kn">rewrite</span> <span class="s">^/(.*)</span>$ <span class="s">https://example.com/</span><span class="nv">$1</span> <span class="s">permanent</span><span class="p">;</span> 
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><h4 id="3ngx_http_find_config_phase配置查找阶段">3. <code>NGX_HTTP_FIND_CONFIG_PHASE</code> (配置查找阶段)</h4>
+<ul>
+<li><strong>任务</strong>: 根据上个阶段处理完的 URI，查找并匹配对应的 <code>location</code> 配置块。</li>
+<li><strong>核心功能</strong>: 这是 Nginx 路由的核心。Nginx 会用请求的 URI 与 <code>location</code> 指令定义的规则进行匹配，找到最合适的 <code>location</code>。这个阶段没有模块可以注册 handler，是 Nginx 核心自己完成的。</li>
+</ul>
+<h4 id="4ngx_http_rewrite_phaselocation-级别地址重写阶段">4. <code>NGX_HTTP_REWRITE_PHASE</code> (Location 级别地址重写阶段)</h4>
+<ul>
+<li><strong>任务</strong>: 在上一步匹配到的 <code>location</code> 块内部，执行 URL 重写。</li>
+<li><strong>常用模块/指令</strong>: <code>rewrite</code> 指令（当它定义在 <code>location</code> 块中时）、<code>set</code> 指令。</li>
+<li><strong>作用举例</strong>: 对特定 <code>location</code> 的请求进行更精细的 URL 改写。这个阶段的 <code>rewrite</code> 可能会导致 Nginx 重新回到 <code>FIND_CONFIG</code> 阶段去匹配新的 <code>location</code>，可能会有循环，最多执行 10 次以防止死循环。</li>
+</ul>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-nginx" data-lang="nginx"><span class="line"><span class="cl"><span class="k">location</span> <span class="s">/app/</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1"># 这个 rewrite 工作在 REWRITE 阶段
+</span></span></span><span class="line"><span class="cl">    <span class="kn">rewrite</span> <span class="s">^/app/(.*)</span>$ <span class="s">/v2/app/</span><span class="nv">$1</span> <span class="s">break</span><span class="p">;</span> 
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><h4 id="5ngx_http_post_rewrite_phase地址重写后阶段">5. <code>NGX_HTTP_POST_REWRITE_PHASE</code> (地址重写后阶段)</h4>
+<ul>
+<li><strong>任务</strong>: 防止 <code>rewrite</code> 阶段的重写指令导致死循环。如果 URI 在上一个阶段被重写，这个阶段会把重写后的 URI 交给 Nginx，让其重新开始 <code>FIND_CONFIG</code> 阶段，查找新的 <code>location</code>。这是一个内部阶段，用户通常不直接感知。</li>
+</ul>
+<h4 id="6ngx_http_preaccess_phase访问权限控制前置阶段">6. <code>NGX_HTTP_PREACCESS_PHASE</code> (访问权限控制前置阶段)</h4>
+<ul>
+<li><strong>任务</strong>: 在正式的访问权限检查之前，做一些准备工作。</li>
+<li><strong>常用模块</strong>: <code>ngx_http_limit_conn_module</code> (连接数限制), <code>ngx_http_limit_req_module</code> (请求速率限制)。</li>
+<li><strong>作用举例</strong>: 在检查用户名密码之前，先检查客户端的请求速率是否过快，如果过快，直接拒绝，不必再执行后面的阶段。</li>
+</ul>
+<h4 id="7ngx_http_access_phase访问权限控制阶段">7. <code>NGX_HTTP_ACCESS_PHASE</code> (访问权限控制阶段)</h4>
+<ul>
+<li><strong>任务</strong>: 对请求进行权限验证。</li>
+<li><strong>常用模块/指令</strong>: <code>ngx_http_access_module</code> (<code>allow</code>, <code>deny</code>), <code>ngx_http_auth_basic_module</code> (HTTP 基本认证)。</li>
+<li><strong>作用举例</strong>: 检查客户端 IP 是否在允许列表中，或者验证用户提供的用户名和密码是否正确。如果这个阶段有任何模块拒绝了请求，处理就会立即中断并返回错误（如 403 Forbidden）。</li>
+</ul>
+<h4 id="8ngx_http_post_access_phase访问权限控制后置阶段">8. <code>NGX_HTTP_POST_ACCESS_PHASE</code> (访问权限控制后置阶段)</h4>
+<ul>
+<li><strong>任务</strong>: 主要用于配合 <code>ACCESS</code> 阶段的 <code>satisfy</code> 指令。</li>
+<li><strong>作用举例</strong>: 当 <code>satisfy any;</code> 被使用时，如果 <code>ACCESS</code> 阶段有模块允许了访问（例如 IP 匹配成功），<code>POST_ACCESS</code> 阶段的处理就可以被跳过。如果 <code>ACCESS</code> 阶段没有明确允许，这个阶段的处理（例如 HTTP 基本认证）就会被执行。</li>
+</ul>
+<h4 id="9ngx_http_try_files_phasetry_files-阶段">9. <code>NGX_HTTP_TRY_FILES_PHASE</code> (Try_files 阶段)</h4>
+<ul>
+<li><strong>任务</strong>: <code>try_files</code> 指令专属的特殊阶段。</li>
+<li><strong>常用模块/指令</strong>: <code>try_files</code>。</li>
+<li><strong>作用举例</strong>: 按顺序检查文件或目录是否存在，如果找到，则内部重定向到该文件，如果都找不到，则执行最后一个参数（通常是内部重定向到一个 <code>location</code> 或返回一个状态码）。</li>
+</ul>
+<div class="highlight"><pre tabindex="0" class="chroma"><code class="language-nginx" data-lang="nginx"><span class="line"><span class="cl"><span class="k">location</span> <span class="s">/</span> <span class="p">{</span>
+</span></span><span class="line"><span class="cl">    <span class="c1"># 这个指令工作在 TRY_FILES 阶段
+</span></span></span><span class="line"><span class="cl">    <span class="kn">try_files</span> <span class="nv">$uri</span> <span class="nv">$uri/</span> <span class="s">/index.html</span><span class="p">;</span>
+</span></span><span class="line"><span class="cl"><span class="p">}</span>
+</span></span></code></pre></div><h4 id="10ngx_http_content_phase内容生成阶段">10. <code>NGX_HTTP_CONTENT_PHASE</code> (内容生成阶段)</h4>
+<ul>
+<li><strong>任务</strong>: <strong>核心阶段</strong>，负责生成最终的响应内容并发送给客户端。</li>
+<li><strong>重要特性</strong>: 每个 <code>location</code> 只有一个模块能成为“内容处理模块”（Content Handler）。</li>
+<li><strong>常用模块</strong>:
+<ul>
+<li><code>ngx_http_static_module</code>: 处理静态文件。</li>
+<li><code>ngx_http_proxy_module</code>: 将请求反向代理到后端服务器 (<code>proxy_pass</code>)。</li>
+<li><code>ngx_http_fastcgi_module</code>: 将请求转发给 FastCGI 应用（如 PHP-FPM）。</li>
+<li><code>ngx_http_index_module</code>: 处理目录索引文件。</li>
+<li><code>return</code>: 直接返回指定的状态码或内容。</li>
+</ul>
+</li>
+<li><strong>执行逻辑</strong>: Nginx 会调用在 <code>location</code> 中找到的内容处理模块。例如，如果配置了 <code>proxy_pass</code>，那么 <code>proxy_module</code> 就会接管请求。如果没有特定的内容处理模块，默认会由 <code>static_module</code> 尝试提供静态文件服务。</li>
+</ul>
+<h4 id="11ngx_http_log_phase日志记录阶段">11. <code>NGX_HTTP_LOG_PHASE</code> (日志记录阶段)</h4>
+<ul>
+<li><strong>任务</strong>: 请求处理完成后，记录访问日志。</li>
+<li><strong>常用模块/指令</strong>: <code>ngx_http_log_module</code> (<code>access_log</code>)。</li>
+<li><strong>作用举-例</strong>: 无论请求成功还是失败，这个阶段都会被执行（除非有严重错误），用于将请求的相关信息（如客户端IP、请求时间、状态码等）写入到日志文件中。</li>
+</ul>
+<h4 id="过滤器模块-filter-modules">过滤器模块 (Filter Modules)</h4>
+<p>当 <code>CONTENT</code> 阶段生成了响应内容后，在发送给客户端之前，响应数据还会经过一系列的 <strong>过滤器（Filter）</strong> 链处理。过滤器负责对响应头和响应体进行修改或加工。</p>
+          
+        </div>
+
+        
+          <div>
+            <a class="read-more button inline" href="/posts/2025-10/apisix-%E6%8F%92%E4%BB%B6%E4%BD%93%E7%B3%BB/">[Read more]</a>
+          </div>
+        
+      </article>
+    
+      <article class="post on-list">
+        <h1 class="post-title">
           <a href="https://blog.jinzhi.site/posts/2025-10/websocket-origin-header-%E6%A0%A1%E9%AA%8C%E5%A4%B1%E8%B4%A5/">WebSocket Origin Header 校验失败</a>
         </h1>
         <div class="post-meta"><time class="post-date">2025-10-21</time></div>
@@ -461,82 +584,6 @@
         
           <div>
             <a class="read-more button inline" href="/posts/2025-09/luatable-%E6%B5%85%E6%9E%90/">[Read more]</a>
-          </div>
-        
-      </article>
-    
-      <article class="post on-list">
-        <h1 class="post-title">
-          <a href="https://blog.jinzhi.site/posts/2025-09/luaconcurrency/">Lua：Concurrency</a>
-        </h1>
-        <div class="post-meta"><time class="post-date">2025-09-01</time></div>
-
-        
-          <span class="post-tags">
-            
-            #<a href="https://blog.jinzhi.site/tags/lua/">Lua</a>&nbsp;
-            
-          </span>
-        
-
-        
-
-
-        <div class="post-content">
-          
-            <p>Lua 的并发（Concurrency）设计核心在于其轻量级、嵌入式的哲学，以及对协作式多任务的首选。它通过强大的协程机制实现并发，但本身不提供多线程/多进程的并行能力。</p>
-<hr>
-<h2 id="多线程多进程">多线程/多进程</h2>
-<ul>
-<li><strong>核心语言无内置支持：</strong> Lua 语言本身的核心 VM 被设计为<strong>单线程</strong>执行。它不提供内置的语法或标准库来直接创建和管理线程（<code>std::thread</code>）或进程（<code>fork</code>）。</li>
-<li><strong>独立的 Lua State：</strong> 一个 Lua VM 实例被称为一个“Lua State”。每个 Lua State 是完全独立的运行时环境，拥有自己的全局变量、栈、打开的文件、垃圾回收器等。它们之间默认不共享任何数据。</li>
-<li><strong>宿主语言的责任：</strong> 如果需要在 Lua 中实现真正的并行（多核利用），必须依赖于<strong>宿主语言（如 C/C++）的多线程/多进程机制</strong>。
-<ul>
-<li><strong>实现方式：</strong> 在宿主语言的每个线程或进程中，创建并运行一个<strong>独立的 Lua State</strong>。</li>
-<li><strong>数据交换：</strong> 这些独立的 Lua State 之间无法直接共享内存。数据交换必须通过宿主语言提供的进程间通信 (IPC) 或线程间通信 (ITC) 机制（如消息队列、共享内存、管道、套接字等）来完成。</li>
-<li><strong>优点：</strong> 简单安全，因为 Lua State 之间是隔离的，避免了复杂的并发同步问题。</li>
-<li><strong>缺点：</strong> 额外的通信开销和复杂性，且无法在单个 Lua State 内部实现并行。</li>
-</ul>
-</li>
-<li><strong>第三方库（封装）：</strong> 存在一些第三方库（如 LuaLanes）试图提供在 Lua 中模拟多线程/多进程的 API。这些库通常是在底层创建独立的 Lua State，并封装了 IPC 机制，方便 Lua 开发者使用，但其本质仍然是基于宿主语言的底层能力和独立的 Lua State。</li>
-</ul>
-<h2 id="协程">协程</h2>
-<h3 id="协程的设计与实现">协程的设计与实现</h3>
-<ul>
-<li><strong>设计理念：</strong> Lua 协程是为了提供<strong>协作式多任务 (Cooperative Multitasking)</strong> 而设计。它们允许在单个线程中实现任务的暂停和恢复，以模拟并发，而无需复杂的锁机制。</li>
-<li><strong>“有栈协程” (Stackful Coroutines)：</strong> Lua 协程是<strong>有栈的</strong>。这里的“栈”指的不是操作系统的 C 语言栈，而是 Lua 虚拟机内部维护的<strong>Lua VM 栈</strong>。
-<ul>
-<li><strong>Lua VM 栈：</strong> 每个协程在创建时都会分配一个独立的 Lua VM 栈（或在需要时动态扩展）。这个栈存储着协程的局部变量、函数参数、中间表达式结果和函数调用上下文。</li>
-</ul>
-</li>
-<li><strong>实现机制：</strong>
-<ul>
-<li><strong><code>coroutine.create(function)</code>：</strong> 创建一个新的协程（一个<code>thread</code>类型的值），但并不立即执行。它会分配并初始化一个新的 Lua VM 栈。</li>
-<li><strong><code>coroutine.yield(...)</code> (保存栈)：</strong> 当一个协程调用 <code>yield</code> 时，Lua VM 会：
-<ol>
-<li><strong>保存当前 Lua VM 栈的完整状态</strong>（包括所有活跃的栈帧、局部变量值、程序计数器等）。这些信息会被存储在协程对象本身（在堆上分配）中。</li>
-<li><strong>暂停当前协程的执行。</strong></li>
-<li><strong>将控制权返回给调用 <code>coroutine.resume</code> 的那个协程或主线程。</strong> C 语言栈会正常展开，<code>yield</code> 作为一个 C 函数正常返回。</li>
-</ol>
-</li>
-<li><strong><code>coroutine.resume(co, ...)</code> (恢复栈)：</strong> 当一个协程被 <code>resume</code> 时，Lua VM 会：
-<ol>
-<li><strong>从协程对象中加载并恢复其之前保存的 Lua VM 栈状态。</strong> 这包括设置栈顶指针、恢复所有栈帧和程序计数器，使得协程能够从上次 <code>yield</code> 的点继续执行。</li>
-<li><strong>将控制权转移给被恢复的协程。</strong> C 语言栈上会为 <code>resume</code> 函数创建一个新的栈帧，并在其中运行被恢复的 Lua 协程。</li>
-</ol>
-</li>
-</ul>
-</li>
-<li><strong>优点：</strong> 简单、高效、避免了与 OS 栈相关的复杂性，并且由于是协作式的，没有竞态条件和锁的开销。</li>
-<li><strong>缺点：</strong> 无法利用多核 CPU。</li>
-</ul>
-<p>协程示例：</p>
-          
-        </div>
-
-        
-          <div>
-            <a class="read-more button inline" href="/posts/2025-09/luaconcurrency/">[Read more]</a>
           </div>
         
       </article>
@@ -836,6 +883,10 @@
       
       
     
+      
+      
+      
+    
 
     
     
@@ -865,7 +916,7 @@
         <a href="/posts/2026-07/" class="archive-link">
           <span class="archive-date">2026-07</span>
           <span class="archive-month-name">Jul</span>
-          <span class="archive-count">(3)</span>
+          <span class="archive-count">(4)</span>
         </a>
       </div>
     
@@ -1606,22 +1657,6 @@
       
         
       
-        
-      
-    
-      
-        
-      
-        
-      
-    
-      
-        
-      
-        
-      
-        
-      
     
       
         
@@ -1639,14 +1674,6 @@
     
       
         
-      
-    
-      
-        
-      
-        
-      
-    
       
         
       
@@ -1674,6 +1701,36 @@
       
         
       
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
     
       
         
@@ -1693,22 +1750,6 @@
         
       
     
-      
-        
-      
-    
-      
-        
-      
-        
-      
-        
-      
-    
-      
-        
-      
-        
       
         
       
@@ -1748,38 +1789,6 @@
       
         
       
-    
-      
-        
-      
-    
-      
-        
-      
-        
-      
-    
-      
-        
-      
-    
-      
-        
-      
-    
-      
-    
-      
-        
-      
-    
-      
-        
-      
-    
-      
-        
-      
         
       
         
@@ -1789,14 +1798,6 @@
         
       
         
-      
-    
-      
-        
-      
-        
-      
-    
       
         
       
@@ -1824,8 +1825,6 @@
       
     
       
-        
-      
     
       
         
@@ -1839,6 +1838,26 @@
         
       
         
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
       
         
       
@@ -1876,6 +1895,44 @@
       
         
       
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
+    
+      
+        
+      
     
       
         
@@ -1884,6 +1941,12 @@
     
     
     
+    
+      
+      
+    
+      
+      
     
       
       
@@ -2408,9 +2471,9 @@
         <a href="https://blog.jinzhi.site/tags/agent/" 
            class="tag-item" 
            style="font-size: 0.9em;"
-           title="4 articles">
+           title="5 articles">
           Agent
-          <span class="tag-count">(4)</span>
+          <span class="tag-count">(5)</span>
         </a>
       
     
@@ -2427,9 +2490,9 @@
         <a href="https://blog.jinzhi.site/tags/ai/" 
            class="tag-item" 
            style="font-size: 0.9em;"
-           title="5 articles">
+           title="6 articles">
           AI
-          <span class="tag-count">(5)</span>
+          <span class="tag-count">(6)</span>
         </a>
       
     
