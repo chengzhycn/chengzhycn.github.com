@@ -362,6 +362,18 @@
 </li>
 <li>
 <p><strong>独立于目标架构（Architecture-Independent）</strong>：</p>
+<ul>
+<li>Wasm 字节码是平台无关的。它可以在任何支持 Wasm 运行时的 CPU 架构上运行。栈机模型是这种可移植性的一部分。</li>
+</ul>
+</li>
+<li>
+<p><strong>性能（Performance）</strong>：</p>
+<ul>
+<li>虽然是栈机，但现代 Wasm 运行时（如 V8、SpiderMonkey）会进行即时编译（JIT），将 Wasm 字节码编译成本地机器码。</li>
+<li>JIT 编译器能很好地优化栈操作，例如通过将栈顶的某些值映射到 CPU 寄存器，从而避免实际的内存栈访问。因此，栈机在运行时层面并不意味着性能低下。</li>
+</ul>
+</li>
+</ol>
           
         </div>
 

@@ -17,7 +17,8 @@ Wasm 栈机的工作原理 Wasm 模块中的函数是由一系列指令组成的
 指令更短，因为它们不需要编码操作数的位置。例如，一个加法操作，在寄存器机中可能需要指定两个源寄存器和一个目标寄存器；在栈机中，它只是一个简单的 add 指令。 这有助于生成更小的二进制代码，对于 Web 环境中的快速下载和解析非常有利。 简化编译器后端（Simplified Compiler Backends）：
 IR（中间表示）到指令的映射通常更直接。许多高级语言的语义本身就可以很容易地映射到栈操作。 这使得将 C/C&#43;&#43;/Rust 等语言编译到 Wasm 变得相对容易。 易于验证（Easy to Validate）：
 Wasm 在加载时会进行严格的类型检查和结构验证。栈机模型使得验证其类型安全变得相对容易。例如，当检查 i32.add 指令时，验证器只需确保栈顶有两个 i32 类型的值。 这对于沙盒环境中的安全性至关重要。 独立于目标架构（Architecture-Independent）：
-" />
+Wasm 字节码是平台无关的。它可以在任何支持 Wasm 运行时的 CPU 架构上运行。栈机模型是这种可移植性的一部分。 性能（Performance）：
+虽然是栈机，但现代 Wasm 运行时（如 V8、SpiderMonkey）会进行即时编译（JIT），将 Wasm 字节码编译成本地机器码。 JIT 编译器能很好地优化栈操作，例如通过将栈顶的某些值映射到 CPU 寄存器，从而避免实际的内存栈访问。因此，栈机在运行时层面并不意味着性能低下。 " />
 <meta name="keywords" content="" />
 
   <meta name="robots" content="noodp" />
@@ -100,7 +101,8 @@ Wasm 栈机的工作原理 Wasm 模块中的函数是由一系列指令组成的
 指令更短，因为它们不需要编码操作数的位置。例如，一个加法操作，在寄存器机中可能需要指定两个源寄存器和一个目标寄存器；在栈机中，它只是一个简单的 add 指令。 这有助于生成更小的二进制代码，对于 Web 环境中的快速下载和解析非常有利。 简化编译器后端（Simplified Compiler Backends）：
 IR（中间表示）到指令的映射通常更直接。许多高级语言的语义本身就可以很容易地映射到栈操作。 这使得将 C/C&#43;&#43;/Rust 等语言编译到 Wasm 变得相对容易。 易于验证（Easy to Validate）：
 Wasm 在加载时会进行严格的类型检查和结构验证。栈机模型使得验证其类型安全变得相对容易。例如，当检查 i32.add 指令时，验证器只需确保栈顶有两个 i32 类型的值。 这对于沙盒环境中的安全性至关重要。 独立于目标架构（Architecture-Independent）：
-" />
+Wasm 字节码是平台无关的。它可以在任何支持 Wasm 运行时的 CPU 架构上运行。栈机模型是这种可移植性的一部分。 性能（Performance）：
+虽然是栈机，但现代 Wasm 运行时（如 V8、SpiderMonkey）会进行即时编译（JIT），将 Wasm 字节码编译成本地机器码。 JIT 编译器能很好地优化栈操作，例如通过将栈顶的某些值映射到 CPU 寄存器，从而避免实际的内存栈访问。因此，栈机在运行时层面并不意味着性能低下。 " />
 <meta property="og:url" content="https://blog.jinzhi.site/posts/2025-08/wasm-internals-stack-machine/" />
 <meta property="og:site_name" content="chengzhycn&#39;s blog" />
 
